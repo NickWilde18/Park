@@ -86,44 +86,90 @@ A chain is structural: a pull request whose base branch is another pull request'
 
 A group is a judgment: "these belong together" can come from several places with different reliability. Being stacked does not by itself make pull requests one feature — a chain of unrelated refactors is still a chain — so chains and groups are separate relations. The dashboard nests chains inside groups when both apply.
 
-### Candidates
+### The aggregator resolves; it does not collect
 
-**A. Structural signals plus manual grouping**
-- Signals from the forge only: the same branch name across repositories, pull requests that reference each other, pull requests that close the same issue. People group the rest by hand.
-- Deterministic and zero-configuration.
-- Misses groupings that exist only in people's heads or conversations — which, in the predecessor, were the most accurate source of all.
+```
+ forge facts  ─▶ structural ─┐
+ dashboard    ─▶ manual     ─┤
+ bridges      ─▶ external   ─┼─▶ assertions ─▶ resolve ─▶ groups (stable IDs)
+ unplaced PRs ─▶ model      ─┘                             + chains (git graph)
+                                                                 │
+                                          verdicts · task units · dashboard
+```
 
-**B. Grouping assertions from several sources, resolved by authority** (chosen)
-- Every "these belong together" is recorded as an **assertion** — a fact with a source — and group membership is derived from the assertions. Sources, from highest authority to lowest:
-  1. **Manual** — a member groups or splits on the dashboard.
-  2. **External** — a program outside Park posts assertions through the open API: a bridge that reads review threads from a chat tool, or epics from an issue tracker. Park ships no such integration; it only accepts assertions.
-  3. **Structural** — the forge signals from A.
-  4. **Model** — optional, like smart judgement: placements for pull requests that nothing else explains (see below). Off unless a provider is configured.
-- Higher authority wins, and every membership shows which source put it there.
-- Cost: a resolution step and an assertion API; the dashboard must show provenance.
+The grouping stage takes **assertions** and produces **groups**. It gathers nothing itself: forge facts arrive through the collectors (§3), and outside signals arrive from bridges through the open API.
 
-**C. Model-first clustering, corrected by people**
-- A model clusters everything; people fix the mistakes.
-- Least configuration, but clustering output shifts from run to run — the predecessor had to cache results by input fingerprint to stop groups from reshuffling — and every reshuffle ripples into verdicts, tasks, and notifications.
+This is the picture "several sources, then a judgement step, then the next stage". The dashboard draws it and lets each box be configured — which sources are on and in what order, whether the model runs, its confidence threshold — but the boxes cannot be rewired.
 
-Decision: B. It uses the most accurate signal where one exists while keeping Park free of vendor-specific integrations: a team that discusses reviews in a chat tool writes a small bridge, exactly as it writes an executor.
+### Four sources, two shapes of assertion
 
-### How the model source groups without reshuffling
+Sources, from highest authority to lowest:
 
-The predecessor's groups reshuffled for three reasons at once: it re-clustered every unexplained pull request together whenever that set changed, so one new pull request re-rolled everyone's grouping; it could ask the same question twice and get a different answer; and it derived group IDs from membership, so each re-roll looked like groups vanishing and appearing. The model source removes each cause:
+1. **Manual** — a member joins, splits, merges, or creates groups on the dashboard.
+2. **External** — programs outside Park post assertions through the open API: a bridge that reads review threads from a chat tool, or epics from an issue tracker. Park ships no such integration; it only accepts assertions.
+3. **Structural** — built in, from forge facts: the same head branch name across repositories, pull requests that reference each other, pull requests that close the same issue. Weaker signals, such as a one-way reference between similarly named branches, are shown as suggestions and never asserted.
+4. **Model** — optional, like smart judgement: placements for pull requests that nothing else explains. Off unless a provider is configured.
+
+External and structural sources do not know Park's group IDs; they can only say which pull requests go together. Members and the model work against existing groups. So assertions come in two shapes:
+
+| Shape | Says | Sent by | Example |
+|---|---|---|---|
+| Co-membership | These pull requests belong together, under an anchor | External, structural | A chat thread links `api#12` and `web#7` (anchor: the thread's ID); both repositories have a branch `feat/schedule` (anchor: the branch name) |
+| Placement | Pull request X is, or is not, in group G | Manual, model | A member drags `web#11` into "Scheduled tasks"; the model places `api#15` in an existing group |
+
+### Resolution: one group per pull request, the higher authority wins
+
+- Each open pull request belongs to at most one group.
+- The claim with the highest authority wins. Between claims of the same authority, the newest wins: when a pull request is re-submitted for review, teams open a new thread, and the new thread is where it belongs.
+- Negative placements ("not in G") come only from members, and outrank every other source.
+- A structural link that a higher source overrides is neither dropped nor applied silently. It becomes a suggestion on the dashboard: "`mobile#4` shares branch `feat/schedule` with `web#7`, which is in 'Scheduled tasks' — add it?"
+- Resolution is a deterministic function of the previous memberships, the assertions, and the facts, and every membership records the assertion that placed it. Groups are therefore derived like everything else, and any verdict or task can show which grouping it saw.
+
+Claims are not unioned, because union is transitive: a few weak links — A to C, C to D, D to E — glue two unrelated features into one group. Picking one winner per pull request cannot do that.
+
+### Keeping groups stable
+
+- **Anchors.** An anchor — a thread ID, a branch name, an issue ID — always maps to the same group. While an anchor stands, so does its group. Outside the model source, this is what keeps groups from reshuffling.
+- **Identity is independent of membership.** A group has its own ID; pull requests join and leave it over time. The predecessor derived group IDs from the member list, so every regrouping looked like one group vanishing and another appearing: cooldowns reset, pull requests that were still open were announced as merged, and the same alert went out again and again.
+- **Names come from the best source**: an external title, then a manual rename, then a branch name, then a model-proposed name.
+- **Merging** folds one group into another. The absorbed group's ID stays as an alias, so everything that referenced it still resolves.
+- **Splitting** moves pull requests into a new group and records a negative placement against the old one, so no lower-authority source can put them back.
+- **Groups are archived, never deleted**, once every member is merged or closed; past verdicts and tasks still reference them.
+
+### How the model source places pull requests without reshuffling
+
+Model clustering is where the predecessor's reshuffling came from: it re-clustered every unexplained pull request together whenever that set changed, so one new pull request re-rolled everyone's grouping, and the same question asked twice could get a different answer. The model source works differently:
 
 - **Incremental, not global.** When a pull request appears that no higher source places, the model is asked one question: which existing group does it belong to, or none? Pull requests already placed are not re-decided.
 - **Recorded, never asked twice.** The answer is an assertion keyed by the inputs it saw, like any judgement (§5). The model is asked again only if those inputs change materially — the pull request is retitled, or its references change.
 - **Joins by ID.** The model proposes joining a group by its stable ID or creating a new one; it never renumbers.
 - **A confidence threshold.** Above it, the assertion applies automatically as a model-source assertion. Below it, the dashboard shows a suggestion that a member accepts with one click — which makes it a manual assertion.
 
-The picture "several sources, then a judgement step, then the next stage" is exactly this stage's internal structure. The dashboard draws it and lets each box be configured — which sources are on and in what order, whether the model runs, the threshold — but the boxes cannot be rewired.
+### A worked example
 
-### Rules grouping follows
+1. `api#12` and `web#7` are both on branch `feat/schedule`. The structural source asserts co-membership under the anchor `branch:feat/schedule`, and group G is created.
+2. A bridge reads a chat thread titled "Scheduled tasks" that links both. The external source, with higher authority, asserts co-membership under the thread's anchor. Both pull requests are already in G, so no new group appears: G gains the thread anchor and takes the thread's title as its name.
+3. Later `mobile#4` opens on `feat/schedule`, and the thread does not mention it. Its only claim is the branch anchor, which maps to G, so it joins G, marked "same branch".
+4. An unrelated `api#15` appears and no source claims it. The model answers "Billing" with confidence 0.55, below the threshold, so the dashboard shows a suggestion; nothing changes unless a member accepts it.
 
-- **Group identity is stable and independent of membership.** A group has its own ID; pull requests join and leave it over time. The predecessor derived group IDs from the member list, so every regrouping looked like one group disappearing and another appearing: cooldowns reset, pull requests that were still open were announced as merged, and the same alert went out again and again.
-- **Manual decisions stick, including splits.** If a member takes a pull request out of a group, no lower-authority source may put it back. A split is recorded as an assertion too.
-- **Groups are derived from facts like everything else**, so a verdict or task that depended on a grouping can show which grouping it saw.
+The dashboard shows: **Scheduled tasks** → `api#12` (external · thread), `web#7` (external · thread), `mobile#4` (structural · same branch).
+
+### Downstream
+
+- Verdicts can conclude at the group level: "nothing in this group is waiting on me".
+- The task queue uses groups and chains as units (§7). A group is busy while any of its pull requests is in the scope of an active task, so a chain that spans two groups occupies both.
+- The dashboard nests group → chain → pull request, and marks each member with the source that placed it.
+
+### The assertion API for bridges
+
+- `POST /assertions` submits a co-membership assertion. It is idempotent by source and anchor: posting the same thread again updates that assertion rather than creating a second group.
+- `DELETE /assertions?anchor=…` retracts one, for example when the thread is deleted.
+- Bridges authenticate with an API token scoped to `assertions:write` (§8). The source is taken from the token, not from the request, so one bridge cannot speak for another.
+- Anchors are the external system's stable IDs, never its URLs.
+
+### Alternatives considered
+
+Structural signals plus manual grouping alone were set aside: they miss groupings that exist only in people's heads or conversations, which in the predecessor were the most accurate source of all. Model-first clustering corrected by people was set aside because clustering output shifts from run to run, and every reshuffle ripples into verdicts, tasks, and notifications.
 
 ## 5. Decision layer (decided)
 
