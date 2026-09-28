@@ -1,6 +1,6 @@
 # Park — Architecture Design
 
-> Status: draft. **Decided:** fact layer (§3), decision layer (§5), rule model (§6), executor contract (§7), identity (§8), tech stack (§9). **Recommended, pending confirmation:** grouping (§4). No implementation code until the remaining section is settled.
+> Status: all sections decided (§3–§9). §10 lists details to settle during implementation.
 
 ## 1. What Park is
 
@@ -76,7 +76,7 @@ Both fetch the full state and diff, rather than trusting the payload, because fo
 
 Facts store stable forge identifiers — repository ID, pull request number, account ID — never URLs and never usernames. URLs are built at render time. Usernames can be renamed: a stored login silently stops matching, while a numeric account ID does not.
 
-## 4. Grouping (recommended, pending confirmation)
+## 4. Grouping (decided: assertions from several sources, resolved by authority)
 
 Pull requests rarely stand alone. A feature often spans repositories — a backend and a frontend pull request — and a pull request may sit in a stacked chain. Park needs both relations: **groups** (these pull requests are one piece of work) and **chains** (this one depends on that one).
 
@@ -93,7 +93,7 @@ A group is a judgment: "these belong together" can come from several places with
 - Deterministic and zero-configuration.
 - Misses groupings that exist only in people's heads or conversations — which, in the predecessor, were the most accurate source of all.
 
-**B. Grouping assertions from several sources, resolved by authority** (recommended)
+**B. Grouping assertions from several sources, resolved by authority** (chosen)
 - Every "these belong together" is recorded as an **assertion** — a fact with a source — and group membership is derived from the assertions. Sources, from highest authority to lowest:
   1. **Manual** — a member groups or splits on the dashboard.
   2. **External** — a program outside Park posts assertions through the open API: a bridge that reads review threads from a chat tool, or epics from an issue tracker. Park ships no such integration; it only accepts assertions.
@@ -106,7 +106,7 @@ A group is a judgment: "these belong together" can come from several places with
 - A model clusters everything; people fix the mistakes.
 - Least configuration, but clustering output shifts from run to run — the predecessor had to cache results by input fingerprint to stop groups from reshuffling — and every reshuffle ripples into verdicts, tasks, and notifications.
 
-Recommendation: B. It uses the most accurate signal where one exists while keeping Park free of vendor-specific integrations: a team that discusses reviews in a chat tool writes a small bridge, exactly as it writes an executor.
+Decision: B. It uses the most accurate signal where one exists while keeping Park free of vendor-specific integrations: a team that discusses reviews in a chat tool writes a small bridge, exactly as it writes an executor.
 
 ### Rules grouping follows, whichever candidate is chosen
 
