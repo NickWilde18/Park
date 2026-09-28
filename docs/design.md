@@ -49,7 +49,7 @@ A reported result is never taken at face value. The executor says what it did; t
 
 Most of the confusion in Park's predecessor came from four layers reading each other: verdicts read raw collection results, the state machine read verdicts, the display read the state machine. When any layer lagged, the board rendered rows that contradicted themselves (a session marked Done while the state column still said "in progress").
 
-Park's goal: **a verdict is a pure function `(facts, rules) → conclusion`.** Facts are the only input; every verdict can be traced back and replayed.
+Park's goal: **a verdict is a pure function `(facts, rules) → conclusion`.** Facts are the only input — model judgements included, recorded as facts (§5) — and every verdict can be traced back and replayed.
 
 Prior art reaches the same principle independently: Agent Orchestrator stores durable facts and computes display status at read time rather than storing it.
 
@@ -98,7 +98,7 @@ A group is a judgment: "these belong together" can come from several places with
   1. **Manual** — a member groups or splits on the dashboard.
   2. **External** — a program outside Park posts assertions through the open API: a bridge that reads review threads from a chat tool, or epics from an issue tracker. Park ships no such integration; it only accepts assertions.
   3. **Structural** — the forge signals from A.
-  4. **Model** — optional, like smart judgement: suggestions for pull requests that nothing else explains. Off unless a provider is configured.
+  4. **Model** — optional, like smart judgement: placements for pull requests that nothing else explains (see below). Off unless a provider is configured.
 - Higher authority wins, and every membership shows which source put it there.
 - Cost: a resolution step and an assertion API; the dashboard must show provenance.
 
@@ -108,7 +108,18 @@ A group is a judgment: "these belong together" can come from several places with
 
 Decision: B. It uses the most accurate signal where one exists while keeping Park free of vendor-specific integrations: a team that discusses reviews in a chat tool writes a small bridge, exactly as it writes an executor.
 
-### Rules grouping follows, whichever candidate is chosen
+### How the model source groups without reshuffling
+
+The predecessor's groups reshuffled for three reasons at once: it re-clustered every unexplained pull request together whenever that set changed, so one new pull request re-rolled everyone's grouping; it could ask the same question twice and get a different answer; and it derived group IDs from membership, so each re-roll looked like groups vanishing and appearing. The model source removes each cause:
+
+- **Incremental, not global.** When a pull request appears that no higher source places, the model is asked one question: which existing group does it belong to, or none? Pull requests already placed are not re-decided.
+- **Recorded, never asked twice.** The answer is an assertion keyed by the inputs it saw, like any judgement (§5). The model is asked again only if those inputs change materially — the pull request is retitled, or its references change.
+- **Joins by ID.** The model proposes joining a group by its stable ID or creating a new one; it never renumbers.
+- **A confidence threshold.** Above it, the assertion applies automatically as a model-source assertion. Below it, the dashboard shows a suggestion that a member accepts with one click — which makes it a manual assertion.
+
+The picture "several sources, then a judgement step, then the next stage" is exactly this stage's internal structure. The dashboard draws it and lets each box be configured — which sources are on and in what order, whether the model runs, the threshold — but the boxes cannot be rewired.
+
+### Rules grouping follows
 
 - **Group identity is stable and independent of membership.** A group has its own ID; pull requests join and leave it over time. The predecessor derived group IDs from the member list, so every regrouping looked like one group disappearing and another appearing: cooldowns reset, pull requests that were still open were announced as merged, and the same alert went out again and again.
 - **Manual decisions stick, including splits.** If a member takes a pull request out of a group, no lower-authority source may put it back. A split is recorded as an assertion too.
@@ -116,20 +127,23 @@ Decision: B. It uses the most accurate signal where one exists while keeping Par
 
 ## 5. Decision layer (decided)
 
-### Keeping model calls out of the pure function
+### Model calls: synchronous, recorded, never asked twice
 
-Verdicts must be pure, but "smart judgement" is a network call. The answer is **two passes**:
+When the rule engine reaches a branch marked "judgement needed", it looks for a judgement fact for **exactly these inputs** — a fingerprint of the facts the judgement depends on.
 
-1. The rule engine runs. When it reaches a branch marked "judgement needed" and the corresponding judgement fact does not exist yet, it takes the **fallback branch** — a deterministic, conservative conclusion — and emits a judgement request.
-2. Only if a model provider is configured is the request sent. The answer is **written back to the fact layer** as an ordinary fact. The next verdict run reads it and takes the real branch.
+- **Found**: use it. No model call.
+- **Not found, provider configured**: call the model synchronously, with a timeout. Record the answer — with its confidence and the fingerprint it answered — as a judgement fact, then continue down the branch it selects.
+- **Not found and no provider, or the call timed out or failed**: take the rule's **fallback branch**, a deterministic conservative conclusion. A late answer is still recorded when it arrives, and the next pass uses it.
 
-This gives three properties:
+Recording every answer as a fact keyed by its inputs is what keeps verdicts reproducible: replaying a verdict reads the recorded judgement and never calls the model again, so the same facts always give the same conclusion. It also bounds cost — a judgement is paid for once per distinct input, not once per recompute. Rule logic is tested with recorded judgement facts, without network mocks.
 
-- Verdicts stay pure: replayable, testable, no network mocks.
-- **Smart judgement is optional by construction.** With no provider configured, the judgement fact never exists and rules always take the fallback — no feature flag needed.
-- The model's answer and its confidence are facts, so the dashboard can show whether each conclusion came from a rule or from a model.
+This gives:
 
-The cost: with a provider configured, a verdict that needs judgement first shows the fallback conclusion and switches one pass later, once the answer arrives — typically seconds to a minute. Calling the model inside the verdict would remove that lag, at the price of slow, unreplayable verdicts that cannot be tested without network mocks.
+- **No lag in the normal case.** A verdict that needs judgement is computed with the answer in hand; the dashboard never shows one conclusion and then switches to another.
+- **Smart judgement is optional by construction.** With no provider configured, every judgement branch takes its fallback — no feature flag needed.
+- **Visible provenance.** Every verdict references the judgement facts it used, so the dashboard shows which conclusions came from a model, and with what confidence.
+
+The cost: a verdict pass can wait on the model, bounded by the timeout, and concurrent calls are capped so a burst of new inputs cannot stall everything. During a model outage, verdicts that need judgement fall back and switch once answers arrive.
 
 ### Roles are a function, not a column
 
