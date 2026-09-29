@@ -8,6 +8,8 @@ The design is split into chapters, one per part of the system. Each chapter stat
 
 API paths are relative to `/api/v1`, except the webhook endpoint and the health checks.
 
+Examples name pull requests as `repository#number`: `api#12` is pull request 12 of the `api` repository, and `web#7` is pull request 7 of `web`, a different repository. When examples say two pull requests share a branch, they mean branches with the same name in different repositories.
+
 ## Chapters
 
 | | Chapter | Covers |

@@ -52,11 +52,11 @@ GitHub's own pull request dashboard (generally available since July 2026, open t
 
 ## End to end
 
-One feature, from first push to merge. Ana writes it; Ben reviews it.
+One feature, from first push to merge. Ana writes it across two repositories, `api` and `web`; Ben reviews it.
 
-1. Ana opens `api#12` on branch `feat/schedule` and requests Ben's review. The forge sends a webhook; Park refreshes the pull request and records its facts.
+1. Ana opens `api#12` in the `api` repository, from branch `feat/schedule`, and requests Ben's review. The forge sends a webhook; Park refreshes the pull request and records its facts.
 2. Park evaluates the rules for everyone involved. Ben, a reviewer: *me · review · "First review"*. Ana, the author: *others (Ben) · "Waiting for review"*.
-3. Ana opens `web#7` on the same branch and requests Ben's review there too. The structural source asserts that the two belong together, and group G is created. From now on they are one unit of work.
+3. Ana opens `web#7` in the `web` repository, from a branch with the same name, `feat/schedule`, and requests Ben's review there too. The same branch name in two repositories is a structural signal: the two belong together, and group G is created. From now on they are one unit of work.
 4. Ben reviews by hand: he requests changes on `api#12` with three threads, T1–T3, and approves `web#7`.
 5. Ana's verdict on `api#12` becomes *me · address comments · "Ben requested changes; 3 comments wait on you"*. Ana has turned on automation for comments, so Park queues a task for her on G, with one item: answer T1–T3 on `api#12`.
 6. Ana's executor claims the task, sends heartbeats while it works, answers T1 and T2, pushes a commit, and reports done.

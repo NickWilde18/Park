@@ -87,7 +87,7 @@ Runs for one open pull request when its facts change, when an assertion that nam
 6. **Break ties** within it. Manual and external claims: the newest wins — when a pull request is resubmitted for review, teams open a new thread, and the new thread is where it belongs. Structural claims: closing the same issue beats the same branch name, which beats mutual references. Still tied: a claim that keeps the pull request in its current group wins; otherwise the oldest assertion does.
 7. **Ask the model** if no claim remains and the model source is on (next flow).
 8. **Write the change.** If the winning claim's anchor was unmapped, map it now, creating the group if needed. If the pull request's group changed, record the new membership with the assertion that placed it, and queue work for verdicts, tasks, and the dashboard.
-9. **Open suggestions** for structural claims that lost and point to a different group than the one the pull request ended up in — "`mobile#4` shares branch `feat/schedule` with `web#7`, which is in 'Scheduled tasks'; add it?" — unless the same suggestion is open or was dismissed. Weak signals open suggestions the same way.
+9. **Open suggestions** for structural claims that lost and point to a different group than the one the pull request ended up in — "`mobile#4` has the same branch name as `web#7`, `feat/schedule`, and `web#7` is in 'Scheduled tasks'; add it?" — unless the same suggestion is open or was dismissed. Weak signals open suggestions the same way.
 10. **Archive** groups left with no open pull requests, and release their anchors: a later claim under the same anchor starts a new group.
 
 ## Flow: place with the model
@@ -134,12 +134,12 @@ A group takes its name from the highest source that offers one: a manual rename,
 
 ## A worked example
 
-1. `api#12` and `web#7` are both on branch `feat/schedule`. The structural source asserts co-membership under the anchor `branch:feat/schedule`. No group holds either pull request, so group G is created, named "feat/schedule".
+1. `api#12` and `web#7`, in the `api` and `web` repositories, both come from a branch named `feat/schedule`. The structural source asserts co-membership under the anchor `branch:feat/schedule`. No group holds either pull request, so group G is created, named "feat/schedule".
 2. A bridge reads a chat thread titled "Scheduled tasks" that links both, and posts an assertion under the thread's anchor. External beats structural for both pull requests. The thread's anchor is new, and G holds all of its pull requests, so the anchor maps to G: no new group appears. G takes the thread's title as its name.
-3. Later `mobile#4` opens on `feat/schedule`; the thread does not mention it. Its only claim is the branch anchor, which maps to G, so it joins G, marked "same branch".
+3. Later `mobile#4` opens in a third repository, `mobile`, from a branch also named `feat/schedule`; the thread does not mention it. Its only claim is the branch anchor, which maps to G, so it joins G, marked "same branch name".
 4. An unrelated `api#15` appears, and no source claims it. The model proposes a new group, "Billing", with confidence 0.55 — below the threshold — so the dashboard shows a suggestion, and nothing changes unless a member accepts it.
 
-The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), `web#7` (external · thread), `mobile#4` (structural · same branch).
+The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), `web#7` (external · thread), `mobile#4` (structural · same branch name).
 
 5. The mobile team says `mobile#4` is a separate change, and a member takes it out of G. The exclusion drops its branch claim, so it stands alone, and no suggestion reopens: the exclusion was explicit.
 
