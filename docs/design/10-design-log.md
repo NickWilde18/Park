@@ -88,6 +88,10 @@ Park is a long-running server with background workers, queues, and streams, and 
 
 The schema and vocabulary are forge-neutral from the start, which is cheap; an abstraction layer designed around one implementation would be guesswork. It is introduced when a second forge arrives.
 
+### D35. A standing request for changes keeps the ball with the author
+
+Until the author dismisses a reviewer's request for changes, the author is not ready for that reviewer to look again — whatever else has happened: every comment answered, another review requested, new commits pushed. The author hands the pull request back by dismissing the review, saying what changed, and asking again, and the reviewer's verdict waits for that. The predecessor's author rule already said as much: dismiss the request for changes, and ask again.
+
 ## Ported
 
 ### D19. The forge's summary review decision is not used
@@ -155,3 +159,11 @@ Facts keep comment IDs, authors, and times; the few questions that need text fet
 ### D34. The first administrator needs a one-time setup code
 
 Without it, whoever reaches a fresh server first becomes its administrator. The code is printed to the server's log, which only its operator can read.
+
+### D36. Handing the ball back is explicit, and the model never gates it
+
+The ported rules used different hand-off signals on each side. The author's list treated replying last, or asking again, as passing the ball; the reviewer's list took it back only through a model judgement, and never read a request to review again. Without a model, or with the model unsure, a reply left each side waiting on the other, and an approval with a thread still open left nobody holding the ball. Evaluating both lists over every state of one author and one reviewer found 24 such classes of state.
+
+Beyond D35: with nothing to dismiss, asking again hands the pull request back, and until then the author holds it. An approval settles the approver's own threads. A reviewer's stale request for changes prompts them only once they have reviewed again. Judgements can bring the ball to a reviewer sooner, but no hand-off depends on one. The same evaluation now finds no state where the two wait on each other, or where neither holds the ball.
+
+Set aside: letting whoever spoke last hold the ball, which ignores the dismissal practice and turns every "will do" into the reviewer's work; and asking the model on the author's side too, which would make hand-offs depend on a model that is optional (D8).

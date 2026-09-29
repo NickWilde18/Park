@@ -34,6 +34,7 @@ A member holds at most one role on a pull request: the author of a pull request 
 |---|---|
 | Ball | `me`: the member must act. `others`: waiting on other people. `nobody`: no one needs to act now — a draft, checks still running, an optional review |
 | Action | What the member should do, when the ball is theirs (below) |
+| Targets | For `request_review`, the reviewers to hand the pull request back to |
 | Waiting on | The accounts the member is waiting for, when the ball is with others. They may be people outside Park |
 | Priority | `normal`, or `low` for work that can wait |
 | Reason | One sentence, rendered from the rule's template: "Ben requested changes; 3 comments wait on you" |
@@ -50,7 +51,7 @@ A member holds at most one role on a pull request: the author of a pull request 
 | `resolve_conflicts` | Author | Make the pull request mergeable again | Yes |
 | `fix_checks` | Author | Make the failing required checks pass | Yes |
 | `address_comments` | Either | Answer or resolve the review threads that wait on you | Yes |
-| `request_review` | Author | Ask for review, or ask blocking reviewers to review again | Yes |
+| `request_review` | Author | Hand the pull request back — dismiss a standing request for changes, saying what changed, and ask again — or ask for a first review | Yes |
 | `review` | Reviewer | Review the pull request, for the first time or again | Yes |
 | `merge` | Author | Everything is in place; merge it | No — only people merge |
 | `nudge` | Either | Remind the people it is waiting on | No |

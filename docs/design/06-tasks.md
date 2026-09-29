@@ -41,7 +41,7 @@ A task holds **items**: one action on one pull request, with its targets. Each a
 | `resolve_conflicts` | — | The forge reports the pull request mergeable | Mergeability is known |
 | `fix_checks` | The failing required checks | The head commit differs from the one at the start, and every required check on it passes | Every required check on the new head has finished |
 | `address_comments` | The threads waiting on the member at the start | Each target thread is resolved, or its latest comment is the member's and newer than the start | At once |
-| `request_review` | The blocking reviewers not yet asked again; none, meaning anyone, when nobody blocks | Each target has a pending review request, or no longer requests changes; with no targets, someone has a pending request | At once |
+| `request_review` | The reviewers the verdict names; none, meaning anyone | Each target no longer requests changes — the author dismissed the review, or the reviewer lifted it — and has a pending review request; with no targets, someone has a pending request | At once |
 | `review` | — | The member submitted a review after the start | At once |
 
 "The member's" means from one of the member's linked forge accounts: the executor acts on the member's behalf, as the member.
@@ -77,7 +77,7 @@ A task is in exactly one state at a time, and each state has exactly one meaning
 Runs when a member's verdict changes.
 
 1. **Qualify.** Continue only if the ball is the member's, the action can be a task, the rule allows it, and the member's automation covers the action for this repository.
-2. **Build the item**: the action on this pull request, with its targets taken from the facts.
+2. **Build the item**: the action on this pull request, with its targets — threads and checks from the facts, reviewers from the verdict.
 3. **Keep only what is new.** If its post-condition holds now, there is nothing to do. If an unfinished task of the member already holds the same action on this pull request, only the targets it does not hold go on — so an executor's own progress, which changes the verdict's reason, never queues a copy of the work it is doing.
 4. **Place it.** If the member has a queued task on the unit, add the item there, merging it with any item for the same pull request and action. Otherwise create a queued task — even if an active task holds the unit: the new one waits for the lock as a follow-up.
 
