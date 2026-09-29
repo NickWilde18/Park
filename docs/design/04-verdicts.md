@@ -50,7 +50,7 @@ Once per unit, from every part in it:
 3. Otherwise, **the author side**, if any author has a `finish` part: only merging, or waiting for the pull requests below, is left.
 4. Otherwise, **the fallback**: the author side, with the verdict flagged, because the rules found nothing for anyone to do. The default rule set never needs it.
 
-The **holders** are the people on that side whose parts placed the ball, and their parts are their actions, pull request by pull request. Parts on the other side are recorded, but hold nothing: a reviewer's first review of `web#7` waits while the author still has work on `api#12`.
+The **holders** are the people on that side whose parts placed the ball, and their parts are their actions, pull request by pull request. Being on the holding side is not holding the ball: a reviewer who has approved, or has nothing to do, holds nothing, even while the ball is on the reviewer side. Parts on the other side are recorded, but hold nothing either: a reviewer's first review of `web#7` waits while the author still has work on `api#12`.
 
 Placement treats every judgement as unknown, so it never waits on the model, and no model answer can move a ball.
 
@@ -58,6 +58,8 @@ Placement treats every judgement as unknown, so it never waits on the model, and
 |---|---|
 | Ana fixes failing checks on `api#12`; `web#7` waits for Ben's first review | Author side: Ana |
 | `api#12` asks Ben and Carol for a first review | Reviewer side: Ben and Carol |
+| Two approvals required: Ben approved; Carol has not reviewed yet | Reviewer side: Carol only. Ben's approval is his last word; he waits too |
+| Ben approved, and Ana asks him to review again | Reviewer side: Ben, because the author asked him |
 | `api#12` by Ana and `web#7` by Carol both have comments to answer | Author side: Ana and Carol |
 | Ben approved both | Author side: Ana, to merge |
 

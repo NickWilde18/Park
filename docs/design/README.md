@@ -53,7 +53,7 @@ A change enters as a fact and flows forward. Each stage reads facts and the outp
 | Suggestion | A grouping change Park proposes, applied only if a member accepts it |
 | Role | A person's relation to one pull request: author or reviewer. The same person can be the author of one and a reviewer of another |
 | Unit | What a ball and a task belong to: a group, or a pull request in no group |
-| Ball | Who must act next on a unit. Each unit has exactly one, on one side — the author side or the reviewer side — held by the people on that side who must act |
+| Ball | Who must act next on a unit. Each unit has exactly one, on one side — the author side or the reviewer side — held only by the people on that side who must act: a reviewer who approved and waits for another approval holds nothing |
 | Part | One person's share of one pull request, from their role's rules: `act`, `hold`, `finish`, or `idle` |
 | Reminder | An offer to nudge the holders, made to someone waiting on them. It never moves the ball |
 | Rule | A condition and a conclusion about one person's part. A role's rules are evaluated in order; the first match wins |

@@ -7,7 +7,7 @@ What is still undecided. Each item is either tuned during implementation or wait
 - **Leases, heartbeats, attempts, backoff, and verification deadlines per action.** [Tasks](06-tasks.md#defaults) lists starting values; they should be checked against how long real executors take, and how long checks run.
 - **Model questions.** The prompts, and each question's confidence threshold, should be tuned against recorded cases before the defaults are published.
 - **Default rule thresholds.** The 24 hours before a nudge, the 48 hours between nudges, and position 3 in a chain come from one team's practice.
-- **Checking rule sets for the fallback.** The default rule set was checked by evaluating it over every state of one author and one reviewer ([D37](10-design-log.md#d37-one-ball-per-unit-on-exactly-one-side)): no state needs the fallback. The preview flags units a draft would leave to the fallback today; the same exhaustive check could run whenever a draft is published.
+- **Checking rule sets for the fallback.** The default rule set was checked by evaluating it over every state of one author and up to two reviewers ([D37](10-design-log.md#d37-one-ball-per-unit-on-exactly-one-side)): no state needs the fallback. The preview flags units a draft would leave to the fallback today; the same exhaustive check could run whenever a draft is published.
 
 ## Port from the predecessor
 
