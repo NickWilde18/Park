@@ -2,6 +2,21 @@
 
 Every unit of work has one ball. A **unit** is a group, or a pull request in no group. At any moment its ball is on exactly one side — the author side or the reviewer side — held by the people on that side who must act next. Park's conclusion for a unit — where its ball is, who holds it, what each holder should do, and why — is the unit's **verdict**.
 
+A review, as the ball sees it:
+
+```mermaid
+flowchart TD
+    start(["Author asks for review"]) --> R
+    R["Reviewer side<br/>held only by the reviewers still to act;<br/>an approver waiting for another approval holds nothing"]
+    A["Author side<br/>answer, fix, hand back"]
+    M["Author side<br/>merge"]
+    R -->|"changes requested, or comments;<br/>checks fail; conflicts"| A
+    A -->|"everything answered, any request<br/>for changes dismissed, asked again"| R
+    R -->|"enough approvals"| M
+    M -->|"new comments, failing checks, conflicts"| A
+    M --> done(["Merged"])
+```
+
 ## Responsibilities
 
 - Work out each person's role on each pull request.
@@ -49,6 +64,22 @@ Once per unit, from every part in it:
 2. Otherwise, **the reviewer side**, if any reviewer has an `act` part.
 3. Otherwise, **the author side**, if any author has a `finish` part: only merging, or waiting for the pull requests below, is left.
 4. Otherwise, **the fallback**: the author side, with the verdict flagged, because the rules found nothing for anyone to do. The default rule set never needs it.
+
+```mermaid
+flowchart TD
+    U(["A unit: a group, or a pull request in no group"]) --> P["Evaluate every person's part,<br/>every judgement unknown"]
+    P --> Q1{"Does any author have<br/>an act or hold part?"}
+    Q1 -->|yes| AS["Author side<br/>held by those authors"]
+    Q1 -->|no| Q2{"Does any reviewer<br/>have an act part?"}
+    Q2 -->|yes| RS["Reviewer side<br/>held by those reviewers only"]
+    Q2 -->|no| Q3{"Does any author<br/>have a finish part?"}
+    Q3 -->|yes| MS["Author side<br/>merge, or wait for the ones below"]
+    Q3 -->|no| FB["Fallback: author side,<br/>verdict flagged"]
+    AS --> REF["Refine with judgements: holders' reasons,<br/>waiting people's reminders. Kinds never change"]
+    RS --> REF
+    MS --> REF
+    FB --> REF
+```
 
 The **holders** are the people on that side whose parts placed the ball, and their parts are their actions, pull request by pull request. Being on the holding side is not holding the ball: a reviewer who has approved, or has nothing to do, holds nothing, even while the ball is on the reviewer side. Parts on the other side are recorded, but hold nothing either: a reviewer's first review of `web#7` waits while the author still has work on `api#12`.
 

@@ -133,7 +133,50 @@ A conclusion says nothing about who else must act: that follows from placing the
 
 Park ships with the rule set below, ported from its predecessor's decision tree, where it ran on a real team's pull requests, and reshaped so that each row states one person's part. Every rule whose action can be a task is marked as able to become one. The numbers in it — 24 hours, 48 hours, position 3 — are ordinary values, edited like anything else.
 
+In the trees below, each diamond is a rule, tried from the top. An edge labelled with a passed-over label shows what the path says when the rule does not match. Conclusions are coloured by kind: orange `act`, blue `hold`, green `finish`, grey `idle`.
+
 ### Author
+
+```mermaid
+flowchart TD
+    s(["author"]) --> a1{"1 Draft"}
+    a1 -->|yes| k1["hold · draft"]
+    a1 -->|not a draft| a2{"2 Conflicts"}
+    a2 -->|yes| k2["act · resolve conflicts"]
+    a2 -->|no conflicts| a3{"3 Checks failing"}
+    a3 -->|yes| k3["act · fix checks"]
+    a3 -->|checks not failing| a4{"4 Checks running"}
+    a4 -->|yes| k4["hold · wait for checks"]
+    a4 --> a5{"5 Changes requested,<br/>all answered"}
+    a5 -->|yes| k5["act · dismiss the request<br/>for changes, ask again"]
+    a5 --> a6{"6 Changes requested"}
+    a6 -->|yes| k6["act · answer comments"]
+    a6 --> a7{"7 Comments wait on you"}
+    a7 -->|yes| k7["act · answer comments"]
+    a7 -->|no comments wait on you| a8{"8 Replies not<br/>handed back"}
+    a8 -->|yes| k8["act · ask them to look again"]
+    a8 --> a9{"9 Replies wait<br/>on reviewers"}
+    a9 -->|yes| k9["idle"]
+    a9 --> a10{"10 Approved, stacked"}
+    a10 -->|yes| k10["finish · wait for the ones below"]
+    a10 --> a11{"11 Ready to merge"}
+    a11 -->|yes| k11["finish · merge"]
+    a11 -->|not approved yet| a12{"12 No reviewer"}
+    a12 -->|yes| k12["act · ask for a review"]
+    a12 --> a13{"13 Nudged"}
+    a13 -->|yes| k13["idle"]
+    a13 --> a14{"14 Time to nudge"}
+    a14 -->|yes| k14["idle · reminder: nudge the reviewers"]
+    a14 --> k15["15 idle · waiting for review"]
+    classDef act fill:#fde2c8,stroke:#d9822b
+    classDef hold fill:#dbe8f7,stroke:#4a7ab8
+    classDef finish fill:#d8f0d8,stroke:#3b8a3b
+    classDef idle fill:#eeeeee,stroke:#9e9e9e
+    class k2,k3,k5,k6,k7,k8,k12 act
+    class k1,k4 hold
+    class k10,k11 finish
+    class k9,k13,k14,k15 idle
+```
 
 | # | Rule | When | Kind | Action | Reason |
 |---|---|---|---|---|---|
@@ -156,6 +199,47 @@ Park ships with the rule set below, ported from its predecessor's decision tree,
 Passed-over labels: 1 "not a draft", 2 "no conflicts", 3 "checks not failing", 7 "no comments wait on you", 11 "not approved yet".
 
 ### Reviewer
+
+```mermaid
+flowchart TD
+    s(["reviewer"]) --> r1{"1 Draft"}
+    r1 -->|yes| q1["idle · the author's draft"]
+    r1 -->|not a draft| r2{"2 Approved without you"}
+    r2 -->|yes| q2["idle · your review is optional"]
+    r2 --> r3{"3 Team request"}
+    r3 -->|yes| q3["act, low · review"]
+    r3 --> r4{"4 First review,<br/>deep in a chain"}
+    r4 -->|yes| q4["act, low · first review"]
+    r4 --> r5{"5 First review"}
+    r5 -->|yes| q5["act · first review"]
+    r5 -->|reviewed before| r6{"6 Your block is stale"}
+    r6 -->|yes| q6["idle · approve to lift it"]
+    r6 --> r7{"7 Nudged about<br/>your block"}
+    r7 -->|yes| q7["idle"]
+    r7 --> r8{"8 Time to nudge<br/>about your block"}
+    r8 -->|yes| q8["idle · reminder: nudge the author"]
+    r8 --> r9{"9 Changes requested"}
+    r9 -->|yes| q9["idle · the author dismisses<br/>your review when ready"]
+    r9 -->|no request for changes| r10{"10 Asked again,<br/>new commits for you"}
+    r10 -->|"yes (model)"| q10["act · review; the new commits<br/>respond to your comments"]
+    r10 --> r11{"11 Asked again"}
+    r11 -->|yes| q11["act · review again"]
+    r11 -->|not asked again| r12{"12 Approved,<br/>others block"}
+    r12 -->|yes| q12["idle"]
+    r12 --> r13{"13 Approved,<br/>more needed"}
+    r13 -->|yes| q13["idle · another reviewer's turn"]
+    r13 --> r14{"14 Approved"}
+    r14 -->|yes| q14["idle"]
+    r14 -->|not approved| r15{"15 Nudged"}
+    r15 -->|yes| q15["idle"]
+    r15 --> r16{"16 Time to nudge"}
+    r16 -->|"yes (model)"| q16["idle · reminder: nudge the author"]
+    r16 --> q17["17 idle · the author has the ball"]
+    classDef act fill:#fde2c8,stroke:#d9822b
+    classDef idle fill:#eeeeee,stroke:#9e9e9e
+    class q3,q4,q5,q10,q11 act
+    class q1,q2,q6,q7,q8,q9,q12,q13,q14,q15,q16,q17 idle
+```
 
 | # | Rule | When | Kind | Action | Reason |
 |---|---|---|---|---|---|
