@@ -1,47 +1,79 @@
 # 4. Verdicts
 
-For every open pull request and every member involved in it, Park concludes who holds the ball, what should be done, and why. That conclusion is a **verdict**.
+Every unit of work has one ball. A **unit** is a group, or a pull request in no group. At any moment its ball is on exactly one side — the author side or the reviewer side — held by the people on that side who must act next. Park's conclusion for a unit — where its ball is, who holds it, what each holder should do, and why — is the unit's **verdict**.
 
 ## Responsibilities
 
-- Work out each member's role on each pull request.
-- Evaluate the published rules for that role, asking the model when a rule depends on a question only a model can answer.
-- Store each new conclusion with everything needed to explain it.
-- Hand changed verdicts to tasks and to the dashboard.
+- Work out each person's role on each pull request.
+- Evaluate the published rules for each person's part.
+- Place each unit's ball from those parts, the same way every time.
+- Store each new verdict with everything needed to explain it, and hand changes to tasks and to the dashboard.
 
 ## Data
 
 | Record | Holds |
 |---|---|
-| `verdict` | One conclusion for one member on one pull request (below); current, or superseded by a newer one |
+| `verdict` | One conclusion for one unit (below); current, or superseded by a newer one |
 | `judgement` | A model's answer: question, fingerprint, answer, confidence, reason, provider kind, model name, time taken, time. Failed calls are recorded as failed attempts, not answers |
 | `member_action` | Actions of members that rules can read — so far, marking a pull request as nudged |
 
 ## Roles
 
-A role is a function of (member, pull request), computed from facts — not a column on the member. The same person is the author of one pull request and a reviewer of another.
+A role is a function of (person, pull request), computed from facts — not a column on the member. People here are forge accounts, members of Park or not, so an outside reviewer can hold a ball too.
 
-| Role | The member holds it when |
+| Role | The person holds it when |
 |---|---|
-| Author | One of their linked accounts opened the pull request |
+| Author | Their account opened the pull request |
 | Reviewer | They are not the author, and a review is requested from them — directly or through a team they belong to — or they have submitted a review |
 
-A member holds at most one role on a pull request: the author of a pull request never also gets a reviewer verdict on it. A member with neither role gets no verdict on that pull request, though team views still show it.
+A person holds at most one role on a pull request. People with neither role have no part in it.
+
+## Parts
+
+For each pull request of a unit, Park evaluates the author list for its author, and the reviewer list for each of its reviewers ([Rules](05-rules.md)). Each evaluation gives that person's **part** on that pull request: a kind, and with it an action, targets, priority, reason, and possibly a reminder.
+
+| Kind | Means |
+|---|---|
+| `act` | This person has something to do |
+| `hold` | The ball is this person's, but they wait on something that is not a person: their own draft, running checks. Authors only |
+| `finish` | Only the last step is left: merging, or waiting for the pull requests below to merge. Authors only |
+| `idle` | Nothing for this person now |
+
+A part says what one person has to do. It never says who else must act: that follows from placing the ball.
+
+## Placing the ball
+
+Once per unit, from every part in it:
+
+1. **The author side**, if any author has an `act` or `hold` part. The work is the author's until it is handed back as a whole.
+2. Otherwise, **the reviewer side**, if any reviewer has an `act` part.
+3. Otherwise, **the author side**, if any author has a `finish` part: only merging, or waiting for the pull requests below, is left.
+4. Otherwise, **the fallback**: the author side, with the verdict flagged, because the rules found nothing for anyone to do. The default rule set never needs it.
+
+The **holders** are the people on that side whose parts placed the ball, and their parts are their actions, pull request by pull request. Parts on the other side are recorded, but hold nothing: a reviewer's first review of `web#7` waits while the author still has work on `api#12`.
+
+Placement treats every judgement as unknown, so it never waits on the model, and no model answer can move a ball.
+
+| State of a unit | Its ball |
+|---|---|
+| Ana fixes failing checks on `api#12`; `web#7` waits for Ben's first review | Author side: Ana |
+| `api#12` asks Ben and Carol for a first review | Reviewer side: Ben and Carol |
+| `api#12` by Ana and `web#7` by Carol both have comments to answer | Author side: Ana and Carol |
+| Ben approved both | Author side: Ana, to merge |
 
 ## What a verdict holds
 
 | Field | Meaning |
 |---|---|
-| Ball | `me`: the member must act. `others`: waiting on other people. `nobody`: no one needs to act now — a draft, checks still running, an optional review |
-| Action | What the member should do, when the ball is theirs (below) |
-| Targets | For `request_review`, the reviewers to hand the pull request back to |
-| Waiting on | The accounts the member is waiting for, when the ball is with others. They may be people outside Park |
-| Priority | `normal`, or `low` for work that can wait |
-| Reason | One sentence, rendered from the rule's template: "Ben requested changes; 3 comments wait on you" |
-| Since | When the ball, action, and waiting-on first took their current values |
-| Path | Every rule tried, in order, with its outcome: matched, not matched, unknown judgement, or error |
-| Judgements | The judgements it used, with their answers and confidence |
-| Inputs | The value of every field the rules could read, the evaluation time, and the fact sequence numbers they were computed from |
+| Unit | The group, or the pull request |
+| Side | `author` or `reviewer` |
+| Holders | The people holding the ball, each with their actions, targets, priorities, and reasons, pull request by pull request |
+| Since | For each holder, when they started holding it |
+| Parts | Every person's part on every pull request, with its path through the rules: each rule tried, and its outcome — matched, not matched, unknown judgement, or error |
+| Reminders | Reminders offered to people waiting on the holders |
+| Fallback | Whether placement needed the fallback |
+| Judgements | The judgements used, with their answers and confidence |
+| Inputs | The value of every field for every person, the evaluation time, and the fact sequence numbers they were computed from |
 | Rule set | The published version that produced it |
 
 ## Actions
@@ -50,48 +82,47 @@ A member holds at most one role on a pull request: the author of a pull request 
 |---|---|---|---|
 | `resolve_conflicts` | Author | Make the pull request mergeable again | Yes |
 | `fix_checks` | Author | Make the failing required checks pass | Yes |
-| `address_comments` | Either | Answer or resolve the review threads that wait on you | Yes |
+| `address_comments` | Author | Answer or resolve the review threads that wait on you | Yes |
 | `request_review` | Author | Hand the pull request back — dismiss a standing request for changes, saying what changed, and ask again — or ask for a first review | Yes |
 | `review` | Reviewer | Review the pull request, for the first time or again | Yes |
 | `merge` | Author | Everything is in place; merge it | No — only people merge |
-| `nudge` | Either | Remind the people it is waiting on | No |
 
 What makes each task-capable action done is defined in [Tasks](06-tasks.md).
 
-## Flow: evaluate a pull request
+A **reminder** is not an action. A part can offer one to a person who is waiting on the holders: nudge them. The member marks it done on the dashboard, and the mark is a member action that rules can read. A reminder never moves the ball.
 
-Runs when, for this pull request: its facts change; its group or chain changes; a judgement about it is recorded; a member acts on it, such as marking it nudged; a new rule set is published; or an account link or team membership changes someone's role. An hourly pass also re-evaluates every open pull request, because rules can read elapsed time.
+## Flow: evaluate a unit
 
-1. **Load** the pull request's facts, chain, and group, and fix the evaluation time.
-2. **Find the members with a role**, and each one's role.
-3. **Build each member's input**: the fields of the [field catalog](05-rules.md#the-field-catalog), computed from the facts for that member.
-4. **Evaluate that role's rules in order.** For each rule:
-   1. Evaluate the condition with every judgement left unknown.
-   2. If it is true, the rule matches. If it is false, go to the next rule.
-   3. If the result depends on a judgement, get the judgement (next flow) and evaluate again. A judgement that is still unknown makes the condition not match, however the condition is phrased.
-   4. A condition that fails at run time, or exceeds its cost limit, does not match. The error is recorded in the path, and the rule is flagged on the dashboard.
-5. **Conclude** from the first rule that matched. Each role's list ends with a catch-all, so one always does.
-6. **Compare** with the member's current verdict. If ball, action, waiting-on, priority, and reason are all unchanged, store nothing.
-7. **Otherwise store** a new verdict and make it current. It keeps the previous verdict's `since` when only the priority or reason changed. Queue work for tasks and the dashboard.
-8. **Close out** the verdicts of members who no longer hold a role, with a final verdict: ball `nobody`, reason "No longer involved".
+Runs when, for this unit: the facts of any of its pull requests change; its membership changes; a judgement about it is recorded; a member acts on it, such as marking it nudged; a new rule set is published; or an account link or team membership changes someone's role. An hourly pass also re-evaluates every open unit, because rules can read elapsed time. When a pull request moves between groups, both units are evaluated.
 
-When a pull request is merged or closed, every current verdict on it is closed out the same way, with the reason "Merged" or "Closed".
+1. **Load** the unit's pull requests with their facts and chains, and fix the evaluation time.
+2. **Find each pull request's people** and their roles.
+3. **Build each person's input**: the fields of the [field catalog](05-rules.md#the-field-catalog), computed from the facts for that person.
+4. **Evaluate each person's list** with every judgement unknown. For each rule:
+   1. If the condition is true, the rule matches. If it is false, go to the next rule.
+   2. A condition that depends on a judgement does not match now; the path records it as "unknown judgement".
+   3. A condition that fails at run time, or exceeds its cost limit, does not match. The error is recorded in the path, and the rule is flagged on the dashboard.
+5. **Place the ball** (above).
+6. **Refine.** For each holder, and for each waiting person whose path passed over a reminder rule on an unknown judgement, get those judgements (next flow) and evaluate that person's list again. A refined part is kept only if its kind is unchanged. Otherwise the part from step 4 stands, and the rule is flagged.
+7. **Compare** with the unit's current verdict. If the side, the holders with their actions and reasons, and the reminders are all unchanged, store nothing.
+8. **Otherwise store** a new verdict and make it current, and queue work for tasks and the dashboard.
+
+When every pull request of a unit is merged or closed, its verdict is closed out, with the reason "Merged" or "Closed".
 
 ## Model judgement
 
-Some questions have no reliable structural answer. Rules name them as **judgements**; the model answers them, and Park records each answer as a fact.
+Some questions have no reliable structural answer. Rules name them as **judgements**; the model answers them, and Park records each answer as a fact. Judgements only sharpen what a holder is told, or decide whether someone waiting is offered a reminder.
 
 ### Questions
 
-| Question | Asked for | Asks | Why a rule cannot decide |
-|---|---|---|---|
-| `commits_address_my_comments` | Reviewer | Do the commits pushed since my latest review respond to my unresolved comments? | Outdated markers mislead both ways: the author may touch my lines while fixing someone else's comment, or fix my concern in a caller |
-| `author_awaits_me` | Reviewer | Where the author replied last, is the author waiting for my view, rather than agreeing to change it? | "Will do" and "I'd keep it; what do you think?" look the same in every structured field |
-| `comments_blocking` | Reviewer | Does any of my unresolved comments raise a real problem, rather than a matter of taste? | A count cannot tell a naming nit from a concurrency bug |
+| Question | Asked for | Asks | Used to | Why a rule cannot decide |
+|---|---|---|---|---|
+| `commits_address_my_comments` | Reviewer | Do the commits pushed since my latest review respond to my unresolved comments? | Tell a reviewer who is asked again where to look | Outdated markers mislead both ways: the author may touch my lines while fixing someone else's comment, or fix my concern in a caller |
+| `comments_blocking` | Reviewer | Does any of my unresolved comments raise a real problem, rather than a matter of taste? | Decide whether a waiting reviewer is offered a reminder | A count cannot tell a naming nit from a concurrency bug |
 
 Each question defines, in code, what it reads, the prompt it sends, and its answers — `yes` or `no` — each returned with a confidence between 0 and 1 and a one-sentence reason.
 
-A question's **fingerprint** is a hash of the question and its version, the member it is asked for, and the identity of everything it reads: comment IDs with their last edit times, and commit IDs. Anything that could change the answer changes the fingerprint.
+A question's **fingerprint** is a hash of the question and its version, the person it is asked for, and the identity of everything it reads: comment IDs with their last edit times, and commit IDs. Anything that could change the answer changes the fingerprint.
 
 ### Flow: get a judgement
 
@@ -101,19 +132,19 @@ A question's **fingerprint** is a hash of the question and its version, the memb
 4. **If the same fingerprint is already being asked**, wait for that call, within the timeout.
 5. **Ask.** Take a slot under the concurrency limit, fetch the texts the question reads from the forge, send the question, and wait up to the timeout. Time spent waiting for a slot counts toward it.
 6. **Validate** the answer against the question's schema. An invalid answer counts as an error.
-7. **Record** the judgement, and continue the evaluation with it.
-8. **Below the question's confidence threshold**, the recorded answer counts as unknown. The path shows it — "new commits · model unsure (0.55)" — so a reader can tell the conclusion came from the rules, not from the model.
-9. **On a timeout**, the evaluation continues with the judgement unknown. The call runs on in the background; when its answer arrives, it is recorded and the pull request is evaluated again. **On an error**, the judgement is unknown, and the question is retried after a backoff.
+7. **Record** the judgement, and continue the refinement with it.
+8. **Below the question's confidence threshold**, the recorded answer counts as unknown. The path shows it — "asked again · model unsure (0.55)" — so a reader can tell the reason came from the rules, not from the model.
+9. **On a timeout**, the refinement continues with the judgement unknown. The call runs on in the background; when its answer arrives, it is recorded and the unit is evaluated again. **On an error**, the judgement is unknown, and the question is retried after a backoff.
 
 ### What this gives
 
-- **No flicker.** A verdict that needs a judgement is computed with the answer in hand; the dashboard never shows one conclusion and then switches to another.
-- **Optional by construction.** With no provider, every judgement is unknown, and the rules after it decide. No feature flag is needed.
-- **Reproducible.** Replaying a verdict reads the recorded judgements and never calls the model again, so the same inputs always give the same conclusion. Rule logic is tested with recorded judgements, without network mocks.
-- **Bounded cost.** A judgement is paid for once per distinct input, not once per evaluation.
-- **Visible provenance.** Every verdict lists the judgements it used, so the dashboard shows which conclusions came from a model, and with what confidence.
+- **The model never moves a ball.** Placement ignores judgements, and a refinement cannot change a part's kind. With no provider, every ball is exactly where it would be with one; reasons are plainer, and no reminder depends on a judgement.
+- **No flicker.** A verdict is stored with its refinements done; the dashboard does not show one reason and then switch to another, except when a call timed out.
+- **Reproducible.** Replaying a verdict reads the recorded judgements and never calls the model again. Rule logic is tested with recorded judgements, without network mocks.
+- **Bounded cost.** Questions are asked only for holders and possible reminders, once per distinct input.
+- **Visible provenance.** Every verdict lists the judgements it used, so the dashboard shows which reasons came from a model, and with what confidence.
 
-The cost: an evaluation can wait on the model, up to the timeout, and concurrency is capped so a burst of new questions cannot stall everything. During a model outage, verdicts that need a judgement come from the rules, and switch once answers arrive.
+The cost: storing a verdict can wait on the model, up to the timeout, and concurrency is capped so a burst of new questions cannot stall everything.
 
 ### What is sent
 
@@ -122,14 +153,15 @@ Before a model provider is enabled, the settings page lists each question and wh
 ## Rules
 
 - **V1. Verdicts are pure functions** of their inputs, rule set version, and recorded judgements. Replaying one gives the same conclusion.
-- **V2. One verdict per member per pull request**, from at most one role; the author role takes precedence.
-- **V3. No role, no verdict.**
-- **V4. Tasks are not an input.** Verdicts read facts only. While an executor works, the ball stays where the facts put it, and the task's state is shown beside the verdict, never folded into it.
-- **V5. The model is asked only when a rule's outcome depends on the answer**, at most once per fingerprint, except for retries after errors.
+- **V2. One ball per unit**, on exactly one side, with at least one holder. There is no other record of whose turn it is.
+- **V3. Precedence places the ball**: author work, then reviewer work, then the author's last step, then the fallback.
+- **V4. Parts are per person per pull request**, from at most one role; the author role takes precedence. No role, no part.
+- **V5. The model never moves a ball.** Placement treats every judgement as unknown; a refinement may change a part's action, reason, priority, or reminder, never its kind.
 - **V6. Unknown never matches.** A condition that depends on an unknown judgement — no provider, a timeout, an error, or low confidence — does not match.
-- **V7. Verdicts are immutable.** A new one is stored only when the conclusion or its reason changes.
-- **V8. Every verdict explains itself**, with its path, judgements, inputs, and rule set version.
-- **V9. The member's queue is derived**: it is their current verdicts with the ball on them. Nothing else puts work in a queue.
+- **V7. Tasks are not an input.** Verdicts read facts only. While an executor works, the ball stays where the facts put it, and the task's state is shown beside it.
+- **V8. Verdicts are immutable.** A new one is stored only when something a person sees changes.
+- **V9. Every verdict explains itself**, with every part's path, its judgements, its inputs, and its rule set version.
+- **V10. Queues are derived.** A member's queue is the units whose ball they hold; their waiting list is the units they have a part in, where the ball is with someone else.
 
 ## Defaults
 

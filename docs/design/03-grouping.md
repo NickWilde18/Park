@@ -145,7 +145,7 @@ The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), 
 
 ## Used by
 
-- **Verdicts** read each pull request's chain position and group size (the `chain.*` and `group.*` fields in [Rules](05-rules.md)).
+- **Verdicts** place one ball per group ([Verdicts](04-verdicts.md#placing-the-ball)), and read each pull request's chain position and group size (the `chain.*` and `group.*` fields in [Rules](05-rules.md)).
 - **Tasks** use groups and chains as units of work and as locks ([Tasks](06-tasks.md)).
 - **The dashboard** nests group → chain → pull request, and marks each pull request with the source that placed it.
 

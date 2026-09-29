@@ -17,7 +17,7 @@ Examples name pull requests as `repository#number`: `api#12` is pull request 12 
 | 1 | [Overview](01-overview.md) | Scope, boundaries, principles, and one feature from first push to merge |
 | 2 | [Facts](02-facts.md) | Collecting from forges: webhooks, polling, normalization, the fact layer |
 | 3 | [Grouping](03-grouping.md) | Chains and groups: sources, assertions, resolution, the model's placements |
-| 4 | [Verdicts](04-verdicts.md) | Roles, evaluation, model judgement, the member's queue |
+| 4 | [Verdicts](04-verdicts.md) | Roles, each person's part, placing the one ball of a unit, model judgement |
 | 5 | [Rules](05-rules.md) | Rule shape, the field catalog, the default rule set, editing and publishing |
 | 6 | [Tasks](06-tasks.md) | The executor contract: units, post-conditions, leases, verification |
 | 7 | [Identity](07-identity.md) | Sign-in, account linking, permissions, visibility, API tokens |
@@ -51,15 +51,17 @@ A change enters as a fact and flows forward. Each stage reads facts and the outp
 | Anchor | The stable key a co-membership assertion is filed under: a thread ID, a branch name, an issue ID |
 | Exclusion | A member's statement that a pull request is not in a group; it holds against every source |
 | Suggestion | A grouping change Park proposes, applied only if a member accepts it |
-| Role | A member's relation to one pull request: author or reviewer. The same person can be the author of one and a reviewer of another |
-| Ball | Who must act next on a pull request, from one member's point of view: me, others, or nobody |
-| Rule | A condition and a conclusion. A role's rules are evaluated in order; the first match wins |
+| Role | A person's relation to one pull request: author or reviewer. The same person can be the author of one and a reviewer of another |
+| Unit | What a ball and a task belong to: a group, or a pull request in no group |
+| Ball | Who must act next on a unit. Each unit has exactly one, on one side — the author side or the reviewer side — held by the people on that side who must act |
+| Part | One person's share of one pull request, from their role's rules: `act`, `hold`, `finish`, or `idle` |
+| Reminder | An offer to nudge the holders, made to someone waiting on them. It never moves the ball |
+| Rule | A condition and a conclusion about one person's part. A role's rules are evaluated in order; the first match wins |
 | Rule set | The rule lists of every role, published as immutable versions |
-| Verdict | The conclusion for one member on one pull request: who holds the ball, what to do, and why |
+| Verdict | Park's conclusion for one unit: where its ball is, who holds it, what each holder should do, and every part behind it |
 | Judgement | A model's answer to a question a rule could not settle, recorded as a fact |
 | Fingerprint | A hash of everything a model question reads; an answer is recorded against it and never asked for again |
-| Task | Work that verdicts call for, leased to an executor, and complete only when forge facts confirm it |
-| Unit | What one task works on: a pull request's group, or else its chain, or else the pull request alone |
+| Task | Work a ball's holder has to do, leased to an executor, and complete only when forge facts confirm it |
 | Item | One action on one pull request within a task, with its own post-condition |
 | Post-condition | What forge facts must show for an item to count as done |
 | Executor | A program or person that claims tasks and does the work. Park never executes |

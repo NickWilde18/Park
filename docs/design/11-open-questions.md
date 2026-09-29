@@ -7,7 +7,7 @@ What is still undecided. Each item is either tuned during implementation or wait
 - **Leases, heartbeats, attempts, backoff, and verification deadlines per action.** [Tasks](06-tasks.md#defaults) lists starting values; they should be checked against how long real executors take, and how long checks run.
 - **Model questions.** The prompts, and each question's confidence threshold, should be tuned against recorded cases before the defaults are published.
 - **Default rule thresholds.** The 24 hours before a nudge, the 48 hours between nudges, and position 3 in a chain come from one team's practice.
-- **Checking rule sets for mutual waiting.** The default rule set was checked by evaluating it over every state of one author and one reviewer ([D36](10-design-log.md#d36-handing-the-ball-back-is-explicit-and-the-model-never-gates-it)). The same check could run whenever a draft rule set is published.
+- **Checking rule sets for the fallback.** The default rule set was checked by evaluating it over every state of one author and one reviewer ([D37](10-design-log.md#d37-one-ball-per-unit-on-exactly-one-side)): no state needs the fallback. The preview flags units a draft would leave to the fallback today; the same exhaustive check could run whenever a draft is published.
 
 ## Port from the predecessor
 
@@ -17,6 +17,7 @@ The predecessor's collector (about 1,600 lines), model client (about 1,000), and
 
 - **Shared executors.** An executor that acts for several members, under a bot account, would fail post-conditions that expect the member's own accounts. Supporting it needs a way for members to delegate to an account.
 - **Review tasks and the lock.** A `review` changes no code; it may not need to wait for a group's lock.
+- **Team review requests.** A request to a team puts the ball with every member of that team, at low priority, until one of them reviews. Handing it to one member instead — by rotation, or by code ownership — is open.
 - **Repositories where authors cannot dismiss.** Protected branches can limit dismissal to administrators and named people or teams. There the default hand-back cannot be done by the author, and the rules should hand back on another review request instead.
 - **Outgoing notifications.** Bridges can read the event stream today. Whether Park should also send outgoing webhooks is open.
 - **The size of a conflict.** Forges report only whether a pull request conflicts. The predecessor ranked small conflicts after comments, but knowing the size needs a fact that only an executor could report.

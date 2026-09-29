@@ -57,7 +57,7 @@ Park/
     facts/             refresh, webhook intake, polling, fact events
     forges/github/     the GitHub collector: fetching, and normalizing into neutral facts
     grouping/          chains, assertions, resolution, suggestions
-    verdicts/          roles, evaluation, the member queue
+    verdicts/          roles, parts, placing the ball, queues
     judgement/         questions, fingerprints, the model provider interface
     rules/             rule sets, the field catalog, compilation to CEL
     tasks/             creation, leases, verification

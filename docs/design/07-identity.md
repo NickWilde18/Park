@@ -79,7 +79,7 @@ A member sees a repository's pull requests only if one of their linked forge acc
 
 ## Flow: disable a member
 
-Disabling a member revokes their tokens and sessions, and ends their leases. Their verdicts close; history keeps their name. Members are never deleted.
+Disabling a member revokes their tokens and sessions, and ends their leases. Their forge accounts still take part in pull requests, so balls they hold stay with them, shown as held by someone outside Park; history keeps their name. Members are never deleted.
 
 ## Rules
 

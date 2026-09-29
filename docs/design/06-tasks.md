@@ -14,18 +14,14 @@ A **task** is work that a verdict calls for, leased to an executor, and complete
 
 | Record | Holds |
 |---|---|
-| `task` | Member, unit, state, priority (the highest among the verdicts behind its items), attempt number, lease (the token holding it, the executor's label, expiry), earliest time for the next attempt, state times |
+| `task` | Member, unit, state, priority (the highest among the parts behind its items), attempt number, lease (the token holding it, the executor's label, expiry), earliest time for the next attempt, state times |
 | `task_item` | Task, pull request, action, targets (thread IDs, check names, or reviewer accounts), the facts at the start of the attempt, state (open, satisfied, or dropped) |
 | `task_event` | Every state change, report, heartbeat note, and verification result, with its actor: an executor's token, a member, or Park. Never updated or deleted |
 | `automation` | Per member: the actions that may become tasks, optionally limited to some repositories |
 
 ## Units and locks
 
-A task works on one **unit**:
-
-- the pull request's group, if it has one;
-- otherwise its chain, if it is stacked;
-- otherwise the pull request alone.
+A task works on one **unit** — a group, or a pull request in no group — the same unit whose ball its member holds ([Verdicts](04-verdicts.md#placing-the-ball)). The pull requests of a chain that is in no group are reviewed separately, so each is a unit of its own; a task on one of them still locks the whole chain.
 
 A group is one piece of work, and two agents editing it at once collide; so do two agents in one chain, where changing one pull request moves the ones stacked on it. Hence:
 
@@ -67,21 +63,21 @@ A post-condition that has not settled is not judged. Verification waits for the 
 | `verifying` | Waiting for the facts to confirm it | Every item satisfied (→ done); an item not satisfied once settled, or the deadline passing (→ queued for another attempt, or needs person) |
 | `done` | The facts confirmed every item | Final |
 | `needs_person` | Its attempts are used up | A person retries it (→ queued, attempts reset) or dismisses it |
-| `cancelled` | Nothing is left to do: its pull requests merged or closed, or the verdicts no longer call for any item | Final |
+| `cancelled` | Nothing is left to do: its pull requests merged or closed, or its member no longer holds the ball for any item | Final |
 | `dismissed` | A person closed it, with a reason | Final |
 
 A task is in exactly one state at a time, and each state has exactly one meaning. Agents will still make mistakes; what changes is that every mistake is detected and shown — "reported done by executor E, but 3 of 27 threads have no answer" — instead of a silent stall.
 
 ## Flow: create
 
-Runs when a member's verdict changes.
+Runs when a unit's verdict changes, for each member who holds its ball, and for each of their actions in it.
 
-1. **Qualify.** Continue only if the ball is the member's, the action can be a task, the rule allows it, and the member's automation covers the action for this repository.
-2. **Build the item**: the action on this pull request, with its targets — threads and checks from the facts, reviewers from the verdict.
-3. **Keep only what is new.** If its post-condition holds now, there is nothing to do. If an unfinished task of the member already holds the same action on this pull request, only the targets it does not hold go on — so an executor's own progress, which changes the verdict's reason, never queues a copy of the work it is doing.
+1. **Qualify.** Continue only if the action can be a task, the rule allows it, and the member's automation covers the action for this repository.
+2. **Build the item**: the action on its pull request, with its targets — threads and checks from the facts, reviewers from the part.
+3. **Keep only what is new.** If its post-condition holds now, there is nothing to do. If an unfinished task of the member already holds the same action on this pull request, only the targets it does not hold go on — so an executor's own progress, which changes the part's reason, never queues a copy of the work it is doing.
 4. **Place it.** If the member has a queued task on the unit, add the item there, merging it with any item for the same pull request and action. Otherwise create a queued task — even if an active task holds the unit: the new one waits for the lock as a follow-up.
 
-When a verdict stops calling for an action, the matching item is dropped from a queued task, and a queued task left with no items is cancelled. Items of leased and verifying tasks stay until the attempt ends. When a pull request moves to another group, its items in queued tasks move to the new unit.
+When a member stops holding a unit's ball, or no longer has an action, the matching items are dropped from their queued task, and a queued task left with no items is cancelled. Items of leased and verifying tasks stay until the attempt ends. When a pull request moves to another group, its items in queued tasks move to the new unit.
 
 ## Flow: claim
 
@@ -186,7 +182,7 @@ POST /api/v1/tasks/tsk_8f2c/report
 - **T8. An expired lease is verified like a report.**
 - **T9. Attempts are bounded.** Every failed verification records its reasons, item by item, and the next attempt receives them.
 - **T10. Executors see and claim only their own member's tasks**, and only items whose actions they name.
-- **T11. Tasks never feed verdicts** ([V4](04-verdicts.md#rules)).
+- **T11. Tasks never feed verdicts** ([V7](04-verdicts.md#rules)).
 - **T12. Park does not care how a task is done**, and no action merges or closes a pull request.
 
 ## Defaults

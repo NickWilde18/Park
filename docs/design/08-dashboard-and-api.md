@@ -6,23 +6,23 @@ The dashboard is a client of the same API that executors and bridges use; it has
 
 ### My queue
 
-Everything whose ball is with me, as group → chain → pull request. Each row shows the action, the reason, how long the ball has been with me, and badges: the chain position (`3/9`), the state of any task on it, "model" with the confidence when a judgement was used, and "stale" when its facts could not be refreshed.
+Every unit whose ball I hold, as group → chain → pull request, with my actions on each pull request. Each row shows the action, the reason, how long I have held the ball, and badges: the chain position (`3/9`), the state of any task on it, "model" with the confidence when a judgement sharpened the reason, and "stale" when its facts could not be refreshed.
 
-Rows are ordered by priority, then by how long they have waited, oldest first. The rows of one group stay together, placed by the group's oldest row. Below the queue, collapsed, are what waits on others and what waits on nobody.
+Units are ordered by priority, then by how long I have held them, oldest first. Below the queue, collapsed, are the units I have a part in whose ball someone else holds — with who holds it and why — and the reminders offered to me.
 
 From a row, a member can open the pull request on the forge, mark it nudged, or open its task.
 
 ### Team
 
-Each member's queue size and oldest wait, and every group with each member's verdicts on its pull requests. Filters by repository and by member.
+Each member's held units and oldest hold, and every group with where its ball is and who holds it. Filters by repository and by member.
 
 ### Groups
 
 Groups with their pull requests, nested by chain, each pull request marked with the source that placed it; the suggestions inbox; and the manual actions: move, take out, create, merge, split, rename. The grouping pipeline is drawn as its boxes — sources, then resolution, then groups — each configurable, none rewirable.
 
-### Pull request
+### Unit
 
-Its facts: checks, reviews, and threads. Each member's verdict with its path — `author → not a draft → no conflicts → checks not failing → Changes requested, all answered` — the judgements it used, and the rule set version. The timeline of fact events. Its tasks, with their history.
+A group, or a pull request in no group. Where its ball is and who holds it, and every person's part with its path — `author → not a draft → no conflicts → checks not failing → Changes requested, all answered` — the judgements used, and the rule set version. For each pull request: its facts — checks, reviews, and threads — and the timeline of its fact events. Its tasks, with their history.
 
 ### Tasks
 
@@ -38,7 +38,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 
 ## Live updates
 
-`GET /events` streams Server-Sent Events: small notices — `verdict`, `task`, `group`, `pr` — naming what changed. The client fetches what it needs again. Notices are filtered by visibility, numbered, and can be resumed with `Last-Event-ID` for an hour; a client that falls further behind reloads. A comment line every 30 seconds keeps proxies from closing the stream.
+`GET /events` streams Server-Sent Events: small notices — `verdict` (a unit's ball or parts changed), `task`, `group`, `pr` — naming what changed. The client fetches what it needs again. Notices are filtered by visibility, numbered, and can be resumed with `Last-Event-ID` for an hour; a client that falls further behind reloads. A comment line every 30 seconds keeps proxies from closing the stream.
 
 ## Conventions
 

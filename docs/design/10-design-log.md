@@ -48,7 +48,7 @@ Every judgement has a path that does not need it, so Park works fully without a 
 
 ### D9. Roles are a function, not a column
 
-The same person is the author of one pull request and a reviewer of another, so a member has no role column. Roles are derived per pull request, and verdicts are computed per member.
+The same person is the author of one pull request and a reviewer of another, so a member has no role column. Roles are derived per pull request, and each person's part on a pull request is computed from their role; the ball is then placed once per unit from those parts (D37).
 
 ### D10. Structured conditions, with CEL for the rest
 
@@ -70,7 +70,7 @@ Soft claims with optional reports keep Park stateless, but leave it unable to te
 
 ### D14. One task per unit, one active task per group
 
-A unit is a feature group, or a stacked chain, not a single pull request: the predecessor at first started work on single pull requests inside a feature group, and two sessions ended up editing one feature at once.
+A unit is a feature group, not a single pull request of one: the predecessor at first started work on single pull requests inside a feature group, and two sessions ended up editing one feature at once. A pull request in no group is its own unit — including each pull request of a chain, since they are reviewed separately — and a task still locks the whole chain it touches.
 
 ### D15. Executors initiate every exchange
 
@@ -90,7 +90,15 @@ The schema and vocabulary are forge-neutral from the start, which is cheap; an a
 
 ### D35. A standing request for changes keeps the ball with the author
 
-Until the author dismisses a reviewer's request for changes, the author is not ready for that reviewer to look again — whatever else has happened: every comment answered, another review requested, new commits pushed. The author hands the pull request back by dismissing the review, saying what changed, and asking again, and the reviewer's verdict waits for that. The predecessor's author rule already said as much: dismiss the request for changes, and ask again.
+Until the author dismisses a reviewer's request for changes, the author is not ready for that reviewer to look again — whatever else has happened: every comment answered, another review requested, new commits pushed. The author hands the pull request back by dismissing the review, saying what changed, and asking again, and the reviewer waits for that. The predecessor's author rule already said as much: dismiss the request for changes, and ask again.
+
+### D37. One ball per unit, on exactly one side
+
+The ported rules computed "whose turn is it" once per person, from that person's point of view: the predecessor served one person, so its "waiting on others" never had to agree with anyone else's. With several people each deriving it, they disagreed. Evaluating one author and one reviewer over every state found 24 classes of state where the two waited on each other or nobody held the ball; once the lists were aligned to fix that, 31 classes remained where both held it.
+
+So the ball exists once per unit — a group, or a pull request in no group — on exactly one side, held by the people on that side who must act. Each person's rules describe only their own part, and the ball is placed from the parts by precedence: author work first, so the author finishes the whole group before handing it back; then reviewer work; then the author's last step, merging. Disagreement between people cannot be expressed. The same evaluation finds no state that needs the fallback.
+
+Set aside: one ball per group held by exactly one person, which has to pick arbitrarily when several people have work — two reviewers, two authors — and hides the others' work; and one ball per pull request, which lets a group carry several balls at once, so a reviewer could start on one half of a feature while its author still changes the other.
 
 ## Ported
 
@@ -140,9 +148,9 @@ An executor's "failed" is as much a claim as its "done", and both are checked ag
 
 One task per member per unit holds items of different actions — answer these threads, fix those checks — so a single session sees the whole feature. An executor names the actions it can do, and only claims tasks made of those.
 
-### D30. Asking for review is a task; nudging is a person's action; rules can read elapsed time
+### D30. Asking for review is a task; a nudge is a reminder; rules can read elapsed time
 
-The predecessor's tree re-requested reviews and suggested nudges after a day without progress. `request_review` has a checkable post-condition, so it can be a task. A nudge is a message to a colleague, so it stays with people; the member marks it done on the dashboard, and the mark is a fact rules can read. Elapsed-time fields make verdicts depend on the evaluation time, which is recorded in their inputs to keep them replayable, and an hourly pass re-evaluates open pull requests.
+The predecessor's tree re-requested reviews and suggested nudges after a day without progress. `request_review` has a checkable post-condition, so it can be a task. A nudge is a message to a colleague: it stays with people, and it is a reminder offered to the person waiting, not a move — it never takes the ball from whoever holds it. The member marks it done on the dashboard, and the mark is a fact rules can read. Elapsed-time fields make verdicts depend on the evaluation time, which is recorded in their inputs to keep them replayable, and an hourly pass re-evaluates open units.
 
 ### D31. Group names follow the authority order
 
@@ -160,10 +168,12 @@ Facts keep comment IDs, authors, and times; the few questions that need text fet
 
 Without it, whoever reaches a fresh server first becomes its administrator. The code is printed to the server's log, which only its operator can read.
 
-### D36. Handing the ball back is explicit, and the model never gates it
+### D36. Handing the ball back is explicit
 
-The ported rules used different hand-off signals on each side. The author's list treated replying last, or asking again, as passing the ball; the reviewer's list took it back only through a model judgement, and never read a request to review again. Without a model, or with the model unsure, a reply left each side waiting on the other, and an approval with a thread still open left nobody holding the ball. Evaluating both lists over every state of one author and one reviewer found 24 such classes of state.
+Beyond D35: with nothing to dismiss — the reviewer only commented — asking again hands the pull request back, and until then the author has work on it. Neither a reply, nor new commits, hands the ball back by themselves. An approval settles the approver's own threads, so they never keep the author from merging.
 
-Beyond D35: with nothing to dismiss, asking again hands the pull request back, and until then the author holds it. An approval settles the approver's own threads. A reviewer's stale request for changes prompts them only once they have reviewed again. Judgements can bring the ball to a reviewer sooner, but no hand-off depends on one. The same evaluation now finds no state where the two wait on each other, or where neither holds the ball.
+Set aside: letting whoever spoke last hold the ball, which ignores the dismissal practice and turns every "will do" into the reviewer's work; and letting new commits bring a reviewer back, as the predecessor did, which pulls reviewers in before the author is done.
 
-Set aside: letting whoever spoke last hold the ball, which ignores the dismissal practice and turns every "will do" into the reviewer's work; and asking the model on the author's side too, which would make hand-offs depend on a model that is optional (D8).
+### D38. The model never moves a ball
+
+Placement treats every judgement as unknown, and a refinement cannot change a part's kind, so a ball is in the same place with or without a model; judgements only sharpen what a holder is told, or decide whether someone waiting is offered a reminder. Explicit hand-offs made two of the predecessor's uses redundant: asking whether the author was waiting for the reviewer's view, and whether new commits should bring the reviewer back — asking again answers both. The first question was dropped; the second now only sharpens the reason of a reviewer who is asked again.
