@@ -223,3 +223,9 @@ Set aside: treating any branch that several pull requests are based on as long-l
 Sign-in providers are stored in the database and configured by an admin, so none exists before the first admin does; configuring one in the file as well would give providers a second home. The setup code therefore creates a local account, and the admin connects a forge account right after, from the settings.
 
 Set aside: a sign-in provider read from the configuration file for the first start only, which the dashboard could then neither show nor change.
+
+### D49. Collecting within the forge's limits
+
+GitHub charges its hourly limit by what a query asks for, not by what comes back: a pull request's threads with every comment each would cost a hundred times what its threads with their first and latest comments cost. A thread therefore keeps its first comment, which names who started it, and its latest twenty, which name who spoke last and who else took part; a comment in between adds a participant only when it is the only one they wrote. Short polling looks only at the head, the checks, and mergeability, and refreshes fully when those changed. While the limit holds, every refresh through the installation waits for its reset, instead of webhook refreshes going first. Whether the author may dismiss comes from their access level, not from the dismissal restrictions of branch protection, which need administration access to read.
+
+Set aside: paging through every comment of every thread, which would spend the limit on comments that rarely matter.
