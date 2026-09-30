@@ -256,6 +256,32 @@ func TestManualActions(t *testing.T) {
 	}
 }
 
+// Merging re-points the absorbed group's anchors (G7): a pull request its branch claims later joins the group it was
+// merged into, and the absorbed group is not made again.
+func TestMergeRepointsAnchors(t *testing.T) {
+	e := newEnv(t)
+	e.pr(t, "api", 12, "feat/schedule", "main", nil)
+	e.pr(t, "web", 7, "feat/schedule", "main", nil)
+	e.resolve(t)
+	absorbed, _, _ := e.group(t, "api#12")
+	calendar := e.pr(t, "mobile", 3, "feat/calendar", "main", nil)
+	into, err := e.s.Create(e.ctx, e.actor, "Scheduling", []int64{calendar})
+	must(t, err)
+	must(t, e.s.Merge(e.ctx, e.actor, into, absorbed))
+	e.pr(t, "mobile", 4, "feat/schedule", "main", nil)
+	e.resolve(t)
+	for _, key := range []string{"api#12", "web#7", "mobile#3", "mobile#4"} {
+		if g, _, _ := e.group(t, key); g != into {
+			t.Fatalf("%s is in %d, not in %d", key, g, into)
+		}
+	}
+	var active int
+	must(t, e.pool.QueryRow(e.ctx, "SELECT count(*) FROM pr_group WHERE state = 'active'").Scan(&active))
+	if active != 1 {
+		t.Fatalf("%d active groups after the merge", active)
+	}
+}
+
 // A structural claim that loses opens a suggestion; a dismissed one never reopens; an accepted one becomes a manual
 // placement (G10).
 func TestSuggestions(t *testing.T) {
