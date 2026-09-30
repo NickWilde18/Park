@@ -249,7 +249,9 @@ func TestMigrateReleasesLock(t *testing.T) {
 		}
 		_, _ = store.Migrate(ctx, pool, migrations(t, files))
 		var held int
-		if err := pool.QueryRow(ctx, "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'").Scan(&held); err != nil || held != 0 {
+		// pg_locks spans the whole server, where other packages' tests hold locks of their own; count this database's.
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'
+			AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`).Scan(&held); err != nil || held != 0 {
 			t.Fatalf("%d advisory locks held, %v", held, err)
 		}
 		pool.Close()
