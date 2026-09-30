@@ -95,8 +95,8 @@ func csrfExempt(path string) bool {
 }
 
 // authenticate works out who is calling an API path: an API token in the Authorization header, or a browser session
-// in its cookie. A token that does not work is refused outright. A session that changes state must carry its CSRF
-// token. A token may only read, for now: nothing a token may write exists yet.
+// in its cookie. A token that does not work is refused outright, and one whose scopes do not cover the request too. A
+// session that changes state must carry its CSRF token.
 func (s *server) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/api/") {
@@ -115,7 +115,7 @@ func (s *server) authenticate(next http.Handler) http.Handler {
 				s.respondError(w, r, err)
 				return
 			}
-			if unsafeMethod(r.Method) || !c.HasScope(identity.ScopeRead) {
+			if !tokenMay(c, r) {
 				writeError(w, http.StatusForbidden, "insufficient_scope", "This token's scopes do not allow this request.")
 				return
 			}
@@ -140,6 +140,21 @@ func (s *server) authenticate(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, requestKey, r)))
 	})
+}
+
+// tokenWrites are the requests that change state a token may make, and the scope each needs.
+var tokenWrites = map[string]string{
+	"POST /api/v1/assertions":   identity.ScopeAssertionsWrite,
+	"DELETE /api/v1/assertions": identity.ScopeAssertionsWrite,
+}
+
+// tokenMay reports whether a token's scopes allow a request: reads need read; writes, the scope their endpoint names.
+func tokenMay(c *identity.Caller, r *http.Request) bool {
+	if !unsafeMethod(r.Method) {
+		return c.HasScope(identity.ScopeRead)
+	}
+	scope, ok := tokenWrites[r.Method+" "+r.URL.Path]
+	return ok && c.HasScope(scope)
 }
 
 // guardJSON refuses a request under /api/ that sends a body that is not JSON. Browsers send forms and text/plain

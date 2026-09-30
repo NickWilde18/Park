@@ -685,6 +685,271 @@ paths:
                 $ref: "#/components/schemas/Repo"
         default:
           $ref: "#/components/responses/Error"
+  /groups:
+    get:
+      operationId: listGroups
+      summary: The active groups, with their pull requests
+      tags: [groups]
+      responses:
+        "200":
+          description: The active groups, oldest first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Groups"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createGroup
+      summary: Make a group of pull requests
+      tags: [groups]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupRequest"
+      responses:
+        "201":
+          description: The new group.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        default:
+          $ref: "#/components/responses/Error"
+  /groups/{id}:
+    get:
+      operationId: getGroup
+      summary: A group; a merged group's ID leads to the group it joined
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The group.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: renameGroup
+      summary: Rename a group
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupPatch"
+      responses:
+        "200":
+          description: The group, renamed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        default:
+          $ref: "#/components/responses/Error"
+  /groups/{id}/members:
+    post:
+      operationId: moveIntoGroup
+      summary: Move a pull request into a group
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberRequest"
+      responses:
+        "200":
+          description: The group, with the pull request in it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        default:
+          $ref: "#/components/responses/Error"
+  /groups/{id}/members/{pr}:
+    delete:
+      operationId: takeOutOfGroup
+      summary: Take a pull request out of a group
+      description: The exclusion holds against every source; the pull request falls back to its next-best claim, or stands alone.
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - name: pr
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Taken out.
+        default:
+          $ref: "#/components/responses/Error"
+  /groups/{id}/merge:
+    post:
+      operationId: mergeGroups
+      summary: Merge another group into this one
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeRequest"
+      responses:
+        "200":
+          description: The group, with the other's pull requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        default:
+          $ref: "#/components/responses/Error"
+  /groups/{id}/split:
+    post:
+      operationId: splitGroup
+      summary: Split pull requests out of a group into a new one
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupRequest"
+      responses:
+        "201":
+          description: The new group.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        default:
+          $ref: "#/components/responses/Error"
+  /suggestions:
+    get:
+      operationId: listSuggestions
+      summary: Open grouping suggestions
+      tags: [groups]
+      responses:
+        "200":
+          description: The open suggestions, oldest first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Suggestions"
+        default:
+          $ref: "#/components/responses/Error"
+  /suggestions/{id}/accept:
+    post:
+      operationId: acceptSuggestion
+      summary: Accept a suggestion, placing its pull request in its group
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Accepted.
+        default:
+          $ref: "#/components/responses/Error"
+  /suggestions/{id}/dismiss:
+    post:
+      operationId: dismissSuggestion
+      summary: Dismiss a suggestion; it does not open again
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Dismissed.
+        default:
+          $ref: "#/components/responses/Error"
+  /assertions:
+    post:
+      operationId: postAssertion
+      summary: Assert, as a bridge, that pull requests belong together
+      description: >-
+        With a bridge's token. The bridge, not the request, is the source. Reposting under an anchor replaces the
+        assertion there. A repository that is not watched is refused like an unknown one.
+      tags: [groups]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssertionRequest"
+      responses:
+        "201":
+          description: Recorded; applied unless it names more pull requests than the largest applied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssertionResult"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: retractAssertion
+      summary: Retract, as a bridge, the live assertion under an anchor
+      tags: [groups]
+      parameters:
+        - name: anchor
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Retracted.
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/bridges:
+    get:
+      operationId: listBridges
+      summary: Every registered bridge
+      tags: [admin]
+      responses:
+        "200":
+          description: The bridges.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bridges"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createBridge
+      summary: Register a bridge
+      description: Its owner then creates its token, with bridge_id, at POST /me/tokens.
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BridgeRequest"
+      responses:
+        "201":
+          description: The bridge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bridge"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     session:
@@ -900,6 +1165,10 @@ components:
           type: string
           format: date-time
           nullable: true
+        bridge_id:
+          type: integer
+          format: int64
+          nullable: true
     Tokens:
       type: object
       required: [tokens]
@@ -918,10 +1187,14 @@ components:
           type: array
           items:
             type: string
-            enum: [read, "tasks:work"]
+            enum: [read, "tasks:work", "assertions:write"]
         expires_at:
           type: string
           format: date-time
+        bridge_id:
+          type: integer
+          format: int64
+          description: For a bridge the member owns; its token has the one scope assertions:write.
     NewToken:
       type: object
       required: [token, record]
@@ -1505,6 +1778,202 @@ components:
       properties:
         old: {}
         new: {}
+    ChainPosition:
+      type: object
+      required: [position, length, below]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: The chain, named by its lowest pull request ID; absent when not stacked.
+        position:
+          type: integer
+        length:
+          type: integer
+        below:
+          type: integer
+          description: Open pull requests it stacks on, directly or not.
+    GroupMember:
+      type: object
+      required: [pull_request, open, since, source, reason, chain]
+      properties:
+        pull_request:
+          type: integer
+          format: int64
+        open:
+          type: boolean
+        since:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [manual, external, structural]
+        reason:
+          type: string
+        chain:
+          $ref: "#/components/schemas/ChainPosition"
+    Group:
+      type: object
+      required: [id, name, name_source, state, created_at, members]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        name_source:
+          type: string
+          enum: [manual, external, issue, branch, refs]
+        state:
+          type: string
+          enum: [active, archived]
+        created_at:
+          type: string
+          format: date-time
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupMember"
+    Groups:
+      type: object
+      required: [groups]
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/Group"
+    GroupRequest:
+      type: object
+      required: [name, pull_requests]
+      properties:
+        name:
+          type: string
+        pull_requests:
+          type: array
+          items:
+            type: integer
+            format: int64
+    GroupPatch:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+    MemberRequest:
+      type: object
+      required: [pull_request]
+      properties:
+        pull_request:
+          type: integer
+          format: int64
+    MergeRequest:
+      type: object
+      required: [from]
+      properties:
+        from:
+          type: integer
+          format: int64
+          description: The group absorbed.
+    Suggestion:
+      type: object
+      required: [id, pull_request, group, reason, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        pull_request:
+          type: integer
+          format: int64
+        group:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    Suggestions:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Suggestion"
+    PRName:
+      type: object
+      required: [repo, number]
+      properties:
+        repo:
+          type: string
+          description: owner/name, or a name only one watched repository has.
+        number:
+          type: integer
+    AssertionRequest:
+      type: object
+      required: [anchor, pull_requests]
+      properties:
+        anchor:
+          type: string
+          description: An ID in the bridge's own system, never a link.
+        title:
+          type: string
+        evidence:
+          type: array
+          description: IDs in the bridge's own system, never links.
+          items:
+            type: string
+        pull_requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/PRName"
+    AssertionResult:
+      type: object
+      required: [id, applied]
+      properties:
+        id:
+          type: integer
+          format: int64
+        applied:
+          type: boolean
+    Bridge:
+      type: object
+      required: [id, name, owner_id, link_template, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        owner_id:
+          type: integer
+          format: int64
+        link_template:
+          type: string
+          description: An address with {id} for an anchor or evidence ID, used to render links.
+        created_at:
+          type: string
+          format: date-time
+    Bridges:
+      type: object
+      required: [bridges]
+      properties:
+        bridges:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bridge"
+    BridgeRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        owner_id:
+          type: integer
+          format: int64
+          description: The member who owns it; the caller by default.
+        link_template:
+          type: string
     Error:
       type: object
       required: [error]

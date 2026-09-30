@@ -47,12 +47,15 @@ type Caller struct {
 	TokenID string
 	Scopes  []string
 	Member  Member
+	// BridgeID is set for a bridge's token: the bridge, not the token, is the source of what it posts.
+	BridgeID int64
 }
 
 // The scopes a member's API token can carry.
 const (
-	ScopeRead      = "read"
-	ScopeTasksWork = "tasks:work"
+	ScopeRead            = "read"
+	ScopeTasksWork       = "tasks:work"
+	ScopeAssertionsWrite = "assertions:write" // for a bridge's token only
 )
 
 // HasScope reports whether the call may use scope: a browser session may do anything its member may.
