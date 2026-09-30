@@ -1,0 +1,52 @@
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  text:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: English only, no private names
+        env:
+          PRIVATE_NAMES: ${{ secrets.PARK_PRIVATE_NAMES }}
+        run: |
+          if [ -n "$PRIVATE_NAMES" ]; then
+            printf '%s\n' "$PRIVATE_NAMES" > "$RUNNER_TEMP/private-names"
+            export PARK_PRIVATE_NAMES_FILE="$RUNNER_TEMP/private-names"
+          fi
+          python3 scripts/check_text.py
+
+  design:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: python3 docs/design/checks/check_docs.py
+      - run: python3 docs/design/checks/rule_trees.py --check
+      - run: python3 docs/design/checks/regress.py
+      - run: python3 docs/design/checks/grouping.py
+      - run: python3 docs/design/checks/sweep.py
+
+  charts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      # The runner's AppArmor forbids the unprivileged user namespaces that the browser's sandbox needs.
+      - name: Allow the browser's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: sh docs/design/checks/charts.sh
