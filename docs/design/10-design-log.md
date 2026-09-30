@@ -239,3 +239,15 @@ Set aside: re-mapping anchors whenever their winners change, which would move gr
 ### D51. An issue anchor is named after its oldest pull request
 
 The issue's own title would need collection to fetch issues, which it does not yet. The oldest pull request that closes the issue usually says the same.
+
+### D52. Numbers are whole, and hours whole hours
+
+Conditions compare hours with 2, 24, and 48, and every open unit is evaluated again each hour, so a fraction of an hour changes nothing a rule can see. Whole numbers keep conditions and reasons plain: a reason says "running for 3 hours", and a comparison never mixes integers with decimals.
+
+Set aside: decimal hours, which a threshold under an hour would need, and no rule has one.
+
+### D53. A rule set is one JSON document
+
+The default rule set, a rule-set file kept in git, a draft, and a published version are one document: each role's list, and each rule with its condition and conclusion. Importing a file is posting it. The design checks read it with Python's standard library, and hold the default to its tables rule by rule, term by term. It is read strictly: a key the document does not have is refused rather than dropped, so that a mistyped `remind` cannot quietly change a rule.
+
+Set aside: YAML, which reads more easily, but which the checks could not read without a library.
