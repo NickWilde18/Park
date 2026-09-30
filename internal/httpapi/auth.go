@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -142,10 +143,15 @@ func (s *server) authenticate(next http.Handler) http.Handler {
 	})
 }
 
-// tokenWrites are the requests that change state a token may make, and the scope each needs.
-var tokenWrites = map[string]string{
-	"POST /api/v1/assertions":   identity.ScopeAssertionsWrite,
-	"DELETE /api/v1/assertions": identity.ScopeAssertionsWrite,
+// tokenWrites are the requests that change state a token may make, as method and path patterns, and the scope each
+// needs.
+var tokenWrites = []struct{ pattern, scope string }{
+	{"POST /api/v1/assertions", identity.ScopeAssertionsWrite},
+	{"DELETE /api/v1/assertions", identity.ScopeAssertionsWrite},
+	{"POST /api/v1/tasks/claim", identity.ScopeTasksWork},
+	{"POST /api/v1/tasks/*/heartbeat", identity.ScopeTasksWork},
+	{"POST /api/v1/tasks/*/report", identity.ScopeTasksWork},
+	{"POST /api/v1/tasks/*/release", identity.ScopeTasksWork},
 }
 
 // tokenMay reports whether a token's scopes allow a request: reads need read; writes, the scope their endpoint names.
@@ -153,8 +159,12 @@ func tokenMay(c *identity.Caller, r *http.Request) bool {
 	if !unsafeMethod(r.Method) {
 		return c.HasScope(identity.ScopeRead)
 	}
-	scope, ok := tokenWrites[r.Method+" "+r.URL.Path]
-	return ok && c.HasScope(scope)
+	for _, w := range tokenWrites {
+		if ok, _ := path.Match(w.pattern, r.Method+" "+r.URL.Path); ok {
+			return c.HasScope(w.scope)
+		}
+	}
+	return false
 }
 
 // guardJSON refuses a request under /api/ that sends a body that is not JSON. Browsers send forms and text/plain

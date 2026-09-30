@@ -27,6 +27,7 @@ import (
 	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/identity"
 	"github.com/NickWilde18/Park/internal/rules"
+	"github.com/NickWilde18/Park/internal/tasks"
 	"github.com/NickWilde18/Park/internal/verdicts"
 )
 
@@ -42,6 +43,7 @@ type Options struct {
 	Grouping *grouping.Service
 	Rules    *rules.Service
 	Verdicts *verdicts.Service
+	Tasks    *tasks.Service
 	Pool     *pgxpool.Pool
 }
 
@@ -68,7 +70,7 @@ func New(opts Options) (http.Handler, error) {
 		log.InfoContext(r.Context(), "bad request", "path", r.URL.Path, "error", err)
 		writeError(w, http.StatusBadRequest, "bad_request", "The request is not valid.")
 	}
-	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, rules: opts.Rules, verdicts: opts.Verdicts, pool: opts.Pool,
+	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, rules: opts.Rules, verdicts: opts.Verdicts, tasks: opts.Tasks, pool: opts.Pool,
 		log: log}
 	strict := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  badRequest,
@@ -92,6 +94,7 @@ type server struct {
 	grouping *grouping.Service
 	rules    *rules.Service
 	verdicts *verdicts.Service
+	tasks    *tasks.Service
 	pool     *pgxpool.Pool
 	log      *slog.Logger
 }
