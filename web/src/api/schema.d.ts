@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether Park still needs its first administrator */
+        get: operations["getSetup"];
+        put?: never;
+        /**
+         * Create the first administrator
+         * @description Needs the one-time setup code that Park printed to its log, or took from its environment, when it started with no members. The new administrator is signed in.
+         */
+        post: operations["completeSetup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/providers": {
         parameters: {
             query?: never;
@@ -13,7 +34,7 @@ export interface paths {
         };
         /**
          * The ways to sign in
-         * @description The sign-in providers an admin has configured, for the sign-in page. Needs no session.
+         * @description The sign-in providers an admin has configured, for the sign-in page.
          */
         get: operations["listAuthProviders"];
         put?: never;
@@ -24,11 +45,384 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in with a local account
+         * @description Failures are limited per username and per client address.
+         */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Join with an invite and a local account */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign this browser out */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/{provider}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Begin signing in, or connecting an account, through a forge
+         * @description Redirects the browser to the forge. With `mode=link`, the signed-in member connects the forge account they authorize. With an `invite`, a forge account new to Park joins.
+         */
+        get: operations["startSignIn"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where the forge sends the browser back
+         * @description Redirects to `/` when signed in, to `/settings` when an account was connected, and otherwise to `/` with `sign_in_error` set to the error's code.
+         */
+        get: operations["finishSignIn"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who is calling */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My linked forge accounts */
+        get: operations["listMyIdentities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/identities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disconnect one of my forge accounts */
+        delete: operations["deleteMyIdentity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My API tokens */
+        get: operations["listMyTokens"];
+        put?: never;
+        /**
+         * Create an API token
+         * @description From a browser session only. The token is in this response and never again.
+         */
+        post: operations["createMyToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/tokens/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke one of my API tokens, at once */
+        delete: operations["revokeMyToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every member */
+        get: operations["listMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/members/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a member's name or permissions, or disable them
+         * @description Disabling a member ends their sessions and revokes their tokens. Members are never deleted. Park keeps at least one active admin.
+         */
+        patch: operations["updateMember"];
+        trace?: never;
+    };
+    "/admin/members/{id}/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link a forge account to a member by hand
+         * @description The account is named by its numeric ID on the forge, never by a login. The link records who made it.
+         */
+        post: operations["linkMemberIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every invite */
+        get: operations["listInvites"];
+        put?: never;
+        /**
+         * Create an invite
+         * @description The code is in this response and never again.
+         */
+        post: operations["createInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraw an unused invite */
+        delete: operations["deleteInvite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/forges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every forge */
+        get: operations["listForges"];
+        put?: never;
+        /** Add a forge */
+        post: operations["createForge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/forges/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename a forge, or move it to a new base address */
+        patch: operations["updateForge"];
+        trace?: never;
+    };
+    "/admin/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every sign-in provider */
+        get: operations["listProviders"];
+        put?: never;
+        /** Add a sign-in provider */
+        post: operations["createProvider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/providers/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a sign-in provider
+         * @description Linked forge accounts belong to their forge, and stay.
+         */
+        delete: operations["deleteProvider"];
+        options?: never;
+        head?: never;
+        /** Change a sign-in provider's name or client */
+        patch: operations["updateProvider"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SetupStatus: {
+            needed: boolean;
+        };
+        SetupRequest: {
+            code: string;
+            username: string;
+            password: string;
+            display_name: string;
+        };
+        LoginRequest: {
+            username: string;
+            password: string;
+        };
+        RegisterRequest: {
+            invite: string;
+            username: string;
+            password: string;
+            display_name: string;
+        };
         AuthProviders: {
+            /** @description Whether local accounts can sign in. */
+            local: boolean;
             providers: components["schemas"]["AuthProvider"][];
         };
         AuthProvider: {
@@ -36,6 +430,172 @@ export interface components {
             id: string;
             /** @enum {string} */
             kind: "forge" | "oidc";
+            /** @description What the sign-in page calls it. */
+            name: string;
+        };
+        Member: {
+            /** Format: int64 */
+            id: number;
+            display_name: string;
+            admin: boolean;
+            /** @description May draft and publish rule sets. */
+            rules: boolean;
+            disabled: boolean;
+            /** Format: date-time */
+            created_at: string;
+        };
+        Members: {
+            members: components["schemas"]["Member"][];
+        };
+        Me: {
+            member: components["schemas"]["Member"];
+            /** @description For a browser session, the value of the X-CSRF-Token header. */
+            csrf_token?: string;
+            /** @description For an API token, its scopes. */
+            scopes?: string[];
+        };
+        MemberPatch: {
+            display_name?: string;
+            admin?: boolean;
+            rules?: boolean;
+            disabled?: boolean;
+        };
+        Identity: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            forge_id: number;
+            forge_name: string;
+            /**
+             * Format: int64
+             * @description The account's stable ID on the forge.
+             */
+            account_id: number;
+            /** @description Display only; it can change. */
+            login: string;
+            name: string;
+            /**
+             * Format: int64
+             * @description The admin who linked it by hand; null when it was verified through the forge.
+             */
+            linked_by?: number | null;
+            /** Format: date-time */
+            linked_at: string;
+        };
+        Identities: {
+            identities: components["schemas"]["Identity"][];
+        };
+        LinkRequest: {
+            /** Format: int64 */
+            forge_id: number;
+            /** Format: int64 */
+            account_id: number;
+        };
+        Token: {
+            id: string;
+            name: string;
+            scopes: string[];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            /** Format: date-time */
+            expires_at?: string | null;
+            /** Format: date-time */
+            revoked_at?: string | null;
+        };
+        Tokens: {
+            tokens: components["schemas"]["Token"][];
+        };
+        TokenRequest: {
+            name: string;
+            scopes: ("read" | "tasks:work")[];
+            /** Format: date-time */
+            expires_at?: string;
+        };
+        NewToken: {
+            /** @description Shown this once. */
+            token: string;
+            record: components["schemas"]["Token"];
+        };
+        Invite: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            created_by: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: int64 */
+            used_by?: number | null;
+            /** Format: date-time */
+            used_at?: string | null;
+        };
+        Invites: {
+            invites: components["schemas"]["Invite"][];
+        };
+        InviteRequest: {
+            /** @description 168, a week, by default; at most 720. */
+            expires_in_hours?: number;
+        };
+        NewInvite: {
+            /** @description Shown this once. */
+            code: string;
+            invite: components["schemas"]["Invite"];
+        };
+        Forge: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            kind: "github";
+            name: string;
+            /** @description Such as https://github.com. Links and API addresses are built from it. */
+            base_address: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        Forges: {
+            forges: components["schemas"]["Forge"][];
+        };
+        ForgeRequest: {
+            /** @enum {string} */
+            kind: "github";
+            name: string;
+            base_address: string;
+        };
+        ForgePatch: {
+            name?: string;
+            base_address?: string;
+        };
+        Provider: {
+            id: string;
+            /** @enum {string} */
+            kind: "forge";
+            name: string;
+            /** Format: int64 */
+            forge_id: number;
+            client_id: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        Providers: {
+            providers: components["schemas"]["Provider"][];
+        };
+        ProviderRequest: {
+            id: string;
+            /** @enum {string} */
+            kind: "forge";
+            name: string;
+            /** Format: int64 */
+            forge_id: number;
+            client_id: string;
+            client_secret: string;
+        };
+        ProviderPatch: {
+            name?: string;
+            client_id?: string;
+            client_secret?: string;
         };
         Error: {
             error: {
@@ -57,13 +617,63 @@ export interface components {
             };
         };
     };
-    parameters: never;
+    parameters: {
+        ID: number;
+        /** @description The stable ID an admin gave the sign-in provider. */
+        ProviderID: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether setup is needed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupStatus"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    completeSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupRequest"];
+            };
+        };
+        responses: {
+            /** @description The first administrator, signed in. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     listAuthProviders: {
         parameters: {
             query?: never;
@@ -73,13 +683,575 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The configured sign-in providers. */
+            /** @description The ways to sign in. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AuthProviders"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description The member, signed in. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description The new member, signed in. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    startSignIn: {
+        parameters: {
+            query?: {
+                mode?: "signin" | "link";
+                invite?: string;
+            };
+            header?: never;
+            path: {
+                /** @description The stable ID an admin gave the sign-in provider. */
+                provider: components["parameters"]["ProviderID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description To the forge. */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    finishSignIn: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
+            };
+            header?: never;
+            path: {
+                /** @description The stable ID an admin gave the sign-in provider. */
+                provider: components["parameters"]["ProviderID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Back into Park. */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The calling member. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listMyIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The calling member's forge accounts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Identities"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteMyIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disconnected. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listMyTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The calling member's tokens, without their secrets. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tokens"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createMyToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequest"];
+            };
+        };
+        responses: {
+            /** @description The new token. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewToken"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    revokeMyToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The token's ID, from its prefix. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every member, including disabled ones. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Members"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    updateMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberPatch"];
+            };
+        };
+        responses: {
+            /** @description The member, changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    linkMemberIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkRequest"];
+            };
+        };
+        responses: {
+            /** @description The link. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Identity"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every invite, without its code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invites"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteRequest"];
+            };
+        };
+        responses: {
+            /** @description The new invite. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewInvite"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listForges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every forge. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Forges"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createForge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgeRequest"];
+            };
+        };
+        responses: {
+            /** @description The new forge. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Forge"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    updateForge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgePatch"];
+            };
+        };
+        responses: {
+            /** @description The forge, changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Forge"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every sign-in provider, without its client secret. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Providers"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderRequest"];
+            };
+        };
+        responses: {
+            /** @description The new provider. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Provider"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The stable ID an admin gave the sign-in provider. */
+                provider: components["parameters"]["ProviderID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    updateProvider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The stable ID an admin gave the sign-in provider. */
+                provider: components["parameters"]["ProviderID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderPatch"];
+            };
+        };
+        responses: {
+            /** @description The provider, changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Provider"];
                 };
             };
             default: components["responses"]["Error"];

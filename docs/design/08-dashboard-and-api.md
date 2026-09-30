@@ -42,8 +42,8 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 
 ## Conventions
 
-- **Base path** `/api/v1`, JSON bodies. The OpenAPI document, served at `/api/v1/openapi.json`, is the single source for server and client code.
-- **Authentication**: browsers use the session cookie and the CSRF header; machines send `Authorization: Bearer <token>`. Tokens are never accepted in URLs.
+- **Base path** `/api/v1`, JSON bodies; a request body of any other type is refused. The OpenAPI document, served at `/api/v1/openapi.json`, is the single source for server and client code.
+- **Authentication**: browsers use the session cookie and the CSRF header, `X-CSRF-Token`, whose value `GET /me` gives; machines send `Authorization: Bearer <token>`. Tokens are never accepted in URLs.
 - **Errors**: `{"error": {"code": "…", "message": "…"}}`, with stable codes. Internal details go to logs, never into responses.
 - **Pagination**: cursors — `?cursor=…&limit=…`, and a `next_cursor` in the response.
 - **Identifiers**: Park's own IDs in paths. Where noted, machines may name pull requests by repository name and number, and Park resolves them.
@@ -56,7 +56,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 
 | Area | Endpoints |
 |---|---|
-| Session | `GET /auth/providers` · `POST /auth/login` · `GET /auth/{provider}/start` · `GET /auth/{provider}/callback` · `POST /auth/logout` · `GET /me` |
+| Session | `GET /setup` · `POST /setup` · `GET /auth/providers` · `POST /auth/login` · `POST /auth/register` · `GET /auth/{provider}/start` · `GET /auth/{provider}/callback` · `POST /auth/logout` · `GET /me` |
 | Queue and verdicts | `GET /queue` · `GET /verdicts` · `GET /verdicts/{id}` |
 | Pull requests | `GET /prs` · `GET /prs/{id}` · `GET /prs/{id}/timeline` · `POST /prs/{id}/refresh` · `POST /prs/{id}/nudged` |
 | Groups | `GET /groups` · `GET /groups/{id}` · `POST /groups` · `PATCH /groups/{id}` · `POST /groups/{id}/members` · `DELETE /groups/{id}/members/{pr}` · `POST /groups/{id}/merge` · `POST /groups/{id}/split` |

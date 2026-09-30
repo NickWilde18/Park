@@ -78,18 +78,6 @@ func TestReadyz(t *testing.T) {
 	}
 }
 
-// The sign-in providers are an empty list, not null, until providers can be configured.
-func TestListAuthProviders(t *testing.T) {
-	h, _ := newHandler(t, ready, built)
-	w := do(h, "GET", "/api/v1/auth/providers")
-	if w.Code != http.StatusOK || strings.TrimSpace(w.Body.String()) != `{"providers":[]}` {
-		t.Fatalf("got %d %q", w.Code, w.Body)
-	}
-	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
-		t.Errorf("Content-Type %q", ct)
-	}
-}
-
 // /api/v1/openapi.json serves the contract, as JSON, with the paths of api/openapi.yaml.
 func TestContract(t *testing.T) {
 	h, _ := newHandler(t, ready, built)
@@ -185,7 +173,7 @@ func TestRecoverPanics(t *testing.T) {
 		ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(context.Background(), "GET", "/x", nil))
 }
 
-// Requests are logged with their status; successful health checks are not.
+// Requests are logged with their path and status — never their query — and successful health checks are not.
 func TestLogRequests(t *testing.T) {
 	h, logs := newHandler(t, ready, built)
 	do(h, "GET", "/healthz")
@@ -193,14 +181,14 @@ func TestLogRequests(t *testing.T) {
 	if logs.Len() != 0 {
 		t.Fatalf("health checks were logged: %q", logs)
 	}
-	do(h, "GET", "/api/v1/auth/providers")
+	do(h, "GET", "/api/v1/no-such-thing?code=secret")
 	var entry struct {
 		Msg    string `json:"msg"`
 		Path   string `json:"path"`
 		Status int    `json:"status"`
 	}
 	if err := json.Unmarshal(logs.Bytes(), &entry); err != nil || entry.Msg != "request" ||
-		entry.Path != "/api/v1/auth/providers" || entry.Status != http.StatusOK {
+		entry.Path != "/api/v1/no-such-thing" || entry.Status != http.StatusNotFound || strings.Contains(logs.String(), "secret") {
 		t.Fatalf("log %q: %+v, %v", logs, entry, err)
 	}
 }

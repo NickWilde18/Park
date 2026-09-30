@@ -26,7 +26,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/NickWilde18/Park/internal/config"
+	_ "github.com/NickWilde18/Park/internal/forges/github" // the forge kinds Park supports
 	"github.com/NickWilde18/Park/internal/httpapi"
+	"github.com/NickWilde18/Park/internal/identity"
+	"github.com/NickWilde18/Park/internal/secret"
 	"github.com/NickWilde18/Park/internal/store"
 	"github.com/NickWilde18/Park/internal/work"
 	"github.com/NickWilde18/Park/web"
@@ -108,6 +111,25 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		}
 	}()
 
+	box, err := secret.New(cfg.SecretKey)
+	if err != nil {
+		return err
+	}
+	ids, err := identity.New(pool, box, log, identity.Options{PublicURL: cfg.HTTP.PublicURL, SecretKey: cfg.SecretKey})
+	if err != nil {
+		return err
+	}
+	code, needed, err := ids.IssueSetupCode(ctx, cfg.SetupCode)
+	if err != nil {
+		return fmt.Errorf("prepare the setup code: %w", err)
+	}
+	switch {
+	case needed && code != "":
+		log.InfoContext(ctx, "Park has no members yet: set it up within an hour, with this code", "setup_code", code)
+	case needed:
+		log.InfoContext(ctx, "Park has no members yet: set it up within an hour, with the setup code from the configuration")
+	}
+
 	handler, err := httpapi.New(httpapi.Options{
 		Ready: func(ctx context.Context) error {
 			pending, err := store.Pending(ctx, pool, migrations)
@@ -119,8 +141,10 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 			}
 			return nil
 		},
-		UI:     web.Dist(),
-		Logger: log,
+		UI:       web.Dist(),
+		Logger:   log,
+		Identity: ids,
+		Pool:     pool,
 	})
 	if err != nil {
 		return err

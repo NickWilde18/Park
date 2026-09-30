@@ -16,7 +16,12 @@ export PARK_SECRET_KEY="$(openssl rand -base64 32)"
 bin/park serve
 ```
 
-Park applies its migrations and listens on port 8080.
+Park applies its migrations and listens on port 8080. With no members yet, it prints a setup code to its log; create the first administrator with it, within an hour, through the API — the dashboard's own pages come later:
+
+```sh
+curl -c cookies -H 'Content-Type: application/json' http://localhost:8080/api/v1/setup \
+  -d '{"code": "XXXX-XXXX-XXXX", "username": "admin", "password": "a long passphrase", "display_name": "Admin"}'
+```
 
 | Command | Does |
 |---|---|
@@ -31,8 +36,10 @@ A YAML file, named by `-config` or `PARK_CONFIG`, and environment variables, whi
 | Key | Variable | |
 |---|---|---|
 | `http.addr` | `PARK_HTTP_ADDR` | The address to listen on; `:8080` by default |
+| `http.public_url` | `PARK_HTTP_PUBLIC_URL` | Park's own address, such as `https://park.example.com`; needed for signing in through a forge |
 | `database.url` | `PARK_DATABASE_URL` | Required. A `postgres://` URL |
 | `secret_key` | `PARK_SECRET_KEY` | Required, at least 32 bytes. Encrypts the secrets Park stores; they cannot be read without it |
+| `setup_code` | `PARK_SETUP_CODE` | The one-time code that creates the first administrator; without it, Park prints one to its log |
 
 ## Develop
 

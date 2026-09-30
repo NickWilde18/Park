@@ -13,12 +13,17 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.yaml.in/yaml/v3"
 
 	"github.com/NickWilde18/Park/api"
+	"github.com/NickWilde18/Park/internal/fail"
+	"github.com/NickWilde18/Park/internal/identity"
 )
 
 // Options are what the handler needs from the rest of Park.
@@ -26,8 +31,10 @@ type Options struct {
 	// Ready reports whether Park can serve requests: the database answers and its schema is current.
 	Ready func(context.Context) error
 	// UI is the built frontend. Without an index.html in it, "/" says that this build has no frontend.
-	UI     fs.FS
-	Logger *slog.Logger
+	UI       fs.FS
+	Logger   *slog.Logger
+	Identity *identity.Service
+	Pool     *pgxpool.Pool
 }
 
 // New returns Park's HTTP handler.
@@ -50,27 +57,48 @@ func New(opts Options) (http.Handler, error) {
 		log.InfoContext(r.Context(), "bad request", "path", r.URL.Path, "error", err)
 		writeError(w, http.StatusBadRequest, "bad_request", "The request is not valid.")
 	}
-	strict := NewStrictHandlerWithOptions(server{}, nil, StrictHTTPServerOptions{
-		RequestErrorHandlerFunc: badRequest,
-		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
-			log.ErrorContext(r.Context(), "request failed", "path", r.URL.Path, "error", err)
-			writeError(w, http.StatusInternalServerError, "internal", "Something went wrong.")
-		},
+	srv := &server{id: opts.Identity, pool: opts.Pool, log: log}
+	strict := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
+		RequestErrorHandlerFunc:  badRequest,
+		ResponseErrorHandlerFunc: srv.respondError,
 	})
 	HandlerWithOptions(strict, StdHTTPServerOptions{BaseURL: "/api/v1", BaseRouter: mux, ErrorHandlerFunc: badRequest})
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "There is no such endpoint.")
 	})
 	mux.Handle("/", frontend(opts.UI))
-	return recoverPanics(log, logRequests(log, mux)), nil
+	return recoverPanics(log, logRequests(log, guardJSON(srv.authenticate(mux)))), nil
 }
 
 // server implements the API.
-type server struct{}
+type server struct {
+	id   *identity.Service
+	pool *pgxpool.Pool
+	log  *slog.Logger
+}
 
-// ListAuthProviders lists the sign-in providers. None can be configured yet.
-func (server) ListAuthProviders(context.Context, ListAuthProvidersRequestObject) (ListAuthProvidersResponseObject, error) {
-	return ListAuthProviders200JSONResponse{Providers: []AuthProvider{}}, nil
+// statuses maps each kind of error the caller can act on to its HTTP status.
+var statuses = map[fail.Kind]int{
+	fail.Invalid:         http.StatusBadRequest,
+	fail.Unauthenticated: http.StatusUnauthorized,
+	fail.Forbidden:       http.StatusForbidden,
+	fail.NotFound:        http.StatusNotFound,
+	fail.Conflict:        http.StatusConflict,
+	fail.RateLimited:     http.StatusTooManyRequests,
+	fail.Unavailable:     http.StatusServiceUnavailable,
+}
+
+// respondError answers with an error the caller can act on, or logs any other error and answers 500.
+func (s *server) respondError(w http.ResponseWriter, r *http.Request, err error) {
+	if f, ok := fail.As(err); ok {
+		if f.RetryAfter > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(f.RetryAfter.Seconds()))))
+		}
+		writeError(w, statuses[f.Kind], f.Code, f.Message)
+		return
+	}
+	s.log.ErrorContext(r.Context(), "request failed", "path", r.URL.Path, "error", err)
+	writeError(w, http.StatusInternalServerError, "internal", "Something went wrong.")
 }
 
 func readyz(ready func(context.Context) error, log *slog.Logger) http.HandlerFunc {
