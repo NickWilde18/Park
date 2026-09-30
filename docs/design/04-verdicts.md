@@ -78,7 +78,7 @@ flowchart TD
     Q3 -->|no| Q4{"Does any author<br/>have a finish part?"}
     Q4 -->|yes| MS["Author side<br/>merge, or wait for the ones below"]
     Q4 -->|no| FB["Fallback: author side,<br/>verdict flagged"]
-    AS --> REF["Refine with judgements: holders' reasons,<br/>waiting people's reminders. Nothing else changes"]
+    AS --> REF["Refine with recorded judgements: holders' reasons,<br/>waiting people's reminders; missing ones are<br/>asked in the background. Nothing else changes"]
     RS --> REF
     HS --> REF
     MS --> REF
@@ -145,7 +145,7 @@ Evaluations of one unit are serialized: each takes the unit's lock, so two pull 
    2. A condition that depends on a judgement does not match now; the path records it as "unknown judgement".
    3. A condition that fails at run time, or exceeds its cost limit, does not match. The error is recorded in the path, and the rule is flagged on the dashboard.
 5. **Place the ball** (above).
-6. **Refine.** For each holder, and for each waiting person whose path passed over a reminder rule on an unknown judgement, get those judgements (next flow) and evaluate that person's list again. A refined part is kept only if nothing but its reason or reminder changed. Otherwise the part from step 4 stands, and the rule is flagged.
+6. **Refine.** For each holder, and for each waiting person whose path passed over a reminder rule on an unknown judgement, look those judgements up, and evaluate that person's list again with the ones that are recorded. A refined part is kept only if nothing but its reason or reminder changed; otherwise the part from step 4 stands, and the rule is flagged. A judgement not recorded yet does not hold anything up: it is asked in the background (next flow), and when its answer is recorded, the unit is evaluated again.
 7. **Compare** with the unit's current verdict. If the side, the holders with their actions and reasons, and the reminders are all unchanged, store nothing.
 8. **Otherwise store** a new verdict and make it current, and queue work for tasks and the dashboard. A verdict records the highest fact sequence number it read, and never replaces one computed from newer facts.
 
@@ -168,25 +168,27 @@ A question's **fingerprint** is a hash of the question and its version, the pers
 
 ### Flow: get a judgement
 
+Judgements are asked in the background; nothing waits for them.
+
 1. **Compute the fingerprint.**
 2. **If an answer is recorded** for it, use it. No model call.
-3. **If no model provider is configured**, the judgement is unknown.
-4. **If the same fingerprint is already being asked**, wait for that call, within the timeout.
-5. **Ask.** Take a slot under the concurrency limit, fetch the texts the question reads from the forge, send the question, and wait up to the timeout. Time spent waiting for a slot counts toward it.
+3. **If no model provider is configured**, the judgement is unknown, and nothing is asked.
+4. **If the same fingerprint is already queued or being asked**, do nothing more: that call's answer will serve.
+5. **Ask.** A background worker takes a slot under the concurrency limit, fetches the texts the question reads from the forge, sends the question, and waits up to the timeout.
 6. **Validate** the answer against the question's schema. An invalid answer counts as an error.
-7. **Record** the judgement, and continue the refinement with it. A question and fingerprint have one judgement: if two servers ask at once, the first answer recorded stands, and the other is discarded.
+7. **Record** the judgement, and evaluate the unit again, so the reason or reminder it sharpens appears. A question and fingerprint have one judgement: if two servers ask at once, the first answer recorded stands, and the other is discarded.
 8. **Below the question's confidence threshold**, the recorded answer counts as unknown. The path shows it — "asked again · model unsure (0.55)" — so a reader can tell the reason came from the rules, not from the model.
-9. **On a timeout**, the refinement continues with the judgement unknown. The call runs on in the background; when its answer arrives, it is recorded and the unit is evaluated again. **On an error**, the judgement is unknown, and the question is retried after a backoff.
+9. **On a timeout or an error**, the judgement stays unknown, and the question is retried after a backoff.
 
 ### What this gives
 
-- **No judgement moves a ball.** Placement ignores judgements, and a refinement changes nothing but a reason or a reminder. With no provider, every part has the same kind and action it would have with one; reasons are plainer, and no reminder depends on a judgement. Model grouping is another matter: a pull request the model places in a group changes the unit it belongs to ([Grouping](03-grouping.md)).
-- **No flicker.** A verdict is stored with its refinements done; the dashboard does not show one reason and then switch to another, except when a call timed out.
+- **No model answer moves a ball.** Placement ignores judgements, and a refinement changes nothing but a reason or a reminder; in grouping, the model only suggests ([Grouping](03-grouping.md)). With no provider, every ball is where it would be with one; reasons are plainer, and no reminder depends on a judgement.
+- **Nothing waits on the model.** A verdict is stored at once, with the reasons the rules give; a reason may sharpen a moment later, when an answer arrives. The ball, the actions, and the tasks never change with it.
 - **Reproducible.** Replaying a verdict reads the recorded judgements and never calls the model again. Rule logic is tested with recorded judgements, without network mocks.
 - **Bounded cost.** Questions are asked only for holders and possible reminders, once per distinct input.
 - **Visible provenance.** Every verdict lists the judgements it used, so the dashboard shows which reasons came from a model, and with what confidence.
 
-The cost: storing a verdict can wait on the model, up to the timeout, and concurrency is capped so a burst of new questions cannot stall everything.
+The cost: a reason can change shortly after it is first shown; and concurrency is capped, so a burst of new questions waits its turn rather than crowding out other work.
 
 ### What is sent
 
@@ -198,7 +200,7 @@ Before a model provider is enabled, the settings page lists each question and wh
 - **V2. One ball per unit**, on exactly one side, with at least one holder. There is no other record of whose turn it is.
 - **V3. Precedence places the ball**: author work, then reviewer work, then an author who only waits, then the author's last step, then the fallback.
 - **V4. Parts are per person per open pull request**, from at most one role; the author role takes precedence. No role, no part; a merged or closed pull request has no parts.
-- **V5. No judgement moves a ball.** Placement treats every judgement as unknown; a refinement may change a part's reason or reminder, and nothing else.
+- **V5. No model answer moves a ball.** Placement treats every judgement as unknown; a refinement may change a part's reason or reminder, and nothing else; judgements are asked in the background, and nothing waits for them.
 - **V6. Unknown never matches.** A condition that depends on an unknown judgement — no provider, a timeout, an error, or low confidence — does not match.
 - **V7. Tasks are not an input.** Verdicts read facts only. While an executor works, the ball stays where the facts put it, and the task's state is shown beside it.
 - **V8. Verdicts are immutable.** A new one is stored only when something a person sees changes.

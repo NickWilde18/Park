@@ -1,11 +1,6 @@
 # 11. Open questions
 
-What is still undecided. Each item is decided by the owner, tuned during implementation, or waits for a real need.
-
-## To decide
-
-- **Model grouping: automatic, or suggestions only.** At or above its threshold, a model placement puts a pull request in a group by itself, and so changes the unit its ball belongs to ([D38](10-design-log.md#d38-no-judgement-moves-a-ball)). Making every model placement a suggestion that a member accepts would keep the model out of ball placement entirely, at the cost of a click per placement.
-- **Synchronous or asynchronous judgement.** Refinements now change only a reason or a reminder, never a part's kind or action. Asking the model in the background, and updating the reason when the answer arrives, would remove the synchronous call with its timeout and background completion ([D7](10-design-log.md#d7-model-judgements-are-synchronous-and-recorded)); the price is that a reason can change a moment after it is first shown.
+What is still undecided. Each item is either tuned during implementation or waits for a real need.
 
 ## Tune during implementation
 

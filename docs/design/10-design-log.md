@@ -26,7 +26,7 @@ Usernames can be renamed; a stored login silently stops matching, while a numeri
 
 ### D4. Grouping resolves assertions by authority
 
-Groups come from several sources of different reliability — members, bridges, structure, and the model — and one claim wins per pull request, the highest authority first. Claims are never unioned: union is transitive, and a few weak links glue unrelated features together.
+Groups come from several sources of different reliability — members, bridges, and structure, with the model only suggesting (D47) — and one claim wins per pull request, the highest authority first. Claims are never unioned: union is transitive, and a few weak links glue unrelated features together.
 
 Set aside: structural signals plus manual grouping alone, which miss groupings that exist only in people's conversations — in the predecessor, the most accurate source of all; and model-first clustering corrected by people, because clustering output shifts from run to run, and every reshuffle ripples into verdicts, tasks, and notifications.
 
@@ -34,17 +34,17 @@ Set aside: structural signals plus manual grouping alone, which miss groupings t
 
 The predecessor derived a group's ID from its member list, so that a membership change would be noticed. But every regrouping then looked like one group vanishing and another appearing: cooldowns reset, pull requests that were still open were announced as merged, and the same alert went out again and again. Park gives groups their own IDs and records membership changes explicitly.
 
-### D6. The model places one pull request at a time, and never asks twice
+### D6. The model answers for one pull request at a time, and never asks twice
 
-The predecessor re-clustered every unexplained pull request together whenever that set changed: one new pull request re-rolled everyone's grouping, and the same question asked twice could get a different answer. Park asks one question for one pull request — which existing group, a new one, or none — records the answer by fingerprint, and never re-decides a placement because other pull requests came and went.
+The predecessor re-clustered every unexplained pull request together whenever that set changed: one new pull request re-rolled everyone's grouping, and the same question asked twice could get a different answer. Park asks one question for one pull request — which existing group, a new one, or none — records the answer by fingerprint, and never asks again because other pull requests came and went. Since D47, the answer is a suggestion that a member accepts.
 
-### D7. Model judgements are synchronous and recorded
+### D7. Model judgements are recorded, and asked in the background
 
-When a rule depends on a judgement with no recorded answer, the model is called there and then, with a timeout, and the answer is recorded against the exact inputs it saw. A two-pass scheme — show the rule-only conclusion at once, switch when the model answers — was rejected: conclusions would flicker, and every switch would ripple into tasks.
+When a rule depends on a judgement with no recorded answer, the model is asked, and the answer is recorded against the exact inputs it saw. At first the call was synchronous, with a timeout: a two-pass scheme — show the rule-only conclusion at once, switch when the model answers — was rejected, because conclusions would flicker and every switch would ripple into tasks. Once a judgement could change only a reason or a reminder, never a part's kind or action (D38), that concern no longer applied, and the owner chose to ask in the background: a verdict is stored at once with the rules' reasons, and a reason sharpens when its answer arrives. The synchronous call, with its timeout and its completion in the background, is gone.
 
 ### D8. Model judgement is optional
 
-Every judgement has a path that does not need it, so Park works fully without a model provider; configuring one only sharpens a few conclusions.
+Every judgement has a path that does not need it, so Park works fully without a model provider; configuring one only sharpens a few reasons and reminders, and offers grouping suggestions.
 
 ### D9. Roles are a function, not a column
 
@@ -99,6 +99,10 @@ The ported rules computed "whose turn is it" once per person, from that person's
 So the ball exists once per unit — a group, or a pull request in no group — on exactly one side, held by the people on that side who must act. Each person's rules describe only their own part, and the ball is placed from the parts by precedence: author work first, so the author finishes the whole group before handing it back; then reviewer work; then the author's last step, merging. D41 places an author who only waits — on checks, or on a draft — after reviewer work. Disagreement between people cannot be expressed. The same evaluation, extended to two reviewers and to one or two required approvals, finds no state that needs the fallback, and none where a reviewer whose approval stands holds the ball unless the author asked them again.
 
 Set aside: one ball per group held by exactly one person, which has to pick arbitrarily when several people have work — two reviewers, two authors — and hides the others' work; and one ball per pull request, which lets a group carry several balls at once, so a reviewer could start on one half of a feature while its author still changes the other.
+
+### D47. The model only suggests groups
+
+A model placement at or above its threshold used to put a pull request in a group by itself, which changed the unit — and so the ball — it belonged to. The owner chose suggestions only: a model answer opens a suggestion, and nothing changes until a member accepts it, which records a manual placement. Grouping stays stable, and the model moves no ball anywhere in Park; the price is a click for each placement a member wants.
 
 ## Ported
 
@@ -174,9 +178,9 @@ Beyond D35: with nothing to dismiss — the reviewer only commented — asking a
 
 Set aside: letting whoever spoke last hold the ball, which ignores the dismissal practice and turns every "will do" into the reviewer's work; and letting new commits bring a reviewer back, as the predecessor did, which pulls reviewers in before the author is done.
 
-### D38. No judgement moves a ball
+### D38. No model answer moves a ball
 
-Placement treats every judgement as unknown, and a refinement changes nothing but a reason or a reminder, so every part has the same kind and action with or without a model; judgements only sharpen what a holder is told, or decide whether someone waiting is offered a reminder. The guarantee is about judgements: a model that places a pull request in a group does change the unit it belongs to. Explicit hand-offs made two of the predecessor's uses redundant: asking whether the author was waiting for the reviewer's view, and whether new commits should bring the reviewer back — asking again answers both. The first question was dropped; the second now only sharpens the reason of a reviewer who is asked again.
+Placement treats every judgement as unknown, and a refinement changes nothing but a reason or a reminder, so every part has the same kind and action with or without a model; judgements only sharpen what a holder is told, or decide whether someone waiting is offered a reminder. With D47, the model does not place pull requests in groups either, so no model answer moves a ball anywhere. Explicit hand-offs made two of the predecessor's uses redundant: asking whether the author was waiting for the reviewer's view, and whether new commits should bring the reviewer back — asking again answers both. The first question was dropped; the second now only sharpens the reason of a reviewer who is asked again.
 
 ### D39. Merging takes the forge's go-ahead and the team's minimum
 

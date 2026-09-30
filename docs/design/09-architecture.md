@@ -34,7 +34,7 @@ Inside `park serve`:
 | HTTP | The API, the event stream, webhook intake, health checks, and the embedded frontend |
 | Refresher | Refreshes pull requests and repositories ([Facts](02-facts.md)) |
 | Poller | Schedules polling and full sweeps |
-| Resolver | Chains, grouping resolution, and model placement ([Grouping](03-grouping.md)) |
+| Resolver | Chains, grouping resolution, and model suggestions ([Grouping](03-grouping.md)) |
 | Evaluator | Verdicts and judgements ([Verdicts](04-verdicts.md)) |
 | Task keeper | Creating tasks, expiring leases, verification, and retries ([Tasks](06-tasks.md)) |
 | Model pool | Calls to the model provider, under the concurrency limit |

@@ -305,8 +305,8 @@ Passed-over labels: 1 "not a draft", 2 "checks not running", 6 "reviewed before"
 - **Waiting never blocks others.** A reviewer waits for green checks on the pull request they review (reviewer 2), but an author who is only waiting — on running checks, or on their own draft — never holds back the reviews of the other pull requests in the group.
 - **Chain position matters only where it must.** An approved pull request waits for the ones below it (author 14), and a first review deep in a chain can wait (reviewer 5). Answering comments, fixing checks, and resolving conflicts can happen anywhere in a chain, in parallel. Position 2 is not downgraded: it is usually next.
 - **Reminders are not moves.** A nudge (author 19, reviewers 10 and 18) is offered to the person waiting, and never moves the ball.
-- **Judgements never move the ball.** Reviewer 12 only sharpens the reason of a reviewer who is already asked again, and reviewer 18 only decides whether to offer a reminder. Without a model, every part has the same kind; the reasons are plainer, and a reviewer who only commented is never offered a reminder.
-- **The fallback is never needed.** For one author and up to two reviewers, with one or two approvals required, in every combination of review, thread, new commits, review request, elapsed time, and nudge, some rule gives someone the ball — and never to a reviewer whose approval or request for changes stands, unless the author asked them again. The review's regression cases add groups, drafts, running and stuck checks, code owners, review bodies, team requests, and authors who cannot dismiss.
+- **Judgements never move the ball.** Reviewer 12 only sharpens the reason of a reviewer who is already asked again, and reviewer 18 only decides whether to offer a reminder. Without a model, every part has the same kind; the reasons are plainer, and a reviewer who only commented is never offered a reminder. Judgements are asked in the background, so a sharper reason may appear a moment after the plain one.
+- **The fallback is never needed.** For one author and up to two reviewers, with the forge requiring zero, one, or two approvals, in every combination of review, thread, new commits, review request, elapsed time, and nudge, some rule gives someone the ball — and never to a reviewer whose approval or request for changes stands, unless the author asked them again. The review's regression cases add groups, drafts, running and stuck checks, code owners, review bodies, team requests, and authors who cannot dismiss.
 
 ## Editing and publishing
 
@@ -325,7 +325,10 @@ A draft can be published only when:
 - every conclusion is complete — an action allowed for the role on every `act`, "remind" only on `idle`, and "may become a task" only on actions that can be tasks;
 - reviewer lists conclude only `act` or `idle`;
 - every judgement names a question asked for that role;
-- every pinned example is confirmed.
+- every pinned example is confirmed;
+- the draft was started from the version that is published now. A draft started from an older version must be brought up to date first, so that publishing never silently undoes someone else's change.
+
+In the first release there is no editor ([Phases](README.md#phases)): a draft is imported from a rule-set file — kept, and reviewed, in git — through the same publish API, and every check above runs on it.
 
 ## Rules
 

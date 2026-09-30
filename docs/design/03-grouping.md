@@ -12,32 +12,32 @@ A group is a judgment: "these belong together" can come from several places with
 
 ```
  forge facts  ─▶ structural ─┐
- dashboard    ─▶ manual     ─┤
- bridges      ─▶ external   ─┼─▶ assertions ─▶ resolve ─▶ groups (stable IDs)
- unplaced PRs ─▶ model      ─┘                             + chains (git graph)
-                                                                 │
-                                          verdicts · task units · dashboard
+ dashboard    ─▶ manual     ─┼─▶ assertions ─▶ resolve ─▶ groups (stable IDs)
+ bridges      ─▶ external   ─┘         ▲                   + chains (git graph)
+                                       │ a member accepts        │
+ unplaced PRs ─▶ model ─▶ suggestions ─┘        verdicts · task units · dashboard
 ```
 
-The grouping stage takes **assertions** and produces **groups**. It gathers nothing itself: forge facts arrive through collection ([Facts](02-facts.md)), and outside signals arrive from bridges through the assertion API.
+The grouping stage takes **assertions** and produces **groups**. It gathers nothing itself: forge facts arrive through collection ([Facts](02-facts.md)), and outside signals arrive from bridges through the assertion API. The model does not assert: it suggests, and a suggestion becomes a member's placement only when a member accepts it.
 
-The dashboard draws this picture and lets each box be configured — which sources are on, whether the model runs, its confidence threshold — but the boxes cannot be rewired.
+The dashboard draws this picture and lets each box be configured — which sources are on, whether the model suggests, its confidence threshold — but the boxes cannot be rewired.
 
 ## Sources and assertions
 
 Sources, from highest authority to lowest:
 
-1. **Manual** — a member moves, splits, merges, creates, or renames groups on the dashboard.
+1. **Manual** — a member moves, splits, merges, creates, or renames groups on the dashboard, or accepts a suggestion.
 2. **External** — programs outside Park post assertions through the API: a bridge that reads review threads from a chat tool, or epics from an issue tracker. Park ships no such integration; it only accepts assertions.
 3. **Structural** — built in, derived from forge facts (below).
-4. **Model** — optional: placements for pull requests that nothing else explains. Off unless a model provider is configured.
 
-External and structural sources do not know Park's group IDs; they can only say which pull requests go together. Members and the model work against existing groups. So assertions come in two shapes:
+The model, optional and off unless a model provider is configured, is not a source: it only suggests a group for a pull request that nothing else explains, and nothing changes until a member accepts.
+
+External and structural sources do not know Park's group IDs; they can only say which pull requests go together. Members work against existing groups. So assertions come in two shapes:
 
 | Shape | Says | Sent by | Example |
 |---|---|---|---|
 | Co-membership | These pull requests belong together, under an anchor | External, structural | A chat thread links `api#12` and `web#7` (anchor: the thread's ID); both repositories have a branch `feat/schedule` (anchor: the branch name) |
-| Placement | Pull request X is, or is not, in group G | Manual, model | A member drags `web#11` into "Scheduled tasks"; the model places `api#15` in an existing group |
+| Placement | Pull request X is, or is not, in group G | Manual | A member drags `web#11` into "Scheduled tasks", or accepts the model's suggestion to put `api#15` in an existing group |
 
 ## Structural signals
 
@@ -60,10 +60,10 @@ External and structural sources do not know Park's group IDs; they can only say 
 | `group` | Group ID, name, where the name came from, state (active or archived), creation time |
 | `group_alias` | An absorbed group's ID and the group it now resolves to |
 | `anchor` | Source and anchor key — unique together — and the group the anchor maps to |
-| `assertion` | Shape; source; either an anchor with a set of pull requests (co-membership) or a pull request with a group and a negative flag (placement); an optional title; evidence, as IDs in the source's own system and never links; for the model, the fingerprint, confidence, and reason; creation and retraction times |
+| `assertion` | Shape; source; either an anchor with a set of pull requests (co-membership) or a pull request with a group and a negative flag (placement); an optional title; evidence, as IDs in the source's own system and never links; creation and retraction times |
 | `bridge` | A registered bridge: ID, name, the member who owns it, and the link template used to render its anchors and evidence. Its tokens are its credentials; the bridge, not a token, is the source of its assertions |
 | `membership` | Pull request, group, the assertion that placed it, since when |
-| `suggestion` | Pull request, proposed group, reason, source (structural or model), state (open, accepted, dismissed) |
+| `suggestion` | Pull request, proposed group — or, from the model, a proposed new group's name — reason, source (structural or model); for the model, the fingerprint and confidence; state (open, accepted, dismissed) |
 
 Chains are derived on read from `pr_fact` and are not stored.
 
@@ -88,24 +88,24 @@ Runs when a pull request's facts change, when an assertion that names it is adde
    2. Keep the highest authority among the rest.
    3. Break ties within it. Manual and external claims: the newest wins — when a pull request is resubmitted for review, teams open a new thread, and the new thread is where it belongs. Structural claims: closing the same issue beats the same branch name, which beats mutual references. Still tied: a claim that keeps the pull request in its current group wins; otherwise the oldest assertion does.
 4. **Map the anchors** of winning claims that are not mapped yet, in canonical order. Each maps to the active group that holds the most of the pull requests whose winning claim it is, among groups none of them is excluded from — the oldest such group on a tie — or else to a new group. Only those pull requests count: an anchor never follows a pull request that chose a different claim, so claims cannot chain into a union.
-5. **Ask the model** for pull requests with no claim at all, if the model source is on (next flow).
+5. **Ask the model for a suggestion** for pull requests with no claim at all, if it is on (next flow). Nothing changes until a member accepts one.
 6. **Write the changes.** Record each pull request whose group changed, with the assertion that placed it, and queue work for verdicts, tasks, and the dashboard.
 7. **Open suggestions** for structural claims that lost and point to a different group than the one the pull request ended up in — "`mobile#4` has the same branch name as `web#7`, `feat/schedule`, and `web#7` is in 'Scheduled tasks'; add it?" — unless the same suggestion is open or was dismissed. Weak signals open suggestions the same way.
 8. **Archive** groups left with no open pull requests, and release their anchors: a later claim under the same anchor starts a new group.
 
-## Flow: place with the model
+## Flow: suggest with the model
 
 For an open pull request left with no claim at all:
 
 1. **Pick candidates**: the active groups that share the most words with the pull request's branch name and title, at most ten.
 2. **Fingerprint** the question: the pull request's title, head branch, repository, and references. The description is not sent: it is long and costly, and pulls the model toward details that do not matter for grouping.
-3. **Use a recorded answer** for that fingerprint if there is one. Otherwise ask, synchronously and with a timeout: which candidate does this pull request belong to — or does it start a new group, under what name — or neither?
+3. **Use a recorded answer** for that fingerprint if there is one. Otherwise ask in the background, with a timeout: which candidate does this pull request belong to — or does it start a new group, under what name — or neither?
 4. **Validate** the answer. One that names a group that was not a candidate is discarded as an error.
-5. **Record** the answer as a model assertion, with its confidence and reason.
-6. **Apply** it. At or above the threshold, the answer is a model-source placement, creating the proposed group if it named a new one. Below the threshold, it becomes a suggestion that takes effect only if a member accepts it. "Neither" leaves the pull request alone.
-7. **On a timeout**, the call finishes in the background; its answer is recorded when it arrives, and resolution runs again. **On an error**, the question is retried with backoff.
+5. **Record** the answer, with its confidence and reason.
+6. **Suggest** it. At or above the threshold, an answer that names a group, or proposes a new one, opens a suggestion; below it, the answer is recorded but not shown. "Neither" opens nothing. A suggestion changes nothing until a member accepts it, which records a manual placement — creating the proposed group if it named a new one.
+7. **On a timeout or an error**, nothing is suggested, and the question is retried after a backoff.
 
-A pull request is asked again only when its own inputs change, or when the group it was placed in is archived. A change in the set of groups never re-rolls an answer — not for a placed pull request, and not for one the model left alone; a member can still accept a suggestion, or group it by hand.
+A pull request is asked again only when its own inputs change. A change in the set of groups never re-rolls an answer; a member can still group the pull request by hand.
 
 ## Flow: manual actions
 
@@ -133,14 +133,14 @@ A pull request is asked again only when its own inputs change, or when the group
 
 ## Group names
 
-A group takes its name from the highest source that offers one: a manual rename, then an external assertion's title, then the title of the issue behind an issue anchor, then the branch name of a branch anchor, then the title of the oldest pull request behind a reference anchor, then the name the model proposed. The name changes when a higher source offers one, or when the source it came from changes it — a thread is retitled.
+A group takes its name from the highest source that offers one: a manual rename, then an external assertion's title, then the title of the issue behind an issue anchor, then the branch name of a branch anchor, then the title of the oldest pull request behind a reference anchor, then — for a group created by accepting the model's suggestion — the name the model proposed. The name changes when a higher source offers one, or when the source it came from changes it — a thread is retitled.
 
 ## A worked example
 
 1. Ana opens `api#12` and `web#7`, in the `api` and `web` repositories, both from a branch named `feat/schedule`. The structural source asserts co-membership under the anchor `branch:feat/schedule`. No group holds either pull request, so group G is created, named "feat/schedule".
 2. A bridge reads a chat thread titled "Scheduled tasks" that links both, and posts an assertion under the thread's anchor. External beats structural for both pull requests. The thread's anchor is new, and G holds all of its pull requests, so the anchor maps to G: no new group appears. G takes the thread's title as its name.
 3. Later Ana opens `mobile#4` in a third repository, `mobile`, from a branch also named `feat/schedule`; the thread does not mention it. Its only claim is the branch anchor, which maps to G, so it joins G, marked "same branch name".
-4. An unrelated `api#15` appears, and no source claims it. The model proposes a new group, "Billing", with confidence 0.55 — below the threshold — so the dashboard shows a suggestion, and nothing changes unless a member accepts it.
+4. An unrelated `api#15` appears, and no source claims it. The model suggests a new group, "Billing", with confidence 0.8, and the dashboard shows the suggestion; nothing changes unless a member accepts it.
 
 The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), `web#7` (external · thread), `mobile#4` (structural · same branch name).
 
@@ -156,7 +156,7 @@ The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), 
 
 - **G1.** Chains are derived from branches and cannot be edited.
 - **G2.** Each open pull request belongs to at most one group; one with no winning claim stands alone. A merged or closed pull request keeps the group it had when it closed.
-- **G3.** Authority order: manual, external, structural, model. The highest claim present wins.
+- **G3.** Authority order: manual, external, structural. The highest claim present wins. The model is not a source: it only suggests.
 - **G4.** Ties are broken as in step 3 of the resolution flow; the last resort keeps a pull request where it is.
 - **G5.** Claims are never unioned. Union is transitive: a few weak links — A to C, C to D, D to E — would glue unrelated features into one group.
 - **G6.** Only members exclude, and an exclusion holds against every source.
@@ -164,7 +164,7 @@ The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), 
 - **G8.** Group identity is independent of membership. Merges leave aliases; groups are archived, never deleted.
 - **G9.** Structural signals never pair two pull requests of the same chain.
 - **G10.** A structural claim that loses becomes a suggestion; weak signals are only ever suggestions.
-- **G11.** The model places only pull requests with no other claim, one at a time, recorded by fingerprint. It never moves a pull request placed by another source, and asks again only when the pull request's own inputs change or its group is archived.
+- **G11.** The model only suggests, for pull requests with no claim, one at a time, recorded by fingerprint, and asks again only when a pull request's own inputs change. A suggestion changes nothing until a member accepts it.
 - **G12.** Every membership records the assertion that placed it.
 - **G13.** Assertions are append-only. Reposting under the same source and anchor retracts the previous one.
 - **G14.** Resolution does not depend on the order in which events arrive: each component is resolved as one batch, winning claims first and anchors after, in a canonical order.
@@ -174,7 +174,7 @@ The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), 
 
 | Setting | Default |
 |---|---|
-| Model placement threshold | 0.7 |
+| Model suggestion threshold | 0.7 |
 | Model call timeout | 20 seconds |
 | Candidates per model question | 10 |
 | Largest external assertion applied | 3 pull requests |

@@ -16,7 +16,7 @@ Examples name pull requests as `repository#number`: `api#12` is pull request 12 
 |---|---|---|
 | 1 | [Overview](01-overview.md) | Scope, boundaries, principles, and one feature from first push to merge |
 | 2 | [Facts](02-facts.md) | Collecting from forges: webhooks, polling, normalization, the fact layer |
-| 3 | [Grouping](03-grouping.md) | Chains and groups: sources, assertions, resolution, the model's placements |
+| 3 | [Grouping](03-grouping.md) | Chains and groups: sources, assertions, resolution, the model's suggestions |
 | 4 | [Verdicts](04-verdicts.md) | Roles, each person's part, placing the one ball of a unit, model judgement |
 | 5 | [Rules](05-rules.md) | Rule shape, the field catalog, the default rule set, editing and publishing |
 | 6 | [Tasks](06-tasks.md) | The executor contract: units, post-conditions, leases, verification |
@@ -35,6 +35,22 @@ Examples name pull requests as `repository#number`: `api#12` is pull request 12 
 ```
 
 A change enters as a fact and flows forward. Each stage reads facts and the output of the stages before it, never the state of a later one. Nothing flows backward except through the forge.
+
+## Phases
+
+The chapters describe the whole design. The first release builds its core loop in full and leaves the rest for later. Everything later already has its place in the data model, so adding it needs no migration of facts, groups, verdicts, or tasks.
+
+| Part | First release | Later |
+|---|---|---|
+| Facts | GitHub: webhooks, polling, short polling, redelivery | A second forge |
+| Grouping | Chains, structural signals, manual grouping, bridge assertions | Model suggestions |
+| Verdicts | One ball per unit, with the default rule set | Model judgements |
+| Rules | Stored and versioned; shown as the rule trees; changed by importing a rule-set file, kept and reviewed in git, through the publish API, with every publish check | The rule editor: structured conditions, expressions, preview, pinned examples |
+| Tasks | The whole contract: leases, locks, post-conditions, verification, retries | — |
+| Identity | Local accounts, forge sign-in, API tokens, the setup code | OIDC single sign-on; admission by forge organization or OIDC group |
+| Visibility | Every member sees every watched repository — fit only for one team whose members all have the same access | Visibility by forge access, pull request by pull request; required before a second team or an open-source release |
+| Dashboard | My queue, the unit view with rule paths, tasks, the rule trees, manual grouping | The team view, the suggestions inbox, the full settings |
+| Operations | One server process; the Postgres work queue as designed; structured logs | Several processes side by side; OpenTelemetry traces and metrics |
 
 ## Glossary
 
