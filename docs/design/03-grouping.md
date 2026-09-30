@@ -43,12 +43,12 @@ External and structural sources do not know Park's group IDs; they can only say 
 
 | Signal | Anchor | Effect |
 |---|---|---|
-| Two or more pull requests close the same issue | `issue:<issue ID>` | Asserted |
-| The same head branch name in two or more repositories, by the same author | `branch:<name>` | Asserted |
+| Two or more pull requests close the same issue | `issue:<repository ID>/<number>` | Asserted |
+| The same head branch name in two or more repositories, by the same author | `branch:<author ID>/<name>` | Asserted |
 | Pull requests that reference each other, in both directions; connected pairs form one assertion | `refs:<oldest pull request in the set>` | Asserted |
 | A one-way reference across repositories, between pull requests with similar branch names | — | Suggestion |
 
-- **Never within a chain.** No structural signal pairs two pull requests of the same chain. Stacked pull requests reference each other all the time ("based on #41"), yet each is reviewed and merged on its own; only members and external sources can group them.
+- **Never within a chain.** No structural signal pairs two pull requests of the same chain: of a chain's pull requests in one signal, it keeps the one nearest the root. Stacked pull requests reference each other all the time ("based on #41"), yet each is reviewed and merged on its own; only members and external sources can group them.
 - **Similar branch names** share at least two words, making up more than half of the shorter name's words. Words that appear in more than a fifth of all open pull requests' branch names are ignored: which words are noise depends on the team, so it is measured rather than listed.
 - **One-way references within one repository are not a signal.** A repository's pull requests for one epic reference each other and share words naturally.
 - **Some branch names never form a group**: default branches, release and hotfix branches, names a forge generates for web edits, and dependency-update prefixes. The list is configurable. Different authors who share a branch name are grouped by members or bridges, not by the name: generic names like `fix-typo` recur by chance.
@@ -60,7 +60,7 @@ External and structural sources do not know Park's group IDs; they can only say 
 | `group` | Group ID, name, where the name came from, state (active or archived), creation time |
 | `group_alias` | An absorbed group's ID and the group it now resolves to |
 | `anchor` | Source and anchor key — unique together — and the group the anchor maps to |
-| `assertion` | Shape; source; either an anchor with a set of pull requests (co-membership) or a pull request with a group and a negative flag (placement); an optional title; evidence, as IDs in the source's own system and never links; creation and retraction times |
+| `assertion` | Shape; source; either an anchor with a set of pull requests, each as repository and number, so that a bridge can name one Park has not collected yet (co-membership), or a pull request with a group and a negative flag (placement); an optional title; evidence, as IDs in the source's own system and never links; when the claim under its anchor was first seen; creation and retraction times |
 | `bridge` | A registered bridge: ID, name, the member who owns it, and the link template used to render its anchors and evidence. Its tokens are its credentials; the bridge, not a token, is the source of its assertions |
 | `membership` | Pull request, group, the assertion that placed it, since when |
 | `suggestion` | Pull request, proposed group — or, from the model, a proposed new group's name — reason, source (structural or model); for the model, the fingerprint and confidence; state (open, accepted, dismissed) |
@@ -79,7 +79,7 @@ When a pull request's branches change, or a pull request opens or closes:
 
 ## Flow: resolve memberships
 
-Runs when a pull request's facts change, when an assertion that names it is added or retracted, or when a member acts on it. It resolves the whole **component** — every open pull request connected to the changed ones through live assertions — as one batch, in one transaction, in a canonical order: by authority, then by when the claim was first seen, then by key. The outcome therefore does not depend on the order in which events arrived.
+Runs when a pull request's facts change, when an assertion that names it is added or retracted, or when a member acts on it. It resolves the whole **component** — every open pull request connected to the changed ones through live assertions — as one batch, in one transaction, in a canonical order: by authority, then by when the claim was first seen, then by key. The outcome therefore does not depend on the order in which events arrived. In the first release one resolution covers every open pull request, which contains every component ([D50](10-design-log.md#d50-an-anchor-takes-only-a-group-no-other-claim-keeps)).
 
 1. **Refresh structural assertions** for the component: recompute its signals, retract assertions whose signal is gone, and add new ones.
 2. **Collect live claims** for each pull request: placements that name it, and co-membership assertions that include it.
@@ -87,7 +87,7 @@ Runs when a pull request's facts change, when an assertion that names it is adde
    1. Drop claims a member has excluded: a placement in, or a mapped anchor pointing to, a group the member took this pull request out of.
    2. Keep the highest authority among the rest.
    3. Break ties within it. Manual and external claims: the newest wins — when a pull request is resubmitted for review, teams open a new thread, and the new thread is where it belongs. Structural claims: closing the same issue beats the same branch name, which beats mutual references. Still tied: a claim that keeps the pull request in its current group wins; otherwise the oldest assertion does.
-4. **Map the anchors** of winning claims that are not mapped yet, in canonical order. Each maps to the active group that holds the most of the pull requests whose winning claim it is, among groups none of them is excluded from — the oldest such group on a tie — or else to a new group. Only those pull requests count: an anchor never follows a pull request that chose a different claim, so claims cannot chain into a union.
+4. **Map the anchors** of winning claims that are not mapped yet, in canonical order. Each maps to the active group that holds the most of the pull requests whose winning claim it is, among groups none of them is excluded from and that no other winning claim keeps — a mapped anchor that still has winners, a placement, or an anchor mapped before it — the oldest such group on a tie; or else to a new group. Only those pull requests count, and a group another claim keeps is not up for taking: an anchor never follows a pull request that chose a different claim, so claims cannot chain into a union ([D50](10-design-log.md#d50-an-anchor-takes-only-a-group-no-other-claim-keeps)).
 5. **Ask the model for a suggestion** for pull requests with no claim at all, if it is on (next flow). Nothing changes until a member accepts one.
 6. **Write the changes.** Record each pull request whose group changed, with the assertion that placed it, and queue work for verdicts, tasks, and the dashboard.
 7. **Open suggestions** for structural claims that lost and point to a different group than the one the pull request ended up in — "`mobile#4` has the same branch name as `web#7`, `feat/schedule`, and `web#7` is in 'Scheduled tasks'; add it?" — unless the same suggestion is open or was dismissed. Weak signals open suggestions the same way.
@@ -133,7 +133,7 @@ A pull request is asked again only when its own inputs change. A change in the s
 
 ## Group names
 
-A group takes its name from the highest source that offers one: a manual rename, then an external assertion's title, then the title of the issue behind an issue anchor, then the branch name of a branch anchor, then the title of the oldest pull request behind a reference anchor, then — for a group created by accepting the model's suggestion — the name the model proposed. The name changes when a higher source offers one, or when the source it came from changes it — a thread is retitled.
+A group takes its name from the highest source that offers one: a manual rename, then an external assertion's title, then the title of the issue behind an issue anchor — for now, the title of the oldest pull request that closes it ([D51](10-design-log.md#d51-an-issue-anchor-is-named-after-its-oldest-pull-request)) — then the branch name of a branch anchor, then the title of the oldest pull request behind a reference anchor, then — for a group created by accepting the model's suggestion — the name the model proposed. The name changes when a higher source offers one, or when the source it came from changes it — a thread is retitled.
 
 ## A worked example
 
