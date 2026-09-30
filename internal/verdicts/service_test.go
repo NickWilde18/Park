@@ -322,7 +322,7 @@ func TestVerdictsNeverChange(t *testing.T) {
 }
 
 // Two evaluations of one unit at once are serialized by its lock: the second finds the first's verdict, and stores
-// nothing more. Both are held on the unit's lock until both wait, then let go together.
+// nothing more. Both are held from writing verdicts until both are under way, then let go together.
 func TestConcurrentEvaluations(t *testing.T) {
 	e := newEnv(t)
 	id := e.pr(t, 12, model{author: "ana", direct: []string{"ben"}})
@@ -330,7 +330,7 @@ func TestConcurrentEvaluations(t *testing.T) {
 	hold, err := e.pool.Begin(e.ctx)
 	must(t, err)
 	defer func() { _ = hold.Rollback(e.ctx) }()
-	_, err = hold.Exec(e.ctx, "SELECT pg_advisory_xact_lock(hashtext('park.unit:' || $1))", unit)
+	_, err = hold.Exec(e.ctx, "LOCK TABLE verdict IN EXCLUSIVE MODE")
 	must(t, err)
 	errs := make([]error, 2)
 	var wg sync.WaitGroup
