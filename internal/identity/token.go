@@ -133,15 +133,20 @@ func (s *Service) Tokens(ctx context.Context, memberID int64) ([]Token, error) {
 	})
 }
 
-// RevokeToken revokes one of a member's tokens, at once.
+// RevokeToken revokes one of a member's tokens, at once; revoking it again changes nothing.
 func (s *Service) RevokeToken(ctx context.Context, memberID int64, id string) error {
-	tag, err := s.pool.Exec(ctx, "UPDATE api_token SET revoked_at = COALESCE(revoked_at, $3) WHERE id = $1 AND member_id = $2",
-		id, memberID, s.now())
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fail.New(fail.NotFound, "not_found", "There is no such token.")
-	}
-	return nil
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var revoked *time.Time
+		err := tx.QueryRow(ctx, "SELECT revoked_at FROM api_token WHERE id = $1 AND member_id = $2 FOR UPDATE", id, memberID).Scan(&revoked)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fail.New(fail.NotFound, "not_found", "There is no such token.")
+		}
+		if err != nil || revoked != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, "UPDATE api_token SET revoked_at = $2 WHERE id = $1", id, s.now()); err != nil {
+			return err
+		}
+		return s.revoked(ctx, tx, Revoked{Tokens: []string{id}, Member: memberID})
+	})
 }

@@ -261,3 +261,17 @@ Each pull request's facts are numbered on their own, so the numbers of two pull 
 Linking an account, or a team's members changing, can change people's roles. In the first release, those changes reach verdicts with the next hourly pass, which evaluates every open unit, rather than by finding the units each change touches.
 
 Set aside: queuing the units of every pull request that names the account or the team, which the hourly pass makes unneeded at the size of one team.
+
+### D56. Verification counts only facts fetched after the attempt
+
+A report arrives while the facts Park holds still predate the work it reports: judged against them, every thread would still be unanswered, and a finished attempt would fail. Verification therefore waits, polling, until every pull request of the task has been fetched since the attempt ended, and only then judges; the deadline runs meanwhile, and pauses while the facts are stale.
+
+### D57. Every failing action spends an attempt
+
+The budget is kept per member, unit, and action, and a task can hold several actions. A failed attempt spends one attempt of each action that failed, and none of those that were satisfied. The task needs a person as soon as any of them has none left, since retrying it would retry that action too.
+
+### D58. Dismissing a task closes it, not its work
+
+A dismissed task is final, but the work behind it is the verdict's: when the unit's verdict next changes and its member still holds the action, it becomes a task again. A member who does not want an action done by an executor turns it off in their automation.
+
+Set aside: remembering dismissals to hold back the same work, which would leave a member's ball with nobody to act on it.

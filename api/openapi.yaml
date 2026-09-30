@@ -1132,6 +1132,211 @@ paths:
           description: Marked; its unit is evaluated again.
         default:
           $ref: "#/components/responses/Error"
+  /tasks:
+    get:
+      operationId: listTasks
+      summary: My tasks, newest first; everyone's, for an admin who asks
+      tags: [tasks]
+      parameters:
+        - name: all
+          in: query
+          schema:
+            type: boolean
+          description: Every member's tasks; only for an admin.
+      responses:
+        "200":
+          description: The tasks, with their items.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tasks"
+        default:
+          $ref: "#/components/responses/Error"
+  /tasks/{id}:
+    get:
+      operationId: getTask
+      summary: A task, with its items and every event
+      tags: [tasks]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The task.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        default:
+          $ref: "#/components/responses/Error"
+  /tasks/claim:
+    post:
+      operationId: claimTask
+      summary: Claim the next task this executor may take
+      description: >-
+        With an API token scoped to tasks:work, which the lease is recorded against. A claim retried with the same
+        Idempotency-Key returns the same lease instead of a second task.
+      tags: [tasks]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimRequest"
+      responses:
+        "200":
+          description: The task, with its lease.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeasedTask"
+        "204":
+          description: No task, after waiting up to wait_seconds.
+        default:
+          $ref: "#/components/responses/Error"
+  /tasks/{id}/heartbeat:
+    post:
+      operationId: heartbeatTask
+      summary: Extend a lease, with an optional progress note
+      description: Sent before the lease expires, and before each write to the forge; when the lease is no longer current, stop.
+      tags: [tasks]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HeartbeatRequest"
+      responses:
+        "200":
+          description: Whether the lease is still current, and whether the task is marked to cancel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeartbeatResult"
+        default:
+          $ref: "#/components/responses/Error"
+  /tasks/{id}/report:
+    post:
+      operationId: reportTask
+      summary: Report the outcome of this attempt; the task moves to verifying
+      description: Idempotent per lease. Refused with lease_not_current under a lease that has ended.
+      tags: [tasks]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportRequest"
+      responses:
+        "200":
+          description: The task, verifying.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        default:
+          $ref: "#/components/responses/Error"
+  /tasks/{id}/release:
+    post:
+      operationId: releaseTask
+      summary: Give the task back without a result; the attempt is not counted
+      tags: [tasks]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseRequest"
+      responses:
+        "200":
+          description: The task, queued again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        default:
+          $ref: "#/components/responses/Error"
+  /tasks/{id}/retry:
+    post:
+      operationId: retryTask
+      summary: Queue again a task that needs a person, with its attempts reset
+      tags: [tasks]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The task, queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        default:
+          $ref: "#/components/responses/Error"
+  /tasks/{id}/dismiss:
+    post:
+      operationId: dismissTask
+      summary: Close a queued, leased, or waiting task, with a reason
+      tags: [tasks]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DismissRequest"
+      responses:
+        "200":
+          description: The task, dismissed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        default:
+          $ref: "#/components/responses/Error"
+  /me/automation:
+    get:
+      operationId: getAutomation
+      summary: The actions of mine that may become tasks
+      tags: [me]
+      responses:
+        "200":
+          description: My automation; with none set, no action becomes a task.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Automation"
+        default:
+          $ref: "#/components/responses/Error"
+    put:
+      operationId: setAutomation
+      summary: Set the actions of mine that may become tasks
+      tags: [me]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Automation"
+      responses:
+        "200":
+          description: My automation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Automation"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     session:
@@ -2592,6 +2797,298 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Verdict"
+    ItemTargets:
+      type: object
+      properties:
+        threads:
+          type: array
+          items:
+            type: string
+        reviews:
+          type: array
+          items:
+            type: integer
+            format: int64
+        checks:
+          type: array
+          items:
+            type: string
+        reviewers:
+          type: array
+          items:
+            type: string
+          description: Logins; none means anyone.
+    ClaimRequest:
+      type: object
+      required: [executor, actions]
+      properties:
+        executor:
+          type: string
+          description: The executor's label, shown with its lease.
+        actions:
+          type: array
+          items:
+            type: string
+          description: The actions it can do.
+        repos:
+          type: array
+          items:
+            type: string
+          description: The repositories it covers, as owner/name; every one when absent.
+        wait_seconds:
+          type: integer
+          description: How long to wait for a task, up to 30 seconds.
+    LeasedPullRequest:
+      type: object
+      required: [id, repo, number, head, base, head_commit]
+      properties:
+        id:
+          type: integer
+          format: int64
+        repo:
+          type: string
+          description: owner/name.
+        number:
+          type: integer
+        head:
+          type: string
+        base:
+          type: string
+        head_commit:
+          type: string
+    LeasedItem:
+      type: object
+      required: [id, pull_request, action, targets, previous_failures, link]
+      properties:
+        id:
+          type: integer
+          format: int64
+        pull_request:
+          $ref: "#/components/schemas/LeasedPullRequest"
+        action:
+          type: string
+        targets:
+          $ref: "#/components/schemas/ItemTargets"
+        previous_failures:
+          type: array
+          items:
+            type: string
+          description: Why earlier attempts failed verification.
+        link:
+          type: string
+          description: The pull request on its forge, built for this response.
+    LeasedTask:
+      type: object
+      required: [id, lease_id, attempt, lease_expires_at, heartbeat_seconds, items]
+      properties:
+        id:
+          type: integer
+          format: int64
+        lease_id:
+          type: string
+        attempt:
+          type: integer
+        lease_expires_at:
+          type: string
+          format: date-time
+        heartbeat_seconds:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeasedItem"
+    HeartbeatRequest:
+      type: object
+      required: [lease_id]
+      properties:
+        lease_id:
+          type: string
+        note:
+          type: string
+          description: Progress, shown on the dashboard.
+        waiting_on_member:
+          type: boolean
+          description: The executor waits on its member.
+    HeartbeatResult:
+      type: object
+      required: [current, state, cancel]
+      properties:
+        current:
+          type: boolean
+          description: False once the lease has ended, when the executor must stop.
+        state:
+          type: string
+        cancel:
+          type: boolean
+          description: The task is marked to cancel after this attempt.
+        lease_expires_at:
+          type: string
+          format: date-time
+    ItemReport:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+          format: int64
+        commits:
+          type: array
+          items:
+            type: string
+        threads:
+          type: array
+          items:
+            type: string
+        reviews:
+          type: array
+          items:
+            type: integer
+            format: int64
+        note:
+          type: string
+    ReportRequest:
+      type: object
+      required: [lease_id, outcome]
+      properties:
+        lease_id:
+          type: string
+        outcome:
+          type: string
+          enum: [done, failed]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemReport"
+    ReleaseRequest:
+      type: object
+      required: [lease_id]
+      properties:
+        lease_id:
+          type: string
+    DismissRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+    TaskItem:
+      type: object
+      required: [id, pull_request, action, targets, state, failures]
+      properties:
+        id:
+          type: integer
+          format: int64
+        pull_request:
+          type: integer
+          format: int64
+        action:
+          type: string
+        targets:
+          $ref: "#/components/schemas/ItemTargets"
+        state:
+          type: string
+          enum: [open, satisfied, dropped]
+        failures:
+          type: array
+          items:
+            type: string
+    TaskEvent:
+      type: object
+      required: [id, kind, actor, state, detail, at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        actor:
+          type: string
+          description: token:<id>, member:<id>, or park.
+        state:
+          type: string
+        detail:
+          type: object
+          additionalProperties: true
+        at:
+          type: string
+          format: date-time
+    Task:
+      type: object
+      required: [id, member_id, unit, state, priority, attempt, cancel_marked, next_attempt_at, note, waiting, reason, created_at,
+        updated_at, items]
+      properties:
+        id:
+          type: integer
+          format: int64
+        member_id:
+          type: integer
+          format: int64
+        unit:
+          $ref: "#/components/schemas/Unit"
+        state:
+          type: string
+          enum: [queued, leased, verifying, done, needs_person, cancelled, dismissed]
+        priority:
+          type: string
+          enum: [normal, low]
+        attempt:
+          type: integer
+        executor:
+          type: string
+        lease_expires_at:
+          type: string
+          format: date-time
+        cancel_marked:
+          type: boolean
+        next_attempt_at:
+          type: string
+          format: date-time
+        deadline:
+          type: string
+          format: date-time
+        note:
+          type: string
+        waiting:
+          type: boolean
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskItem"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskEvent"
+          description: Every event; only for a single task.
+    Tasks:
+      type: object
+      required: [tasks]
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+    Automation:
+      type: object
+      required: [actions]
+      properties:
+        actions:
+          type: array
+          items:
+            type: string
+        repos:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: The repositories, by ID; every one when absent.
     Error:
       type: object
       required: [error]

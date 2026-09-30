@@ -518,6 +518,24 @@ func (e QuestionRole) Valid() bool {
 	}
 }
 
+// Defines values for ReportRequestOutcome.
+const (
+	ReportRequestOutcomeDone   ReportRequestOutcome = "done"
+	ReportRequestOutcomeFailed ReportRequestOutcome = "failed"
+)
+
+// Valid indicates whether the value is a known member of the ReportRequestOutcome enum.
+func (e ReportRequestOutcome) Valid() bool {
+	switch e {
+	case ReportRequestOutcomeDone:
+		return true
+	case ReportRequestOutcomeFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReviewFactState.
 const (
 	ReviewFactStateApproved         ReviewFactState = "approved"
@@ -536,6 +554,78 @@ func (e ReviewFactState) Valid() bool {
 	case ReviewFactStateCommented:
 		return true
 	case ReviewFactStateDismissed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TaskPriority.
+const (
+	TaskPriorityLow    TaskPriority = "low"
+	TaskPriorityNormal TaskPriority = "normal"
+)
+
+// Valid indicates whether the value is a known member of the TaskPriority enum.
+func (e TaskPriority) Valid() bool {
+	switch e {
+	case TaskPriorityLow:
+		return true
+	case TaskPriorityNormal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TaskState.
+const (
+	TaskStateCancelled   TaskState = "cancelled"
+	TaskStateDismissed   TaskState = "dismissed"
+	TaskStateDone        TaskState = "done"
+	TaskStateLeased      TaskState = "leased"
+	TaskStateNeedsPerson TaskState = "needs_person"
+	TaskStateQueued      TaskState = "queued"
+	TaskStateVerifying   TaskState = "verifying"
+)
+
+// Valid indicates whether the value is a known member of the TaskState enum.
+func (e TaskState) Valid() bool {
+	switch e {
+	case TaskStateCancelled:
+		return true
+	case TaskStateDismissed:
+		return true
+	case TaskStateDone:
+		return true
+	case TaskStateLeased:
+		return true
+	case TaskStateNeedsPerson:
+		return true
+	case TaskStateQueued:
+		return true
+	case TaskStateVerifying:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TaskItemState.
+const (
+	TaskItemStateDropped   TaskItemState = "dropped"
+	TaskItemStateOpen      TaskItemState = "open"
+	TaskItemStateSatisfied TaskItemState = "satisfied"
+)
+
+// Valid indicates whether the value is a known member of the TaskItemState enum.
+func (e TaskItemState) Valid() bool {
+	switch e {
+	case TaskItemStateDropped:
+		return true
+	case TaskItemStateOpen:
+		return true
+	case TaskItemStateSatisfied:
 		return true
 	default:
 		return false
@@ -784,6 +874,14 @@ type AuthProviders struct {
 	Providers []AuthProvider `json:"providers"`
 }
 
+// Automation defines model for Automation.
+type Automation struct {
+	Actions []string `json:"actions"`
+
+	// Repos The repositories, by ID; every one when absent.
+	Repos *[]int64 `json:"repos,omitempty"`
+}
+
 // Bridge defines model for Bridge.
 type Bridge struct {
 	CreatedAt time.Time `json:"created_at"`
@@ -831,6 +929,21 @@ type CheckFact struct {
 // CheckFactState defines model for CheckFact.State.
 type CheckFactState string
 
+// ClaimRequest defines model for ClaimRequest.
+type ClaimRequest struct {
+	// Actions The actions it can do.
+	Actions []string `json:"actions"`
+
+	// Executor The executor's label, shown with its lease.
+	Executor string `json:"executor"`
+
+	// Repos The repositories it covers, as owner/name; every one when absent.
+	Repos *[]string `json:"repos,omitempty"`
+
+	// WaitSeconds How long to wait for a task, up to 30 seconds.
+	WaitSeconds *int `json:"wait_seconds,omitempty"`
+}
+
 // CommentFact defines model for CommentFact.
 type CommentFact struct {
 	At       time.Time  `json:"at"`
@@ -876,6 +989,11 @@ type Condition struct {
 
 	// Value A whole number, a text, a list of texts for is_one_of, or {"field": name} for another number field.
 	Value interface{} `json:"value,omitempty"`
+}
+
+// DismissRequest defines model for DismissRequest.
+type DismissRequest struct {
+	Reason string `json:"reason"`
 }
 
 // DraftRequest defines model for DraftRequest.
@@ -1022,6 +1140,28 @@ type Groups struct {
 	Groups []Group `json:"groups"`
 }
 
+// HeartbeatRequest defines model for HeartbeatRequest.
+type HeartbeatRequest struct {
+	LeaseId string `json:"lease_id"`
+
+	// Note Progress, shown on the dashboard.
+	Note *string `json:"note,omitempty"`
+
+	// WaitingOnMember The executor waits on its member.
+	WaitingOnMember *bool `json:"waiting_on_member,omitempty"`
+}
+
+// HeartbeatResult defines model for HeartbeatResult.
+type HeartbeatResult struct {
+	// Cancel The task is marked to cancel after this attempt.
+	Cancel bool `json:"cancel"`
+
+	// Current False once the lease has ended, when the executor must stop.
+	Current        bool       `json:"current"`
+	LeaseExpiresAt *time.Time `json:"lease_expires_at,omitempty"`
+	State          string     `json:"state"`
+}
+
 // HeldPart defines model for HeldPart.
 type HeldPart struct {
 	Action      *string          `json:"action,omitempty"`
@@ -1132,6 +1272,61 @@ type InviteRequest struct {
 // Invites defines model for Invites.
 type Invites struct {
 	Invites []Invite `json:"invites"`
+}
+
+// ItemReport defines model for ItemReport.
+type ItemReport struct {
+	Commits *[]string `json:"commits,omitempty"`
+	Id      int64     `json:"id"`
+	Note    *string   `json:"note,omitempty"`
+	Reviews *[]int64  `json:"reviews,omitempty"`
+	Threads *[]string `json:"threads,omitempty"`
+}
+
+// ItemTargets defines model for ItemTargets.
+type ItemTargets struct {
+	Checks *[]string `json:"checks,omitempty"`
+
+	// Reviewers Logins; none means anyone.
+	Reviewers *[]string `json:"reviewers,omitempty"`
+	Reviews   *[]int64  `json:"reviews,omitempty"`
+	Threads   *[]string `json:"threads,omitempty"`
+}
+
+// LeasedItem defines model for LeasedItem.
+type LeasedItem struct {
+	Action string `json:"action"`
+	Id     int64  `json:"id"`
+
+	// Link The pull request on its forge, built for this response.
+	Link string `json:"link"`
+
+	// PreviousFailures Why earlier attempts failed verification.
+	PreviousFailures []string          `json:"previous_failures"`
+	PullRequest      LeasedPullRequest `json:"pull_request"`
+	Targets          ItemTargets       `json:"targets"`
+}
+
+// LeasedPullRequest defines model for LeasedPullRequest.
+type LeasedPullRequest struct {
+	Base       string `json:"base"`
+	Head       string `json:"head"`
+	HeadCommit string `json:"head_commit"`
+	Id         int64  `json:"id"`
+	Number     int    `json:"number"`
+
+	// Repo owner/name.
+	Repo string `json:"repo"`
+}
+
+// LeasedTask defines model for LeasedTask.
+type LeasedTask struct {
+	Attempt          int          `json:"attempt"`
+	HeartbeatSeconds int          `json:"heartbeat_seconds"`
+	Id               int64        `json:"id"`
+	Items            []LeasedItem `json:"items"`
+	LeaseExpiresAt   time.Time    `json:"lease_expires_at"`
+	LeaseId          string       `json:"lease_id"`
 }
 
 // LinkRequest defines model for LinkRequest.
@@ -1412,6 +1607,11 @@ type RegisterRequest struct {
 	Username    string `json:"username"`
 }
 
+// ReleaseRequest defines model for ReleaseRequest.
+type ReleaseRequest struct {
+	LeaseId string `json:"lease_id"`
+}
+
 // Reminder defines model for Reminder.
 type Reminder struct {
 	Account     Account `json:"account"`
@@ -1449,6 +1649,16 @@ type RepoRequest struct {
 	Name           string `json:"name"`
 	Owner          string `json:"owner"`
 }
+
+// ReportRequest defines model for ReportRequest.
+type ReportRequest struct {
+	Items   *[]ItemReport        `json:"items,omitempty"`
+	LeaseId string               `json:"lease_id"`
+	Outcome ReportRequestOutcome `json:"outcome"`
+}
+
+// ReportRequestOutcome defines model for ReportRequest.Outcome.
+type ReportRequestOutcome string
 
 // Repos defines model for Repos.
 type Repos struct {
@@ -1571,6 +1781,65 @@ type Suggestion struct {
 // Suggestions defines model for Suggestions.
 type Suggestions struct {
 	Suggestions []Suggestion `json:"suggestions"`
+}
+
+// Task defines model for Task.
+type Task struct {
+	Attempt      int        `json:"attempt"`
+	CancelMarked bool       `json:"cancel_marked"`
+	CreatedAt    time.Time  `json:"created_at"`
+	Deadline     *time.Time `json:"deadline,omitempty"`
+
+	// Events Every event; only for a single task.
+	Events         *[]TaskEvent `json:"events,omitempty"`
+	Executor       *string      `json:"executor,omitempty"`
+	Id             int64        `json:"id"`
+	Items          []TaskItem   `json:"items"`
+	LeaseExpiresAt *time.Time   `json:"lease_expires_at,omitempty"`
+	MemberId       int64        `json:"member_id"`
+	NextAttemptAt  time.Time    `json:"next_attempt_at"`
+	Note           string       `json:"note"`
+	Priority       TaskPriority `json:"priority"`
+	Reason         string       `json:"reason"`
+	State          TaskState    `json:"state"`
+	Unit           Unit         `json:"unit"`
+	UpdatedAt      time.Time    `json:"updated_at"`
+	Waiting        bool         `json:"waiting"`
+}
+
+// TaskPriority defines model for Task.Priority.
+type TaskPriority string
+
+// TaskState defines model for Task.State.
+type TaskState string
+
+// TaskEvent defines model for TaskEvent.
+type TaskEvent struct {
+	// Actor token:<id>, member:<id>, or park.
+	Actor  string                 `json:"actor"`
+	At     time.Time              `json:"at"`
+	Detail map[string]interface{} `json:"detail"`
+	Id     int64                  `json:"id"`
+	Kind   string                 `json:"kind"`
+	State  string                 `json:"state"`
+}
+
+// TaskItem defines model for TaskItem.
+type TaskItem struct {
+	Action      string        `json:"action"`
+	Failures    []string      `json:"failures"`
+	Id          int64         `json:"id"`
+	PullRequest int64         `json:"pull_request"`
+	State       TaskItemState `json:"state"`
+	Targets     ItemTargets   `json:"targets"`
+}
+
+// TaskItemState defines model for TaskItem.State.
+type TaskItemState string
+
+// Tasks defines model for Tasks.
+type Tasks struct {
+	Tasks []Task `json:"tasks"`
 }
 
 // ThreadFact defines model for ThreadFact.
@@ -1736,6 +2005,17 @@ type ListPullRequestsParams struct {
 // ListPullRequestsParamsState defines parameters for ListPullRequests.
 type ListPullRequestsParamsState string
 
+// ListTasksParams defines parameters for ListTasks.
+type ListTasksParams struct {
+	// All Every member's tasks; only for an admin.
+	All *bool `form:"all,omitempty" json:"all,omitempty"`
+}
+
+// ClaimTaskParams defines parameters for ClaimTask.
+type ClaimTaskParams struct {
+	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
+}
+
 // CreateBridgeJSONRequestBody defines body for CreateBridge for application/json ContentType.
 type CreateBridgeJSONRequestBody = BridgeRequest
 
@@ -1796,6 +2076,9 @@ type MergeGroupsJSONRequestBody = MergeRequest
 // SplitGroupJSONRequestBody defines body for SplitGroup for application/json ContentType.
 type SplitGroupJSONRequestBody = GroupRequest
 
+// SetAutomationJSONRequestBody defines body for SetAutomation for application/json ContentType.
+type SetAutomationJSONRequestBody = Automation
+
 // CreateMyTokenJSONRequestBody defines body for CreateMyToken for application/json ContentType.
 type CreateMyTokenJSONRequestBody = TokenRequest
 
@@ -1807,6 +2090,21 @@ type UpdateRuleSetDraftJSONRequestBody = DraftUpdate
 
 // CompleteSetupJSONRequestBody defines body for CompleteSetup for application/json ContentType.
 type CompleteSetupJSONRequestBody = SetupRequest
+
+// ClaimTaskJSONRequestBody defines body for ClaimTask for application/json ContentType.
+type ClaimTaskJSONRequestBody = ClaimRequest
+
+// DismissTaskJSONRequestBody defines body for DismissTask for application/json ContentType.
+type DismissTaskJSONRequestBody = DismissRequest
+
+// HeartbeatTaskJSONRequestBody defines body for HeartbeatTask for application/json ContentType.
+type HeartbeatTaskJSONRequestBody = HeartbeatRequest
+
+// ReleaseTaskJSONRequestBody defines body for ReleaseTask for application/json ContentType.
+type ReleaseTaskJSONRequestBody = ReleaseRequest
+
+// ReportTaskJSONRequestBody defines body for ReportTask for application/json ContentType.
+type ReportTaskJSONRequestBody = ReportRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1927,6 +2225,12 @@ type ServerInterface interface {
 	// GetMe Who is calling
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// GetAutomation The actions of mine that may become tasks
+	// (GET /me/automation)
+	GetAutomation(w http.ResponseWriter, r *http.Request)
+	// SetAutomation Set the actions of mine that may become tasks
+	// (PUT /me/automation)
+	SetAutomation(w http.ResponseWriter, r *http.Request)
 	// ListMyIdentities My linked forge accounts
 	// (GET /me/identities)
 	ListMyIdentities(w http.ResponseWriter, r *http.Request)
@@ -1993,6 +2297,30 @@ type ServerInterface interface {
 	// DismissSuggestion Dismiss a suggestion; it does not open again
 	// (POST /suggestions/{id}/dismiss)
 	DismissSuggestion(w http.ResponseWriter, r *http.Request, id ID)
+	// ListTasks My tasks, newest first; everyone's, for an admin who asks
+	// (GET /tasks)
+	ListTasks(w http.ResponseWriter, r *http.Request, params ListTasksParams)
+	// ClaimTask Claim the next task this executor may take
+	// (POST /tasks/claim)
+	ClaimTask(w http.ResponseWriter, r *http.Request, params ClaimTaskParams)
+	// GetTask A task, with its items and every event
+	// (GET /tasks/{id})
+	GetTask(w http.ResponseWriter, r *http.Request, id ID)
+	// DismissTask Close a queued, leased, or waiting task, with a reason
+	// (POST /tasks/{id}/dismiss)
+	DismissTask(w http.ResponseWriter, r *http.Request, id ID)
+	// HeartbeatTask Extend a lease, with an optional progress note
+	// (POST /tasks/{id}/heartbeat)
+	HeartbeatTask(w http.ResponseWriter, r *http.Request, id ID)
+	// ReleaseTask Give the task back without a result; the attempt is not counted
+	// (POST /tasks/{id}/release)
+	ReleaseTask(w http.ResponseWriter, r *http.Request, id ID)
+	// ReportTask Report the outcome of this attempt; the task moves to verifying
+	// (POST /tasks/{id}/report)
+	ReportTask(w http.ResponseWriter, r *http.Request, id ID)
+	// RetryTask Queue again a task that needs a person, with its attempts reset
+	// (POST /tasks/{id}/retry)
+	RetryTask(w http.ResponseWriter, r *http.Request, id ID)
 	// ListVerdicts The current verdicts of the open units
 	// (GET /verdicts)
 	ListVerdicts(w http.ResponseWriter, r *http.Request)
@@ -2847,6 +3175,34 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 	handler.ServeHTTP(w, r)
 }
 
+// GetAutomation operation middleware
+func (siw *ServerInterfaceWrapper) GetAutomation(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAutomation(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetAutomation operation middleware
+func (siw *ServerInterfaceWrapper) SetAutomation(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetAutomation(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListMyIdentities operation middleware
 func (siw *ServerInterfaceWrapper) ListMyIdentities(w http.ResponseWriter, r *http.Request) {
 
@@ -3319,6 +3675,236 @@ func (siw *ServerInterfaceWrapper) DismissSuggestion(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// ListTasks operation middleware
+func (siw *ServerInterfaceWrapper) ListTasks(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTasksParams
+
+	// ------------- Optional query parameter "all" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "all", r.URL.Query(), &params.All, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "all"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "all", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTasks(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ClaimTask operation middleware
+func (siw *ServerInterfaceWrapper) ClaimTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ClaimTaskParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimTask(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTask operation middleware
+func (siw *ServerInterfaceWrapper) GetTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DismissTask operation middleware
+func (siw *ServerInterfaceWrapper) DismissTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DismissTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// HeartbeatTask operation middleware
+func (siw *ServerInterfaceWrapper) HeartbeatTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.HeartbeatTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReleaseTask operation middleware
+func (siw *ServerInterfaceWrapper) ReleaseTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReleaseTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReportTask operation middleware
+func (siw *ServerInterfaceWrapper) ReportTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReportTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RetryTask operation middleware
+func (siw *ServerInterfaceWrapper) RetryTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RetryTask(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListVerdicts operation middleware
 func (siw *ServerInterfaceWrapper) ListVerdicts(w http.ResponseWriter, r *http.Request) {
 
@@ -3542,6 +4128,16 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verdicts", wrapper.ListVerdicts)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verdicts/{id}", wrapper.GetVerdict)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/prs/{id}/nudged", wrapper.MarkNudged)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/tasks", wrapper.ListTasks)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/tasks/{id}", wrapper.GetTask)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/tasks/claim", wrapper.ClaimTask)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/tasks/{id}/heartbeat", wrapper.HeartbeatTask)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/tasks/{id}/report", wrapper.ReportTask)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/tasks/{id}/release", wrapper.ReleaseTask)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/tasks/{id}/retry", wrapper.RetryTask)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/tasks/{id}/dismiss", wrapper.DismissTask)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me/automation", wrapper.GetAutomation)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/automation", wrapper.SetAutomation)
 
 	return m
 }
@@ -5028,6 +5624,83 @@ func (response GetMedefaultJSONResponse) VisitGetMeResponse(w http.ResponseWrite
 	return err
 }
 
+type GetAutomationRequestObject struct {
+}
+
+type GetAutomationResponseObject interface {
+	VisitGetAutomationResponse(w http.ResponseWriter) error
+}
+
+type GetAutomation200JSONResponse Automation
+
+func (response GetAutomation200JSONResponse) VisitGetAutomationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAutomationdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAutomationdefaultJSONResponse) VisitGetAutomationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAutomationRequestObject struct {
+	Body *SetAutomationJSONRequestBody
+}
+
+type SetAutomationResponseObject interface {
+	VisitSetAutomationResponse(w http.ResponseWriter) error
+}
+
+type SetAutomation200JSONResponse Automation
+
+func (response SetAutomation200JSONResponse) VisitSetAutomationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetAutomationdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response SetAutomationdefaultJSONResponse) VisitSetAutomationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListMyIdentitiesRequestObject struct {
 }
 
@@ -5844,6 +6517,331 @@ func (response DismissSuggestiondefaultJSONResponse) VisitDismissSuggestionRespo
 	return err
 }
 
+type ListTasksRequestObject struct {
+	Params ListTasksParams
+}
+
+type ListTasksResponseObject interface {
+	VisitListTasksResponse(w http.ResponseWriter) error
+}
+
+type ListTasks200JSONResponse Tasks
+
+func (response ListTasks200JSONResponse) VisitListTasksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTasksdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListTasksdefaultJSONResponse) VisitListTasksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimTaskRequestObject struct {
+	Params ClaimTaskParams
+	Body   *ClaimTaskJSONRequestBody
+}
+
+type ClaimTaskResponseObject interface {
+	VisitClaimTaskResponse(w http.ResponseWriter) error
+}
+
+type ClaimTask200JSONResponse LeasedTask
+
+func (response ClaimTask200JSONResponse) VisitClaimTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimTask204Response struct {
+}
+
+func (response ClaimTask204Response) VisitClaimTaskResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ClaimTaskdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ClaimTaskdefaultJSONResponse) VisitClaimTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTaskRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetTaskResponseObject interface {
+	VisitGetTaskResponse(w http.ResponseWriter) error
+}
+
+type GetTask200JSONResponse Task
+
+func (response GetTask200JSONResponse) VisitGetTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTaskdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetTaskdefaultJSONResponse) VisitGetTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DismissTaskRequestObject struct {
+	Id   ID `json:"id"`
+	Body *DismissTaskJSONRequestBody
+}
+
+type DismissTaskResponseObject interface {
+	VisitDismissTaskResponse(w http.ResponseWriter) error
+}
+
+type DismissTask200JSONResponse Task
+
+func (response DismissTask200JSONResponse) VisitDismissTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DismissTaskdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DismissTaskdefaultJSONResponse) VisitDismissTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type HeartbeatTaskRequestObject struct {
+	Id   ID `json:"id"`
+	Body *HeartbeatTaskJSONRequestBody
+}
+
+type HeartbeatTaskResponseObject interface {
+	VisitHeartbeatTaskResponse(w http.ResponseWriter) error
+}
+
+type HeartbeatTask200JSONResponse HeartbeatResult
+
+func (response HeartbeatTask200JSONResponse) VisitHeartbeatTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type HeartbeatTaskdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response HeartbeatTaskdefaultJSONResponse) VisitHeartbeatTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReleaseTaskRequestObject struct {
+	Id   ID `json:"id"`
+	Body *ReleaseTaskJSONRequestBody
+}
+
+type ReleaseTaskResponseObject interface {
+	VisitReleaseTaskResponse(w http.ResponseWriter) error
+}
+
+type ReleaseTask200JSONResponse Task
+
+func (response ReleaseTask200JSONResponse) VisitReleaseTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReleaseTaskdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ReleaseTaskdefaultJSONResponse) VisitReleaseTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReportTaskRequestObject struct {
+	Id   ID `json:"id"`
+	Body *ReportTaskJSONRequestBody
+}
+
+type ReportTaskResponseObject interface {
+	VisitReportTaskResponse(w http.ResponseWriter) error
+}
+
+type ReportTask200JSONResponse Task
+
+func (response ReportTask200JSONResponse) VisitReportTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReportTaskdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ReportTaskdefaultJSONResponse) VisitReportTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RetryTaskRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type RetryTaskResponseObject interface {
+	VisitRetryTaskResponse(w http.ResponseWriter) error
+}
+
+type RetryTask200JSONResponse Task
+
+func (response RetryTask200JSONResponse) VisitRetryTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RetryTaskdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RetryTaskdefaultJSONResponse) VisitRetryTaskResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListVerdictsRequestObject struct {
 }
 
@@ -6040,6 +7038,12 @@ type StrictServerInterface interface {
 	// GetMe Who is calling
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// GetAutomation The actions of mine that may become tasks
+	// (GET /me/automation)
+	GetAutomation(ctx context.Context, request GetAutomationRequestObject) (GetAutomationResponseObject, error)
+	// SetAutomation Set the actions of mine that may become tasks
+	// (PUT /me/automation)
+	SetAutomation(ctx context.Context, request SetAutomationRequestObject) (SetAutomationResponseObject, error)
 	// ListMyIdentities My linked forge accounts
 	// (GET /me/identities)
 	ListMyIdentities(ctx context.Context, request ListMyIdentitiesRequestObject) (ListMyIdentitiesResponseObject, error)
@@ -6106,6 +7110,30 @@ type StrictServerInterface interface {
 	// DismissSuggestion Dismiss a suggestion; it does not open again
 	// (POST /suggestions/{id}/dismiss)
 	DismissSuggestion(ctx context.Context, request DismissSuggestionRequestObject) (DismissSuggestionResponseObject, error)
+	// ListTasks My tasks, newest first; everyone's, for an admin who asks
+	// (GET /tasks)
+	ListTasks(ctx context.Context, request ListTasksRequestObject) (ListTasksResponseObject, error)
+	// ClaimTask Claim the next task this executor may take
+	// (POST /tasks/claim)
+	ClaimTask(ctx context.Context, request ClaimTaskRequestObject) (ClaimTaskResponseObject, error)
+	// GetTask A task, with its items and every event
+	// (GET /tasks/{id})
+	GetTask(ctx context.Context, request GetTaskRequestObject) (GetTaskResponseObject, error)
+	// DismissTask Close a queued, leased, or waiting task, with a reason
+	// (POST /tasks/{id}/dismiss)
+	DismissTask(ctx context.Context, request DismissTaskRequestObject) (DismissTaskResponseObject, error)
+	// HeartbeatTask Extend a lease, with an optional progress note
+	// (POST /tasks/{id}/heartbeat)
+	HeartbeatTask(ctx context.Context, request HeartbeatTaskRequestObject) (HeartbeatTaskResponseObject, error)
+	// ReleaseTask Give the task back without a result; the attempt is not counted
+	// (POST /tasks/{id}/release)
+	ReleaseTask(ctx context.Context, request ReleaseTaskRequestObject) (ReleaseTaskResponseObject, error)
+	// ReportTask Report the outcome of this attempt; the task moves to verifying
+	// (POST /tasks/{id}/report)
+	ReportTask(ctx context.Context, request ReportTaskRequestObject) (ReportTaskResponseObject, error)
+	// RetryTask Queue again a task that needs a person, with its attempts reset
+	// (POST /tasks/{id}/retry)
+	RetryTask(ctx context.Context, request RetryTaskRequestObject) (RetryTaskResponseObject, error)
 	// ListVerdicts The current verdicts of the open units
 	// (GET /verdicts)
 	ListVerdicts(ctx context.Context, request ListVerdictsRequestObject) (ListVerdictsResponseObject, error)
@@ -7266,6 +8294,61 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetAutomation operation middleware
+func (sh *strictHandler) GetAutomation(w http.ResponseWriter, r *http.Request) {
+	var request GetAutomationRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAutomation(ctx, request.(GetAutomationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAutomation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAutomationResponseObject); ok {
+		if err := validResponse.VisitGetAutomationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetAutomation operation middleware
+func (sh *strictHandler) SetAutomation(w http.ResponseWriter, r *http.Request) {
+	var request SetAutomationRequestObject
+
+	var body SetAutomationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetAutomation(ctx, request.(SetAutomationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetAutomation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetAutomationResponseObject); ok {
+		if err := validResponse.VisitSetAutomationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListMyIdentities operation middleware
 func (sh *strictHandler) ListMyIdentities(w http.ResponseWriter, r *http.Request) {
 	var request ListMyIdentitiesRequestObject
@@ -7839,6 +8922,249 @@ func (sh *strictHandler) DismissSuggestion(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DismissSuggestionResponseObject); ok {
 		if err := validResponse.VisitDismissSuggestionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListTasks operation middleware
+func (sh *strictHandler) ListTasks(w http.ResponseWriter, r *http.Request, params ListTasksParams) {
+	var request ListTasksRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTasks(ctx, request.(ListTasksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTasks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTasksResponseObject); ok {
+		if err := validResponse.VisitListTasksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ClaimTask operation middleware
+func (sh *strictHandler) ClaimTask(w http.ResponseWriter, r *http.Request, params ClaimTaskParams) {
+	var request ClaimTaskRequestObject
+
+	request.Params = params
+
+	var body ClaimTaskJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimTask(ctx, request.(ClaimTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimTaskResponseObject); ok {
+		if err := validResponse.VisitClaimTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTask operation middleware
+func (sh *strictHandler) GetTask(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetTaskRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTask(ctx, request.(GetTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTaskResponseObject); ok {
+		if err := validResponse.VisitGetTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DismissTask operation middleware
+func (sh *strictHandler) DismissTask(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DismissTaskRequestObject
+
+	request.Id = id
+
+	var body DismissTaskJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DismissTask(ctx, request.(DismissTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DismissTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DismissTaskResponseObject); ok {
+		if err := validResponse.VisitDismissTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// HeartbeatTask operation middleware
+func (sh *strictHandler) HeartbeatTask(w http.ResponseWriter, r *http.Request, id ID) {
+	var request HeartbeatTaskRequestObject
+
+	request.Id = id
+
+	var body HeartbeatTaskJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.HeartbeatTask(ctx, request.(HeartbeatTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "HeartbeatTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(HeartbeatTaskResponseObject); ok {
+		if err := validResponse.VisitHeartbeatTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReleaseTask operation middleware
+func (sh *strictHandler) ReleaseTask(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ReleaseTaskRequestObject
+
+	request.Id = id
+
+	var body ReleaseTaskJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReleaseTask(ctx, request.(ReleaseTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReleaseTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReleaseTaskResponseObject); ok {
+		if err := validResponse.VisitReleaseTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReportTask operation middleware
+func (sh *strictHandler) ReportTask(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ReportTaskRequestObject
+
+	request.Id = id
+
+	var body ReportTaskJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReportTask(ctx, request.(ReportTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReportTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReportTaskResponseObject); ok {
+		if err := validResponse.VisitReportTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RetryTask operation middleware
+func (sh *strictHandler) RetryTask(w http.ResponseWriter, r *http.Request, id ID) {
+	var request RetryTaskRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RetryTask(ctx, request.(RetryTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RetryTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RetryTaskResponseObject); ok {
+		if err := validResponse.VisitRetryTaskResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

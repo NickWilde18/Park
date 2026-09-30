@@ -81,6 +81,30 @@ type Service struct {
 	now       func() time.Time
 	publicURL string
 	csrfKey   []byte
+	followers []Follower
+}
+
+// Revoked is what followers are told when tokens are revoked: whose, which, and whether their member was disabled,
+// which revokes every token they had.
+type Revoked struct {
+	Tokens   []string
+	Member   int64
+	Disabled bool
+}
+
+// Follower is told, inside the revoking transaction, of tokens revoked, so that a later stage can end what they held.
+type Follower func(ctx context.Context, tx pgx.Tx, r Revoked) error
+
+// Follow adds a follower. It must be called before anything is revoked.
+func (s *Service) Follow(f Follower) { s.followers = append(s.followers, f) }
+
+func (s *Service) revoked(ctx context.Context, tx pgx.Tx, r Revoked) error {
+	for _, f := range s.followers {
+		if err := f(ctx, tx, r); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // New returns the identity service.

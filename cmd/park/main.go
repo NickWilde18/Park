@@ -34,6 +34,7 @@ import (
 	"github.com/NickWilde18/Park/internal/rules"
 	"github.com/NickWilde18/Park/internal/secret"
 	"github.com/NickWilde18/Park/internal/store"
+	"github.com/NickWilde18/Park/internal/tasks"
 	"github.com/NickWilde18/Park/internal/verdicts"
 	"github.com/NickWilde18/Park/internal/work"
 	"github.com/NickWilde18/Park/web"
@@ -115,15 +116,19 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	collected := facts.New(pool, box, log)
 	groups := grouping.New(pool, log)
 	balls := verdicts.New(pool, log, ruleSets, groups)
+	taskStage := tasks.New(pool, log, groups)
 	collected.Follow(groups.FactsFollower())
 	collected.Follow(balls.FactsFollower())
+	collected.Follow(taskStage.FactsFollower())
 	groups.Follow(balls.GroupingFollower())
 	ruleSets.Follow(balls.RulesFollower())
+	balls.Follow(taskStage.VerdictFollower())
 	// Each stage gives the runner its work before it starts.
 	runner := work.NewRunner(pool, log, work.Options{})
 	collected.Register(runner)
 	groups.Register(runner)
 	balls.Register(runner)
+	taskStage.Register(runner)
 	if err := collected.Start(ctx); err != nil {
 		return fmt.Errorf("schedule collection: %w", err)
 	}
@@ -143,6 +148,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	if err != nil {
 		return err
 	}
+	ids.Follow(taskStage.IdentityFollower())
 	code, needed, err := ids.IssueSetupCode(ctx, cfg.SetupCode)
 	if err != nil {
 		return fmt.Errorf("prepare the setup code: %w", err)
@@ -172,6 +178,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		Grouping: groups,
 		Rules:    ruleSets,
 		Verdicts: balls,
+		Tasks:    taskStage,
 		Pool:     pool,
 	})
 	if err != nil {

@@ -42,14 +42,32 @@ type Settings struct {
 // DefaultSettings are the documented defaults.
 var DefaultSettings = Settings{MinimumApprovals: 1, Every: time.Hour}
 
+// Follower is told, inside the storing transaction, of a unit's previous verdict and its new one, so that a later
+// stage can queue its work. Either may be nil: a unit's first verdict has no previous one, and a unit that is gone
+// has no new one.
+type Follower func(ctx context.Context, tx pgx.Tx, previous, current *Verdict) error
+
 // Service is the verdict stage.
 type Service struct {
-	pool     *pgxpool.Pool
-	log      *slog.Logger
-	rules    *rules.Service
-	groups   *grouping.Service
-	now      func() time.Time
-	settings Settings
+	pool      *pgxpool.Pool
+	log       *slog.Logger
+	rules     *rules.Service
+	groups    *grouping.Service
+	now       func() time.Time
+	followers []Follower
+	settings  Settings
+}
+
+// Follow adds a follower. It must be called before the runner starts.
+func (s *Service) Follow(f Follower) { s.followers = append(s.followers, f) }
+
+func (s *Service) follow(ctx context.Context, tx pgx.Tx, previous, current *Verdict) error {
+	for _, f := range s.followers {
+		if err := f(ctx, tx, previous, current); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // New returns the verdict stage, which reads the published rules and the chains.
@@ -223,8 +241,10 @@ func (s *Service) Evaluate(ctx context.Context, unit string) error {
 			if previous == nil {
 				return nil
 			}
-			_, err := tx.Exec(ctx, "UPDATE verdict SET current = false WHERE id = $1", previous.ID)
-			return err
+			if _, err := tx.Exec(ctx, "UPDATE verdict SET current = false WHERE id = $1", previous.ID); err != nil {
+				return err
+			}
+			return s.follow(ctx, tx, previous, nil)
 		}
 		now := s.now()
 		v := &Verdict{Unit: unit, Seqs: map[int64]int64{}, RuleVersion: version, EvaluatedAt: now}
@@ -256,7 +276,10 @@ func (s *Service) Evaluate(ctx context.Context, unit string) error {
 		if previous != nil && previous.visible() == v.visible() {
 			return nil
 		}
-		return store(ctx, tx, previous, v)
+		if err := store(ctx, tx, previous, v); err != nil {
+			return err
+		}
+		return s.follow(ctx, tx, previous, v)
 	})
 }
 

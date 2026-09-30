@@ -934,6 +934,169 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My tasks, newest first; everyone's, for an admin who asks */
+        get: operations["listTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A task, with its items and every event */
+        get: operations["getTask"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim the next task this executor may take
+         * @description With an API token scoped to tasks:work, which the lease is recorded against. A claim retried with the same Idempotency-Key returns the same lease instead of a second task.
+         */
+        post: operations["claimTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{id}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extend a lease, with an optional progress note
+         * @description Sent before the lease expires, and before each write to the forge; when the lease is no longer current, stop.
+         */
+        post: operations["heartbeatTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report the outcome of this attempt; the task moves to verifying
+         * @description Idempotent per lease. Refused with lease_not_current under a lease that has ended.
+         */
+        post: operations["reportTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give the task back without a result; the attempt is not counted */
+        post: operations["releaseTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue again a task that needs a person, with its attempts reset */
+        post: operations["retryTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close a queued, leased, or waiting task, with a reason */
+        post: operations["dismissTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/automation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The actions of mine that may become tasks */
+        get: operations["getAutomation"];
+        /** Set the actions of mine that may become tasks */
+        put: operations["setAutomation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1714,6 +1877,152 @@ export interface components {
         Queue: {
             holding: components["schemas"]["Verdict"][];
             waiting: components["schemas"]["Verdict"][];
+        };
+        ItemTargets: {
+            threads?: string[];
+            reviews?: number[];
+            checks?: string[];
+            /** @description Logins; none means anyone. */
+            reviewers?: string[];
+        };
+        ClaimRequest: {
+            /** @description The executor's label, shown with its lease. */
+            executor: string;
+            /** @description The actions it can do. */
+            actions: string[];
+            /** @description The repositories it covers, as owner/name; every one when absent. */
+            repos?: string[];
+            /** @description How long to wait for a task, up to 30 seconds. */
+            wait_seconds?: number;
+        };
+        LeasedPullRequest: {
+            /** Format: int64 */
+            id: number;
+            /** @description owner/name. */
+            repo: string;
+            number: number;
+            head: string;
+            base: string;
+            head_commit: string;
+        };
+        LeasedItem: {
+            /** Format: int64 */
+            id: number;
+            pull_request: components["schemas"]["LeasedPullRequest"];
+            action: string;
+            targets: components["schemas"]["ItemTargets"];
+            /** @description Why earlier attempts failed verification. */
+            previous_failures: string[];
+            /** @description The pull request on its forge, built for this response. */
+            link: string;
+        };
+        LeasedTask: {
+            /** Format: int64 */
+            id: number;
+            lease_id: string;
+            attempt: number;
+            /** Format: date-time */
+            lease_expires_at: string;
+            heartbeat_seconds: number;
+            items: components["schemas"]["LeasedItem"][];
+        };
+        HeartbeatRequest: {
+            lease_id: string;
+            /** @description Progress, shown on the dashboard. */
+            note?: string;
+            /** @description The executor waits on its member. */
+            waiting_on_member?: boolean;
+        };
+        HeartbeatResult: {
+            /** @description False once the lease has ended, when the executor must stop. */
+            current: boolean;
+            state: string;
+            /** @description The task is marked to cancel after this attempt. */
+            cancel: boolean;
+            /** Format: date-time */
+            lease_expires_at?: string;
+        };
+        ItemReport: {
+            /** Format: int64 */
+            id: number;
+            commits?: string[];
+            threads?: string[];
+            reviews?: number[];
+            note?: string;
+        };
+        ReportRequest: {
+            lease_id: string;
+            /** @enum {string} */
+            outcome: "done" | "failed";
+            items?: components["schemas"]["ItemReport"][];
+        };
+        ReleaseRequest: {
+            lease_id: string;
+        };
+        DismissRequest: {
+            reason: string;
+        };
+        TaskItem: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            pull_request: number;
+            action: string;
+            targets: components["schemas"]["ItemTargets"];
+            /** @enum {string} */
+            state: "open" | "satisfied" | "dropped";
+            failures: string[];
+        };
+        TaskEvent: {
+            /** Format: int64 */
+            id: number;
+            kind: string;
+            /** @description token:<id>, member:<id>, or park. */
+            actor: string;
+            state: string;
+            detail: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            at: string;
+        };
+        Task: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            member_id: number;
+            unit: components["schemas"]["Unit"];
+            /** @enum {string} */
+            state: "queued" | "leased" | "verifying" | "done" | "needs_person" | "cancelled" | "dismissed";
+            /** @enum {string} */
+            priority: "normal" | "low";
+            attempt: number;
+            executor?: string;
+            /** Format: date-time */
+            lease_expires_at?: string;
+            cancel_marked: boolean;
+            /** Format: date-time */
+            next_attempt_at: string;
+            /** Format: date-time */
+            deadline?: string;
+            note: string;
+            waiting: boolean;
+            reason: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            items: components["schemas"]["TaskItem"][];
+            /** @description Every event; only for a single task. */
+            events?: components["schemas"]["TaskEvent"][];
+        };
+        Tasks: {
+            tasks: components["schemas"]["Task"][];
+        };
+        Automation: {
+            actions: string[];
+            /** @description The repositories, by ID; every one when absent. */
+            repos?: number[];
         };
         Error: {
             error: {
@@ -3210,6 +3519,264 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listTasks: {
+        parameters: {
+            query?: {
+                /** @description Every member's tasks; only for an admin. */
+                all?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tasks, with their items. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tasks"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The task. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    claimTask: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimRequest"];
+            };
+        };
+        responses: {
+            /** @description The task, with its lease. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeasedTask"];
+                };
+            };
+            /** @description No task, after waiting up to wait_seconds. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    heartbeatTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HeartbeatRequest"];
+            };
+        };
+        responses: {
+            /** @description Whether the lease is still current, and whether the task is marked to cancel. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeartbeatResult"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    reportTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportRequest"];
+            };
+        };
+        responses: {
+            /** @description The task, verifying. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    releaseTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseRequest"];
+            };
+        };
+        responses: {
+            /** @description The task, queued again. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    retryTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The task, queued. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    dismissTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DismissRequest"];
+            };
+        };
+        responses: {
+            /** @description The task, dismissed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description My automation; with none set, no action becomes a task. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Automation"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    setAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Automation"];
+            };
+        };
+        responses: {
+            /** @description My automation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Automation"];
+                };
             };
             default: components["responses"]["Error"];
         };
