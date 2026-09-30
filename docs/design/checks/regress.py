@@ -81,20 +81,25 @@ CASES = [
      "author", {"ana"}, None),
 ]
 
-print(f"rules: {len(AUTHOR)} author, {len(REVIEWER)} reviewer; placement: "
-      + " → ".join(f"{side} {'/'.join(sorted(kinds))}" for side, kinds in STEPS))
-failed = 0
-for title, unit, side, holders, action in CASES:
-    got_side, got, parts = place(unit)
-    got_people = {p["person"] for p in got}
-    ok = got_side == side and got_people == holders
-    if ok and action:
-        ok = all(action in p["action"] for p in got)
-    failed += not ok
-    print(f"{'ok  ' if ok else 'FAIL'} {title}\n      want {side}: {', '.join(sorted(holders))}"
-          + (f" ({action})" if action else "")
-          + f" | got {got_side}: {', '.join(sorted(got_people)) or 'nobody'}"
-          + (f" ({', '.join(p['action'] or p['kind'] for p in got)})" if got else "")
-          + (f"\n      parts: {describe(parts)}" if not ok else ""))
-print(f"{len(CASES) - failed} of {len(CASES)} cases pass")
-sys.exit(1 if failed else 0)
+def main():
+    print(f"rules: {len(AUTHOR)} author, {len(REVIEWER)} reviewer; placement: "
+          + " → ".join(f"{side} {'/'.join(sorted(kinds))}" for side, kinds in STEPS))
+    failed = 0
+    for title, unit, side, holders, action in CASES:
+        got_side, got, parts = place(unit)
+        got_people = {p["person"] for p in got}
+        ok = got_side == side and got_people == holders
+        if ok and action:
+            ok = all(action in p["action"] for p in got)
+        failed += not ok
+        print(f"{'ok  ' if ok else 'FAIL'} {title}\n      want {side}: {', '.join(sorted(holders))}"
+              + (f" ({action})" if action else "")
+              + f" | got {got_side}: {', '.join(sorted(got_people)) or 'nobody'}"
+              + (f" ({', '.join(p['action'] or p['kind'] for p in got)})" if got else "")
+              + (f"\n      parts: {describe(parts)}" if not ok else ""))
+    print(f"{len(CASES) - failed} of {len(CASES)} cases pass")
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()
