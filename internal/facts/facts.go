@@ -190,6 +190,9 @@ type RepoFacts struct {
 // Protection is what the forge requires of a pull request into one base branch.
 type Protection struct {
 	RequiredChecks []string `json:"required_checks"`
+	// Protected is whether branch protection or a ruleset applies to the branch; a protected branch is long-lived,
+	// and never the parent of a chain.
+	Protected bool `json:"protected"`
 	// RequiredApprovals is -1 when the forge would not say.
 	RequiredApprovals int  `json:"required_approvals"`
 	CodeOwners        bool `json:"code_owners"`

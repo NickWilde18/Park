@@ -297,6 +297,7 @@ func (c *collector) Protection(ctx context.Context, r facts.Repo, branches []str
 				return nil, err
 			}
 		}
+		p.Protected = branch.Protected || len(rules) > 0
 		for name := range checks {
 			p.RequiredChecks = append(p.RequiredChecks, name)
 		}
