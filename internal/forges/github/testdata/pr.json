@@ -1,0 +1,60 @@
+{
+  "data": {
+    "rateLimit": {"cost": 2, "remaining": 4990, "resetAt": "2026-10-01T10:00:00Z"},
+    "repository": {
+      "databaseId": 1001,
+      "pullRequest": {
+        "number": 12, "title": "Add the billing export, see web#7 and #9", "state": "OPEN", "isDraft": false,
+        "createdAt": "2026-09-01T09:00:00Z", "updatedAt": "2026-09-03T12:00:00Z", "mergedAt": null, "closedAt": null,
+        "authorAssociation": "CONTRIBUTOR",
+        "author": {"__typename": "User", "login": "ana", "databaseId": 501, "name": "Ana"},
+        "labels": {"nodes": [{"name": "feature"}, {"name": "billing"}]},
+        "headRepository": {"databaseId": 2002}, "headRefName": "feat/billing-export", "headRefOid": "headsha12",
+        "baseRefName": "main", "mergeable": "MERGEABLE", "mergeStateStatus": "BLOCKED", "reviewDecision": "CHANGES_REQUESTED",
+        "bodyText": "Exports invoices. Fixes the totals; see https://example.test/doc for the format.",
+        "closingIssuesReferences": {"nodes": [{"number": 40, "repository": {"databaseId": 1001}}]},
+        "reviewRequests": {"nodes": [
+          {"asCodeOwner": false, "requestedReviewer": {"__typename": "User", "databaseId": 503, "login": "carol", "name": "Carol"}},
+          {"asCodeOwner": true, "requestedReviewer": {"__typename": "Team", "databaseId": 77, "slug": "billing", "name": "Billing", "organization": {"login": "acme"}}}
+        ]},
+        "timelineItems": {"nodes": [
+          {"__typename": "ReviewRequestedEvent", "createdAt": "2026-09-01T09:05:00Z", "requestedReviewer": {"__typename": "User", "databaseId": 502}},
+          {"__typename": "ReviewRequestedEvent", "createdAt": "2026-09-01T09:06:00Z", "requestedReviewer": {"__typename": "User", "databaseId": 503}},
+          {"__typename": "ReviewRequestedEvent", "createdAt": "2026-09-02T10:00:00Z", "requestedReviewer": {"__typename": "Team", "databaseId": 77}},
+          {"__typename": "ReadyForReviewEvent", "createdAt": "2026-09-01T09:04:00Z"}
+        ]},
+        "reviews": {"pageInfo": {"hasNextPage": false, "endCursor": "r1"}, "nodes": [
+          {"databaseId": 9001, "state": "APPROVED", "submittedAt": "2026-09-02T08:00:00Z", "authorCanPushToRepository": true, "body": "",
+           "commit": {"oid": "oldsha"}, "author": {"__typename": "User", "login": "ben", "databaseId": 502, "name": "Ben"}},
+          {"databaseId": 9002, "state": "CHANGES_REQUESTED", "submittedAt": "2026-09-02T09:00:00Z", "authorCanPushToRepository": true,
+           "body": "Please rename the export function before this merges.", "commit": {"oid": "oldsha"},
+           "author": {"__typename": "User", "login": "ben", "databaseId": 502, "name": "Ben"}},
+          {"databaseId": 9003, "state": "COMMENTED", "submittedAt": "2026-09-02T11:00:00Z", "authorCanPushToRepository": false,
+           "body": "A drive-by thought about the totals.", "commit": {"oid": "headsha12"},
+           "author": {"__typename": "User", "login": "dave", "databaseId": 504, "name": ""}},
+          {"databaseId": 9004, "state": "DISMISSED", "submittedAt": "2026-09-01T12:00:00Z", "authorCanPushToRepository": true, "body": "",
+           "commit": {"oid": "oldsha"}, "author": {"__typename": "User", "login": "carol", "databaseId": 503, "name": "Carol"}},
+          {"databaseId": 9005, "state": "PENDING", "submittedAt": null, "authorCanPushToRepository": true, "body": "",
+           "commit": null, "author": {"__typename": "User", "login": "carol", "databaseId": 503, "name": "Carol"}}
+        ]},
+        "reviewThreads": {"pageInfo": {"hasNextPage": true, "endCursor": "t1"}, "nodes": [
+          {"id": "THREAD_A", "isResolved": false, "isOutdated": false,
+           "first": {"nodes": [{"databaseId": 7001, "createdAt": "2026-09-02T09:01:00Z", "lastEditedAt": null, "author": {"__typename": "User", "login": "ben", "databaseId": 502}}]},
+           "recent": {"nodes": [
+             {"databaseId": 7001, "createdAt": "2026-09-02T09:01:00Z", "lastEditedAt": null, "author": {"__typename": "User", "login": "ben", "databaseId": 502}},
+             {"databaseId": 7002, "createdAt": "2026-09-02T10:30:00Z", "lastEditedAt": "2026-09-02T10:35:00Z", "author": {"__typename": "User", "login": "ana", "databaseId": 501}}
+           ]}}
+        ]},
+        "comments": {"pageInfo": {"hasNextPage": false, "endCursor": "c1"}, "nodes": [
+          {"databaseId": 8001, "createdAt": "2026-09-02T13:00:00Z", "lastEditedAt": null, "author": {"__typename": "Bot", "login": "ci-bot", "databaseId": 900}}
+        ]},
+        "commits": {"nodes": [{"commit": {"oid": "headsha12", "committedDate": "2026-09-03T11:50:00Z",
+          "statusCheckRollup": {"contexts": {"nodes": [
+            {"__typename": "CheckRun", "name": "build", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-09-03T11:51:00Z", "isRequired": true},
+            {"__typename": "CheckRun", "name": "lint", "status": "COMPLETED", "conclusion": "FAILURE", "startedAt": "2026-09-03T11:51:00Z", "isRequired": false},
+            {"__typename": "StatusContext", "context": "deploy/preview", "state": "PENDING", "createdAt": "2026-09-03T11:52:00Z", "isRequired": false}
+          ]}}}}]}
+      }
+    }
+  }
+}
