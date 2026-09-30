@@ -229,3 +229,13 @@ Set aside: a sign-in provider read from the configuration file for the first sta
 GitHub charges its hourly limit by what a query asks for, not by what comes back: a pull request's threads with every comment each would cost a hundred times what its threads with their first and latest comments cost. A thread therefore keeps its first comment, which names who started it, and its latest twenty, which name who spoke last and who else took part; a comment in between adds a participant only when it is the only one they wrote. Short polling looks only at the head, the checks, and mergeability, and refreshes fully when those changed. While the limit holds, every refresh through the installation waits for its reset, instead of webhook refreshes going first. Whether the author may dismiss comes from their access level, not from the dismissal restrictions of branch protection, which need administration access to read.
 
 Set aside: paging through every comment of every thread, which would spend the limit on comments that rarely matter.
+
+### D50. An anchor takes only a group no other claim keeps
+
+Resolving claims in a canonical order kept one resolution from depending on the order pull requests were processed in, but not a sequence of resolutions from depending on the order assertions arrived in. A branch claim over `api#1` and `web#2`, and an issue claim over `web#2` and `mobile#3`, made one group of all three when the branch claim came first: the issue claim's anchor was new, followed `web#2` into the branch claim's group, and the branch claim kept `api#1` there. Arriving the other way round, they made two groups. An anchor not mapped yet now takes only a group that no other winning claim keeps; with that rule, every order of arrival gives the same groups for the cases in the checks, and a test runs them all. One resolution covers every open pull request at once, which contains every component and is cheap at the size of one team.
+
+Set aside: re-mapping anchors whenever their winners change, which would move groups under members' feet.
+
+### D51. An issue anchor is named after its oldest pull request
+
+The issue's own title would need collection to fetch issues, which it does not yet. The oldest pull request that closes the issue usually says the same.

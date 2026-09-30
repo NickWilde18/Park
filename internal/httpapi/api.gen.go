@@ -86,6 +86,72 @@ func (e ForgeRequestKind) Valid() bool {
 	}
 }
 
+// Defines values for GroupNameSource.
+const (
+	GroupNameSourceBranch   GroupNameSource = "branch"
+	GroupNameSourceExternal GroupNameSource = "external"
+	GroupNameSourceIssue    GroupNameSource = "issue"
+	GroupNameSourceManual   GroupNameSource = "manual"
+	GroupNameSourceRefs     GroupNameSource = "refs"
+)
+
+// Valid indicates whether the value is a known member of the GroupNameSource enum.
+func (e GroupNameSource) Valid() bool {
+	switch e {
+	case GroupNameSourceBranch:
+		return true
+	case GroupNameSourceExternal:
+		return true
+	case GroupNameSourceIssue:
+		return true
+	case GroupNameSourceManual:
+		return true
+	case GroupNameSourceRefs:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GroupState.
+const (
+	GroupStateActive   GroupState = "active"
+	GroupStateArchived GroupState = "archived"
+)
+
+// Valid indicates whether the value is a known member of the GroupState enum.
+func (e GroupState) Valid() bool {
+	switch e {
+	case GroupStateActive:
+		return true
+	case GroupStateArchived:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GroupMemberSource.
+const (
+	GroupMemberSourceExternal   GroupMemberSource = "external"
+	GroupMemberSourceManual     GroupMemberSource = "manual"
+	GroupMemberSourceStructural GroupMemberSource = "structural"
+)
+
+// Valid indicates whether the value is a known member of the GroupMemberSource enum.
+func (e GroupMemberSource) Valid() bool {
+	switch e {
+	case GroupMemberSourceExternal:
+		return true
+	case GroupMemberSourceManual:
+		return true
+	case GroupMemberSourceStructural:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InstallationKind.
 const (
 	InstallationKindApp   InstallationKind = "app"
@@ -301,13 +367,16 @@ func (e ReviewFactState) Valid() bool {
 
 // Defines values for TokenRequestScopes.
 const (
-	TokenRequestScopesRead      TokenRequestScopes = "read"
-	TokenRequestScopesTasksWork TokenRequestScopes = "tasks:work"
+	TokenRequestScopesAssertionsWrite TokenRequestScopes = "assertions:write"
+	TokenRequestScopesRead            TokenRequestScopes = "read"
+	TokenRequestScopesTasksWork       TokenRequestScopes = "tasks:work"
 )
 
 // Valid indicates whether the value is a known member of the TokenRequestScopes enum.
 func (e TokenRequestScopes) Valid() bool {
 	switch e {
+	case TokenRequestScopesAssertionsWrite:
+		return true
 	case TokenRequestScopesRead:
 		return true
 	case TokenRequestScopesTasksWork:
@@ -369,6 +438,23 @@ type AppCredential struct {
 	PrivateKey string `json:"private_key"`
 }
 
+// AssertionRequest defines model for AssertionRequest.
+type AssertionRequest struct {
+	// Anchor An ID in the bridge's own system, never a link.
+	Anchor string `json:"anchor"`
+
+	// Evidence IDs in the bridge's own system, never links.
+	Evidence     *[]string `json:"evidence,omitempty"`
+	PullRequests []PRName  `json:"pull_requests"`
+	Title        *string   `json:"title,omitempty"`
+}
+
+// AssertionResult defines model for AssertionResult.
+type AssertionResult struct {
+	Applied bool  `json:"applied"`
+	Id      int64 `json:"id"`
+}
+
 // AuthProvider defines model for AuthProvider.
 type AuthProvider struct {
 	// Id The stable ID an admin gave the provider, the `{provider}` in `/auth/{provider}/start`.
@@ -387,6 +473,42 @@ type AuthProviders struct {
 	// Local Whether local accounts can sign in.
 	Local     bool           `json:"local"`
 	Providers []AuthProvider `json:"providers"`
+}
+
+// Bridge defines model for Bridge.
+type Bridge struct {
+	CreatedAt time.Time `json:"created_at"`
+	Id        int64     `json:"id"`
+
+	// LinkTemplate An address with {id} for an anchor or evidence ID, used to render links.
+	LinkTemplate string `json:"link_template"`
+	Name         string `json:"name"`
+	OwnerId      int64  `json:"owner_id"`
+}
+
+// BridgeRequest defines model for BridgeRequest.
+type BridgeRequest struct {
+	LinkTemplate *string `json:"link_template,omitempty"`
+	Name         string  `json:"name"`
+
+	// OwnerId The member who owns it; the caller by default.
+	OwnerId *int64 `json:"owner_id,omitempty"`
+}
+
+// Bridges defines model for Bridges.
+type Bridges struct {
+	Bridges []Bridge `json:"bridges"`
+}
+
+// ChainPosition defines model for ChainPosition.
+type ChainPosition struct {
+	// Below Open pull requests it stacks on, directly or not.
+	Below int `json:"below"`
+
+	// Id The chain, named by its lowest pull request ID; absent when not stacked.
+	Id       *int64 `json:"id,omitempty"`
+	Length   int    `json:"length"`
+	Position int    `json:"position"`
 }
 
 // CheckFact defines model for CheckFact.
@@ -466,6 +588,51 @@ type ForgeRequestKind string
 // Forges defines model for Forges.
 type Forges struct {
 	Forges []Forge `json:"forges"`
+}
+
+// Group defines model for Group.
+type Group struct {
+	CreatedAt  time.Time       `json:"created_at"`
+	Id         int64           `json:"id"`
+	Members    []GroupMember   `json:"members"`
+	Name       string          `json:"name"`
+	NameSource GroupNameSource `json:"name_source"`
+	State      GroupState      `json:"state"`
+}
+
+// GroupNameSource defines model for Group.NameSource.
+type GroupNameSource string
+
+// GroupState defines model for Group.State.
+type GroupState string
+
+// GroupMember defines model for GroupMember.
+type GroupMember struct {
+	Chain       ChainPosition     `json:"chain"`
+	Open        bool              `json:"open"`
+	PullRequest int64             `json:"pull_request"`
+	Reason      string            `json:"reason"`
+	Since       time.Time         `json:"since"`
+	Source      GroupMemberSource `json:"source"`
+}
+
+// GroupMemberSource defines model for GroupMember.Source.
+type GroupMemberSource string
+
+// GroupPatch defines model for GroupPatch.
+type GroupPatch struct {
+	Name string `json:"name"`
+}
+
+// GroupRequest defines model for GroupRequest.
+type GroupRequest struct {
+	Name         string  `json:"name"`
+	PullRequests []int64 `json:"pull_requests"`
+}
+
+// Groups defines model for Groups.
+type Groups struct {
+	Groups []Group `json:"groups"`
 }
 
 // Identities defines model for Identities.
@@ -599,9 +766,20 @@ type MemberPatch struct {
 	Rules       *bool   `json:"rules,omitempty"`
 }
 
+// MemberRequest defines model for MemberRequest.
+type MemberRequest struct {
+	PullRequest int64 `json:"pull_request"`
+}
+
 // Members defines model for Members.
 type Members struct {
 	Members []Member `json:"members"`
+}
+
+// MergeRequest defines model for MergeRequest.
+type MergeRequest struct {
+	// From The group absorbed.
+	From int64 `json:"from"`
 }
 
 // NewInvite defines model for NewInvite.
@@ -617,6 +795,14 @@ type NewToken struct {
 
 	// Token Shown this once.
 	Token string `json:"token"`
+}
+
+// PRName defines model for PRName.
+type PRName struct {
+	Number int `json:"number"`
+
+	// Repo owner/name, or a name only one watched repository has.
+	Repo string `json:"repo"`
 }
 
 // Provider defines model for Provider.
@@ -831,6 +1017,20 @@ type SetupStatus struct {
 	Needed bool `json:"needed"`
 }
 
+// Suggestion defines model for Suggestion.
+type Suggestion struct {
+	CreatedAt   time.Time `json:"created_at"`
+	Group       int64     `json:"group"`
+	Id          int64     `json:"id"`
+	PullRequest int64     `json:"pull_request"`
+	Reason      string    `json:"reason"`
+}
+
+// Suggestions defines model for Suggestions.
+type Suggestions struct {
+	Suggestions []Suggestion `json:"suggestions"`
+}
+
 // ThreadFact defines model for ThreadFact.
 type ThreadFact struct {
 	Comments []CommentFact `json:"comments"`
@@ -846,6 +1046,7 @@ type Timeline struct {
 
 // Token defines model for Token.
 type Token struct {
+	BridgeId   *int64     `json:"bridge_id,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 	Id         string     `json:"id"`
@@ -857,6 +1058,8 @@ type Token struct {
 
 // TokenRequest defines model for TokenRequest.
 type TokenRequest struct {
+	// BridgeId For a bridge the member owns; its token has the one scope assertions:write.
+	BridgeId  *int64               `json:"bridge_id,omitempty"`
 	ExpiresAt *time.Time           `json:"expires_at,omitempty"`
 	Name      string               `json:"name"`
 	Scopes    []TokenRequestScopes `json:"scopes"`
@@ -875,6 +1078,11 @@ type ID = int64
 
 // ProviderID defines model for ProviderID.
 type ProviderID = string
+
+// RetractAssertionParams defines parameters for RetractAssertion.
+type RetractAssertionParams struct {
+	Anchor string `form:"anchor" json:"anchor"`
+}
 
 // FinishSignInParams defines parameters for FinishSignIn.
 type FinishSignInParams struct {
@@ -901,6 +1109,9 @@ type ListPullRequestsParams struct {
 
 // ListPullRequestsParamsState defines parameters for ListPullRequests.
 type ListPullRequestsParamsState string
+
+// CreateBridgeJSONRequestBody defines body for CreateBridge for application/json ContentType.
+type CreateBridgeJSONRequestBody = BridgeRequest
 
 // CreateForgeJSONRequestBody defines body for CreateForge for application/json ContentType.
 type CreateForgeJSONRequestBody = ForgeRequest
@@ -935,11 +1146,29 @@ type WatchRepoJSONRequestBody = RepoRequest
 // UpdateRepoJSONRequestBody defines body for UpdateRepo for application/json ContentType.
 type UpdateRepoJSONRequestBody = RepoPatch
 
+// PostAssertionJSONRequestBody defines body for PostAssertion for application/json ContentType.
+type PostAssertionJSONRequestBody = AssertionRequest
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
 // RegisterJSONRequestBody defines body for Register for application/json ContentType.
 type RegisterJSONRequestBody = RegisterRequest
+
+// CreateGroupJSONRequestBody defines body for CreateGroup for application/json ContentType.
+type CreateGroupJSONRequestBody = GroupRequest
+
+// RenameGroupJSONRequestBody defines body for RenameGroup for application/json ContentType.
+type RenameGroupJSONRequestBody = GroupPatch
+
+// MoveIntoGroupJSONRequestBody defines body for MoveIntoGroup for application/json ContentType.
+type MoveIntoGroupJSONRequestBody = MemberRequest
+
+// MergeGroupsJSONRequestBody defines body for MergeGroups for application/json ContentType.
+type MergeGroupsJSONRequestBody = MergeRequest
+
+// SplitGroupJSONRequestBody defines body for SplitGroup for application/json ContentType.
+type SplitGroupJSONRequestBody = GroupRequest
 
 // CreateMyTokenJSONRequestBody defines body for CreateMyToken for application/json ContentType.
 type CreateMyTokenJSONRequestBody = TokenRequest
@@ -949,6 +1178,12 @@ type CompleteSetupJSONRequestBody = SetupRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListBridges Every registered bridge
+	// (GET /admin/bridges)
+	ListBridges(w http.ResponseWriter, r *http.Request)
+	// CreateBridge Register a bridge
+	// (POST /admin/bridges)
+	CreateBridge(w http.ResponseWriter, r *http.Request)
 	// ListForges Every forge
 	// (GET /admin/forges)
 	ListForges(w http.ResponseWriter, r *http.Request)
@@ -1006,6 +1241,12 @@ type ServerInterface interface {
 	// UpdateRepo Start or stop watching a repository
 	// (PATCH /admin/repos/{id})
 	UpdateRepo(w http.ResponseWriter, r *http.Request, id ID)
+	// RetractAssertion Retract, as a bridge, the live assertion under an anchor
+	// (DELETE /assertions)
+	RetractAssertion(w http.ResponseWriter, r *http.Request, params RetractAssertionParams)
+	// PostAssertion Assert, as a bridge, that pull requests belong together
+	// (POST /assertions)
+	PostAssertion(w http.ResponseWriter, r *http.Request)
 	// Login Sign in with a local account
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -1024,6 +1265,30 @@ type ServerInterface interface {
 	// StartSignIn Begin signing in, or connecting an account, through a forge
 	// (GET /auth/{provider}/start)
 	StartSignIn(w http.ResponseWriter, r *http.Request, provider ProviderID, params StartSignInParams)
+	// ListGroups The active groups, with their pull requests
+	// (GET /groups)
+	ListGroups(w http.ResponseWriter, r *http.Request)
+	// CreateGroup Make a group of pull requests
+	// (POST /groups)
+	CreateGroup(w http.ResponseWriter, r *http.Request)
+	// GetGroup A group; a merged group's ID leads to the group it joined
+	// (GET /groups/{id})
+	GetGroup(w http.ResponseWriter, r *http.Request, id ID)
+	// RenameGroup Rename a group
+	// (PATCH /groups/{id})
+	RenameGroup(w http.ResponseWriter, r *http.Request, id ID)
+	// MoveIntoGroup Move a pull request into a group
+	// (POST /groups/{id}/members)
+	MoveIntoGroup(w http.ResponseWriter, r *http.Request, id ID)
+	// TakeOutOfGroup Take a pull request out of a group
+	// (DELETE /groups/{id}/members/{pr})
+	TakeOutOfGroup(w http.ResponseWriter, r *http.Request, id ID, pr int64)
+	// MergeGroups Merge another group into this one
+	// (POST /groups/{id}/merge)
+	MergeGroups(w http.ResponseWriter, r *http.Request, id ID)
+	// SplitGroup Split pull requests out of a group into a new one
+	// (POST /groups/{id}/split)
+	SplitGroup(w http.ResponseWriter, r *http.Request, id ID)
 	// GetMe Who is calling
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -1060,6 +1325,15 @@ type ServerInterface interface {
 	// CompleteSetup Create the first administrator
 	// (POST /setup)
 	CompleteSetup(w http.ResponseWriter, r *http.Request)
+	// ListSuggestions Open grouping suggestions
+	// (GET /suggestions)
+	ListSuggestions(w http.ResponseWriter, r *http.Request)
+	// AcceptSuggestion Accept a suggestion, placing its pull request in its group
+	// (POST /suggestions/{id}/accept)
+	AcceptSuggestion(w http.ResponseWriter, r *http.Request, id ID)
+	// DismissSuggestion Dismiss a suggestion; it does not open again
+	// (POST /suggestions/{id}/dismiss)
+	DismissSuggestion(w http.ResponseWriter, r *http.Request, id ID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1070,6 +1344,34 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListBridges operation middleware
+func (siw *ServerInterfaceWrapper) ListBridges(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBridges(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateBridge operation middleware
+func (siw *ServerInterfaceWrapper) CreateBridge(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateBridge(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListForges operation middleware
 func (siw *ServerInterfaceWrapper) ListForges(w http.ResponseWriter, r *http.Request) {
@@ -1433,6 +1735,53 @@ func (siw *ServerInterfaceWrapper) UpdateRepo(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// RetractAssertion operation middleware
+func (siw *ServerInterfaceWrapper) RetractAssertion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RetractAssertionParams
+
+	// ------------- Required query parameter "anchor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "anchor", r.URL.Query(), &params.Anchor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "anchor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "anchor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RetractAssertion(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAssertion operation middleware
+func (siw *ServerInterfaceWrapper) PostAssertion(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAssertion(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
 
@@ -1603,6 +1952,199 @@ func (siw *ServerInterfaceWrapper) StartSignIn(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.StartSignIn(w, r, provider, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListGroups operation middleware
+func (siw *ServerInterfaceWrapper) ListGroups(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListGroups(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateGroup operation middleware
+func (siw *ServerInterfaceWrapper) CreateGroup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateGroup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGroup operation middleware
+func (siw *ServerInterfaceWrapper) GetGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGroup(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RenameGroup operation middleware
+func (siw *ServerInterfaceWrapper) RenameGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RenameGroup(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MoveIntoGroup operation middleware
+func (siw *ServerInterfaceWrapper) MoveIntoGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MoveIntoGroup(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TakeOutOfGroup operation middleware
+func (siw *ServerInterfaceWrapper) TakeOutOfGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "pr" -------------
+	var pr int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pr", r.PathValue("pr"), &pr, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pr", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TakeOutOfGroup(w, r, id, pr)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MergeGroups operation middleware
+func (siw *ServerInterfaceWrapper) MergeGroups(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MergeGroups(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SplitGroup operation middleware
+func (siw *ServerInterfaceWrapper) SplitGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SplitGroup(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1872,6 +2414,72 @@ func (siw *ServerInterfaceWrapper) CompleteSetup(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ListSuggestions operation middleware
+func (siw *ServerInterfaceWrapper) ListSuggestions(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSuggestions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AcceptSuggestion operation middleware
+func (siw *ServerInterfaceWrapper) AcceptSuggestion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AcceptSuggestion(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DismissSuggestion operation middleware
+func (siw *ServerInterfaceWrapper) DismissSuggestion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DismissSuggestion(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -2029,11 +2637,103 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/repos", wrapper.ListRepos)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/repos", wrapper.WatchRepo)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/admin/repos/{id}", wrapper.UpdateRepo)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/groups", wrapper.ListGroups)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/groups", wrapper.CreateGroup)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/groups/{id}", wrapper.GetGroup)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/groups/{id}", wrapper.RenameGroup)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/groups/{id}/members", wrapper.MoveIntoGroup)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/groups/{id}/members/{pr}", wrapper.TakeOutOfGroup)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/groups/{id}/merge", wrapper.MergeGroups)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/groups/{id}/split", wrapper.SplitGroup)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/suggestions", wrapper.ListSuggestions)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/suggestions/{id}/accept", wrapper.AcceptSuggestion)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/suggestions/{id}/dismiss", wrapper.DismissSuggestion)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/assertions", wrapper.RetractAssertion)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/assertions", wrapper.PostAssertion)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/bridges", wrapper.ListBridges)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/bridges", wrapper.CreateBridge)
 
 	return m
 }
 
 type ErrorJSONResponse Error
+
+type ListBridgesRequestObject struct {
+}
+
+type ListBridgesResponseObject interface {
+	VisitListBridgesResponse(w http.ResponseWriter) error
+}
+
+type ListBridges200JSONResponse Bridges
+
+func (response ListBridges200JSONResponse) VisitListBridgesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBridgesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListBridgesdefaultJSONResponse) VisitListBridgesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBridgeRequestObject struct {
+	Body *CreateBridgeJSONRequestBody
+}
+
+type CreateBridgeResponseObject interface {
+	VisitCreateBridgeResponse(w http.ResponseWriter) error
+}
+
+type CreateBridge201JSONResponse Bridge
+
+func (response CreateBridge201JSONResponse) VisitCreateBridgeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBridgedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CreateBridgedefaultJSONResponse) VisitCreateBridgeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type ListForgesRequestObject struct {
 }
@@ -2764,6 +3464,78 @@ func (response UpdateRepodefaultJSONResponse) VisitUpdateRepoResponse(w http.Res
 	return err
 }
 
+type RetractAssertionRequestObject struct {
+	Params RetractAssertionParams
+}
+
+type RetractAssertionResponseObject interface {
+	VisitRetractAssertionResponse(w http.ResponseWriter) error
+}
+
+type RetractAssertion204Response struct {
+}
+
+func (response RetractAssertion204Response) VisitRetractAssertionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RetractAssertiondefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RetractAssertiondefaultJSONResponse) VisitRetractAssertionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAssertionRequestObject struct {
+	Body *PostAssertionJSONRequestBody
+}
+
+type PostAssertionResponseObject interface {
+	VisitPostAssertionResponse(w http.ResponseWriter) error
+}
+
+type PostAssertion201JSONResponse AssertionResult
+
+func (response PostAssertion201JSONResponse) VisitPostAssertionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAssertiondefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAssertiondefaultJSONResponse) VisitPostAssertionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LoginRequestObject struct {
 	Body *LoginJSONRequestBody
 }
@@ -2969,6 +3741,316 @@ type StartSignIndefaultJSONResponse struct {
 }
 
 func (response StartSignIndefaultJSONResponse) VisitStartSignInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListGroupsRequestObject struct {
+}
+
+type ListGroupsResponseObject interface {
+	VisitListGroupsResponse(w http.ResponseWriter) error
+}
+
+type ListGroups200JSONResponse Groups
+
+func (response ListGroups200JSONResponse) VisitListGroupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListGroupsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListGroupsdefaultJSONResponse) VisitListGroupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroupRequestObject struct {
+	Body *CreateGroupJSONRequestBody
+}
+
+type CreateGroupResponseObject interface {
+	VisitCreateGroupResponse(w http.ResponseWriter) error
+}
+
+type CreateGroup201JSONResponse Group
+
+func (response CreateGroup201JSONResponse) VisitCreateGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CreateGroupdefaultJSONResponse) VisitCreateGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGroupRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetGroupResponseObject interface {
+	VisitGetGroupResponse(w http.ResponseWriter) error
+}
+
+type GetGroup200JSONResponse Group
+
+func (response GetGroup200JSONResponse) VisitGetGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGroupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetGroupdefaultJSONResponse) VisitGetGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameGroupRequestObject struct {
+	Id   ID `json:"id"`
+	Body *RenameGroupJSONRequestBody
+}
+
+type RenameGroupResponseObject interface {
+	VisitRenameGroupResponse(w http.ResponseWriter) error
+}
+
+type RenameGroup200JSONResponse Group
+
+func (response RenameGroup200JSONResponse) VisitRenameGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameGroupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RenameGroupdefaultJSONResponse) VisitRenameGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MoveIntoGroupRequestObject struct {
+	Id   ID `json:"id"`
+	Body *MoveIntoGroupJSONRequestBody
+}
+
+type MoveIntoGroupResponseObject interface {
+	VisitMoveIntoGroupResponse(w http.ResponseWriter) error
+}
+
+type MoveIntoGroup200JSONResponse Group
+
+func (response MoveIntoGroup200JSONResponse) VisitMoveIntoGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MoveIntoGroupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response MoveIntoGroupdefaultJSONResponse) VisitMoveIntoGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TakeOutOfGroupRequestObject struct {
+	Id ID    `json:"id"`
+	Pr int64 `json:"pr"`
+}
+
+type TakeOutOfGroupResponseObject interface {
+	VisitTakeOutOfGroupResponse(w http.ResponseWriter) error
+}
+
+type TakeOutOfGroup204Response struct {
+}
+
+func (response TakeOutOfGroup204Response) VisitTakeOutOfGroupResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type TakeOutOfGroupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response TakeOutOfGroupdefaultJSONResponse) VisitTakeOutOfGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MergeGroupsRequestObject struct {
+	Id   ID `json:"id"`
+	Body *MergeGroupsJSONRequestBody
+}
+
+type MergeGroupsResponseObject interface {
+	VisitMergeGroupsResponse(w http.ResponseWriter) error
+}
+
+type MergeGroups200JSONResponse Group
+
+func (response MergeGroups200JSONResponse) VisitMergeGroupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MergeGroupsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response MergeGroupsdefaultJSONResponse) VisitMergeGroupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SplitGroupRequestObject struct {
+	Id   ID `json:"id"`
+	Body *SplitGroupJSONRequestBody
+}
+
+type SplitGroupResponseObject interface {
+	VisitSplitGroupResponse(w http.ResponseWriter) error
+}
+
+type SplitGroup201JSONResponse Group
+
+func (response SplitGroup201JSONResponse) VisitSplitGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SplitGroupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response SplitGroupdefaultJSONResponse) VisitSplitGroupResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -3426,8 +4508,118 @@ func (response CompleteSetupdefaultJSONResponse) VisitCompleteSetupResponse(w ht
 	return err
 }
 
+type ListSuggestionsRequestObject struct {
+}
+
+type ListSuggestionsResponseObject interface {
+	VisitListSuggestionsResponse(w http.ResponseWriter) error
+}
+
+type ListSuggestions200JSONResponse Suggestions
+
+func (response ListSuggestions200JSONResponse) VisitListSuggestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSuggestionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListSuggestionsdefaultJSONResponse) VisitListSuggestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptSuggestionRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type AcceptSuggestionResponseObject interface {
+	VisitAcceptSuggestionResponse(w http.ResponseWriter) error
+}
+
+type AcceptSuggestion204Response struct {
+}
+
+func (response AcceptSuggestion204Response) VisitAcceptSuggestionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type AcceptSuggestiondefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response AcceptSuggestiondefaultJSONResponse) VisitAcceptSuggestionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DismissSuggestionRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DismissSuggestionResponseObject interface {
+	VisitDismissSuggestionResponse(w http.ResponseWriter) error
+}
+
+type DismissSuggestion204Response struct {
+}
+
+func (response DismissSuggestion204Response) VisitDismissSuggestionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DismissSuggestiondefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DismissSuggestiondefaultJSONResponse) VisitDismissSuggestionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ListBridges Every registered bridge
+	// (GET /admin/bridges)
+	ListBridges(ctx context.Context, request ListBridgesRequestObject) (ListBridgesResponseObject, error)
+	// CreateBridge Register a bridge
+	// (POST /admin/bridges)
+	CreateBridge(ctx context.Context, request CreateBridgeRequestObject) (CreateBridgeResponseObject, error)
 	// ListForges Every forge
 	// (GET /admin/forges)
 	ListForges(ctx context.Context, request ListForgesRequestObject) (ListForgesResponseObject, error)
@@ -3485,6 +4677,12 @@ type StrictServerInterface interface {
 	// UpdateRepo Start or stop watching a repository
 	// (PATCH /admin/repos/{id})
 	UpdateRepo(ctx context.Context, request UpdateRepoRequestObject) (UpdateRepoResponseObject, error)
+	// RetractAssertion Retract, as a bridge, the live assertion under an anchor
+	// (DELETE /assertions)
+	RetractAssertion(ctx context.Context, request RetractAssertionRequestObject) (RetractAssertionResponseObject, error)
+	// PostAssertion Assert, as a bridge, that pull requests belong together
+	// (POST /assertions)
+	PostAssertion(ctx context.Context, request PostAssertionRequestObject) (PostAssertionResponseObject, error)
 	// Login Sign in with a local account
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -3503,6 +4701,30 @@ type StrictServerInterface interface {
 	// StartSignIn Begin signing in, or connecting an account, through a forge
 	// (GET /auth/{provider}/start)
 	StartSignIn(ctx context.Context, request StartSignInRequestObject) (StartSignInResponseObject, error)
+	// ListGroups The active groups, with their pull requests
+	// (GET /groups)
+	ListGroups(ctx context.Context, request ListGroupsRequestObject) (ListGroupsResponseObject, error)
+	// CreateGroup Make a group of pull requests
+	// (POST /groups)
+	CreateGroup(ctx context.Context, request CreateGroupRequestObject) (CreateGroupResponseObject, error)
+	// GetGroup A group; a merged group's ID leads to the group it joined
+	// (GET /groups/{id})
+	GetGroup(ctx context.Context, request GetGroupRequestObject) (GetGroupResponseObject, error)
+	// RenameGroup Rename a group
+	// (PATCH /groups/{id})
+	RenameGroup(ctx context.Context, request RenameGroupRequestObject) (RenameGroupResponseObject, error)
+	// MoveIntoGroup Move a pull request into a group
+	// (POST /groups/{id}/members)
+	MoveIntoGroup(ctx context.Context, request MoveIntoGroupRequestObject) (MoveIntoGroupResponseObject, error)
+	// TakeOutOfGroup Take a pull request out of a group
+	// (DELETE /groups/{id}/members/{pr})
+	TakeOutOfGroup(ctx context.Context, request TakeOutOfGroupRequestObject) (TakeOutOfGroupResponseObject, error)
+	// MergeGroups Merge another group into this one
+	// (POST /groups/{id}/merge)
+	MergeGroups(ctx context.Context, request MergeGroupsRequestObject) (MergeGroupsResponseObject, error)
+	// SplitGroup Split pull requests out of a group into a new one
+	// (POST /groups/{id}/split)
+	SplitGroup(ctx context.Context, request SplitGroupRequestObject) (SplitGroupResponseObject, error)
 	// GetMe Who is calling
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -3539,6 +4761,15 @@ type StrictServerInterface interface {
 	// CompleteSetup Create the first administrator
 	// (POST /setup)
 	CompleteSetup(ctx context.Context, request CompleteSetupRequestObject) (CompleteSetupResponseObject, error)
+	// ListSuggestions Open grouping suggestions
+	// (GET /suggestions)
+	ListSuggestions(ctx context.Context, request ListSuggestionsRequestObject) (ListSuggestionsResponseObject, error)
+	// AcceptSuggestion Accept a suggestion, placing its pull request in its group
+	// (POST /suggestions/{id}/accept)
+	AcceptSuggestion(ctx context.Context, request AcceptSuggestionRequestObject) (AcceptSuggestionResponseObject, error)
+	// DismissSuggestion Dismiss a suggestion; it does not open again
+	// (POST /suggestions/{id}/dismiss)
+	DismissSuggestion(ctx context.Context, request DismissSuggestionRequestObject) (DismissSuggestionResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -3578,6 +4809,61 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListBridges operation middleware
+func (sh *strictHandler) ListBridges(w http.ResponseWriter, r *http.Request) {
+	var request ListBridgesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBridges(ctx, request.(ListBridgesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBridges")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBridgesResponseObject); ok {
+		if err := validResponse.VisitListBridgesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateBridge operation middleware
+func (sh *strictHandler) CreateBridge(w http.ResponseWriter, r *http.Request) {
+	var request CreateBridgeRequestObject
+
+	var body CreateBridgeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateBridge(ctx, request.(CreateBridgeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateBridge")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateBridgeResponseObject); ok {
+		if err := validResponse.VisitCreateBridgeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ListForges operation middleware
@@ -4129,6 +5415,63 @@ func (sh *strictHandler) UpdateRepo(w http.ResponseWriter, r *http.Request, id I
 	}
 }
 
+// RetractAssertion operation middleware
+func (sh *strictHandler) RetractAssertion(w http.ResponseWriter, r *http.Request, params RetractAssertionParams) {
+	var request RetractAssertionRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RetractAssertion(ctx, request.(RetractAssertionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RetractAssertion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RetractAssertionResponseObject); ok {
+		if err := validResponse.VisitRetractAssertionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAssertion operation middleware
+func (sh *strictHandler) PostAssertion(w http.ResponseWriter, r *http.Request) {
+	var request PostAssertionRequestObject
+
+	var body PostAssertionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAssertion(ctx, request.(PostAssertionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAssertion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAssertionResponseObject); ok {
+		if err := validResponse.VisitPostAssertionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Login operation middleware
 func (sh *strictHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var request LoginRequestObject
@@ -4286,6 +5629,246 @@ func (sh *strictHandler) StartSignIn(w http.ResponseWriter, r *http.Request, pro
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(StartSignInResponseObject); ok {
 		if err := validResponse.VisitStartSignInResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListGroups operation middleware
+func (sh *strictHandler) ListGroups(w http.ResponseWriter, r *http.Request) {
+	var request ListGroupsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListGroups(ctx, request.(ListGroupsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListGroups")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListGroupsResponseObject); ok {
+		if err := validResponse.VisitListGroupsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateGroup operation middleware
+func (sh *strictHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
+	var request CreateGroupRequestObject
+
+	var body CreateGroupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateGroup(ctx, request.(CreateGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateGroupResponseObject); ok {
+		if err := validResponse.VisitCreateGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetGroup operation middleware
+func (sh *strictHandler) GetGroup(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetGroupRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetGroup(ctx, request.(GetGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetGroupResponseObject); ok {
+		if err := validResponse.VisitGetGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RenameGroup operation middleware
+func (sh *strictHandler) RenameGroup(w http.ResponseWriter, r *http.Request, id ID) {
+	var request RenameGroupRequestObject
+
+	request.Id = id
+
+	var body RenameGroupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RenameGroup(ctx, request.(RenameGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RenameGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RenameGroupResponseObject); ok {
+		if err := validResponse.VisitRenameGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MoveIntoGroup operation middleware
+func (sh *strictHandler) MoveIntoGroup(w http.ResponseWriter, r *http.Request, id ID) {
+	var request MoveIntoGroupRequestObject
+
+	request.Id = id
+
+	var body MoveIntoGroupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MoveIntoGroup(ctx, request.(MoveIntoGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MoveIntoGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MoveIntoGroupResponseObject); ok {
+		if err := validResponse.VisitMoveIntoGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TakeOutOfGroup operation middleware
+func (sh *strictHandler) TakeOutOfGroup(w http.ResponseWriter, r *http.Request, id ID, pr int64) {
+	var request TakeOutOfGroupRequestObject
+
+	request.Id = id
+	request.Pr = pr
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TakeOutOfGroup(ctx, request.(TakeOutOfGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TakeOutOfGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TakeOutOfGroupResponseObject); ok {
+		if err := validResponse.VisitTakeOutOfGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MergeGroups operation middleware
+func (sh *strictHandler) MergeGroups(w http.ResponseWriter, r *http.Request, id ID) {
+	var request MergeGroupsRequestObject
+
+	request.Id = id
+
+	var body MergeGroupsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MergeGroups(ctx, request.(MergeGroupsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MergeGroups")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MergeGroupsResponseObject); ok {
+		if err := validResponse.VisitMergeGroupsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SplitGroup operation middleware
+func (sh *strictHandler) SplitGroup(w http.ResponseWriter, r *http.Request, id ID) {
+	var request SplitGroupRequestObject
+
+	request.Id = id
+
+	var body SplitGroupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SplitGroup(ctx, request.(SplitGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SplitGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SplitGroupResponseObject); ok {
+		if err := validResponse.VisitSplitGroupResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4600,6 +6183,82 @@ func (sh *strictHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CompleteSetupResponseObject); ok {
 		if err := validResponse.VisitCompleteSetupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSuggestions operation middleware
+func (sh *strictHandler) ListSuggestions(w http.ResponseWriter, r *http.Request) {
+	var request ListSuggestionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSuggestions(ctx, request.(ListSuggestionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSuggestions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSuggestionsResponseObject); ok {
+		if err := validResponse.VisitListSuggestionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AcceptSuggestion operation middleware
+func (sh *strictHandler) AcceptSuggestion(w http.ResponseWriter, r *http.Request, id ID) {
+	var request AcceptSuggestionRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AcceptSuggestion(ctx, request.(AcceptSuggestionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AcceptSuggestion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AcceptSuggestionResponseObject); ok {
+		if err := validResponse.VisitAcceptSuggestionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DismissSuggestion operation middleware
+func (sh *strictHandler) DismissSuggestion(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DismissSuggestionRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DismissSuggestion(ctx, request.(DismissSuggestionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DismissSuggestion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DismissSuggestionResponseObject); ok {
+		if err := validResponse.VisitDismissSuggestionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

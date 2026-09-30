@@ -541,6 +541,206 @@ export interface paths {
         patch: operations["updateRepo"];
         trace?: never;
     };
+    "/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The active groups, with their pull requests */
+        get: operations["listGroups"];
+        put?: never;
+        /** Make a group of pull requests */
+        post: operations["createGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A group; a merged group's ID leads to the group it joined */
+        get: operations["getGroup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename a group */
+        patch: operations["renameGroup"];
+        trace?: never;
+    };
+    "/groups/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move a pull request into a group */
+        post: operations["moveIntoGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/groups/{id}/members/{pr}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Take a pull request out of a group
+         * @description The exclusion holds against every source; the pull request falls back to its next-best claim, or stands alone.
+         */
+        delete: operations["takeOutOfGroup"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/groups/{id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Merge another group into this one */
+        post: operations["mergeGroups"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/groups/{id}/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Split pull requests out of a group into a new one */
+        post: operations["splitGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open grouping suggestions */
+        get: operations["listSuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suggestions/{id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept a suggestion, placing its pull request in its group */
+        post: operations["acceptSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suggestions/{id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss a suggestion; it does not open again */
+        post: operations["dismissSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assertions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assert, as a bridge, that pull requests belong together
+         * @description With a bridge's token. The bridge, not the request, is the source. Reposting under an anchor replaces the assertion there. A repository that is not watched is refused like an unknown one.
+         */
+        post: operations["postAssertion"];
+        /** Retract, as a bridge, the live assertion under an anchor */
+        delete: operations["retractAssertion"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bridges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every registered bridge */
+        get: operations["listBridges"];
+        put?: never;
+        /**
+         * Register a bridge
+         * @description Its owner then creates its token, with bridge_id, at POST /me/tokens.
+         */
+        post: operations["createBridge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -647,15 +847,22 @@ export interface components {
             expires_at?: string | null;
             /** Format: date-time */
             revoked_at?: string | null;
+            /** Format: int64 */
+            bridge_id?: number | null;
         };
         Tokens: {
             tokens: components["schemas"]["Token"][];
         };
         TokenRequest: {
             name: string;
-            scopes: ("read" | "tasks:work")[];
+            scopes: ("read" | "tasks:work" | "assertions:write")[];
             /** Format: date-time */
             expires_at?: string;
+            /**
+             * Format: int64
+             * @description For a bridge the member owns; its token has the one scope assertions:write.
+             */
+            bridge_id?: number;
         };
         NewToken: {
             /** @description Shown this once. */
@@ -968,6 +1175,116 @@ export interface components {
         FieldChange: {
             old: unknown;
             new: unknown;
+        };
+        ChainPosition: {
+            /**
+             * Format: int64
+             * @description The chain, named by its lowest pull request ID; absent when not stacked.
+             */
+            id?: number;
+            position: number;
+            length: number;
+            /** @description Open pull requests it stacks on, directly or not. */
+            below: number;
+        };
+        GroupMember: {
+            /** Format: int64 */
+            pull_request: number;
+            open: boolean;
+            /** Format: date-time */
+            since: string;
+            /** @enum {string} */
+            source: "manual" | "external" | "structural";
+            reason: string;
+            chain: components["schemas"]["ChainPosition"];
+        };
+        Group: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @enum {string} */
+            name_source: "manual" | "external" | "issue" | "branch" | "refs";
+            /** @enum {string} */
+            state: "active" | "archived";
+            /** Format: date-time */
+            created_at: string;
+            members: components["schemas"]["GroupMember"][];
+        };
+        Groups: {
+            groups: components["schemas"]["Group"][];
+        };
+        GroupRequest: {
+            name: string;
+            pull_requests: number[];
+        };
+        GroupPatch: {
+            name: string;
+        };
+        MemberRequest: {
+            /** Format: int64 */
+            pull_request: number;
+        };
+        MergeRequest: {
+            /**
+             * Format: int64
+             * @description The group absorbed.
+             */
+            from: number;
+        };
+        Suggestion: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            pull_request: number;
+            /** Format: int64 */
+            group: number;
+            reason: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        Suggestions: {
+            suggestions: components["schemas"]["Suggestion"][];
+        };
+        PRName: {
+            /** @description owner/name, or a name only one watched repository has. */
+            repo: string;
+            number: number;
+        };
+        AssertionRequest: {
+            /** @description An ID in the bridge's own system, never a link. */
+            anchor: string;
+            title?: string;
+            /** @description IDs in the bridge's own system, never links. */
+            evidence?: string[];
+            pull_requests: components["schemas"]["PRName"][];
+        };
+        AssertionResult: {
+            /** Format: int64 */
+            id: number;
+            applied: boolean;
+        };
+        Bridge: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            owner_id: number;
+            /** @description An address with {id} for an anchor or evidence ID, used to render links. */
+            link_template: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        Bridges: {
+            bridges: components["schemas"]["Bridge"][];
+        };
+        BridgeRequest: {
+            name: string;
+            /**
+             * Format: int64
+             * @description The member who owns it; the caller by default.
+             */
+            owner_id?: number;
+            link_template?: string;
         };
         Error: {
             error: {
@@ -1862,6 +2179,360 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Repo"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active groups, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Groups"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupRequest"];
+            };
+        };
+        responses: {
+            /** @description The new group. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The group. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    renameGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPatch"];
+            };
+        };
+        responses: {
+            /** @description The group, renamed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    moveIntoGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberRequest"];
+            };
+        };
+        responses: {
+            /** @description The group, with the pull request in it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    takeOutOfGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+                pr: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Taken out. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    mergeGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeRequest"];
+            };
+        };
+        responses: {
+            /** @description The group, with the other's pull requests. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    splitGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupRequest"];
+            };
+        };
+        responses: {
+            /** @description The new group. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listSuggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open suggestions, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestions"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    acceptSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    dismissSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dismissed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    postAssertion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssertionRequest"];
+            };
+        };
+        responses: {
+            /** @description Recorded; applied unless it names more pull requests than the largest applied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssertionResult"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    retractAssertion: {
+        parameters: {
+            query: {
+                anchor: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Retracted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listBridges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bridges. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bridges"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createBridge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BridgeRequest"];
+            };
+        };
+        responses: {
+            /** @description The bridge. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bridge"];
                 };
             };
             default: components["responses"]["Error"];

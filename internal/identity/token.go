@@ -24,6 +24,7 @@ type Token struct {
 	LastUsedAt *time.Time
 	ExpiresAt  *time.Time
 	RevokedAt  *time.Time
+	BridgeID   *int64
 	ID         string
 	Name       string
 	Scopes     []string
@@ -31,9 +32,10 @@ type Token struct {
 
 var errBadToken = fail.New(fail.Unauthenticated, "invalid_token", "The API token is unknown, expired, or revoked.")
 
-// CreateToken creates an API token for the calling member and returns it — the only time it is shown — with its
-// record. Tokens are made in a browser session, never with another token.
-func (s *Service) CreateToken(ctx context.Context, c *Caller, name string, scopes []string, expires *time.Time) (string, Token, error) {
+// CreateToken creates an API token for the calling member, or for a bridge the member owns, and returns it — the only
+// time it is shown — with its record. Tokens are made in a browser session, never with another token. A member's
+// token reads and works tasks; a bridge's token only posts and retracts assertions.
+func (s *Service) CreateToken(ctx context.Context, c *Caller, name string, scopes []string, expires *time.Time, bridge *int64) (string, Token, error) {
 	if c.TokenID != "" {
 		return "", Token{}, fail.New(fail.Forbidden, "session_required", "Create tokens from a browser session.")
 	}
@@ -45,9 +47,23 @@ func (s *Service) CreateToken(ctx context.Context, c *Caller, name string, scope
 	if len(scopes) == 0 {
 		return "", Token{}, fail.New(fail.Invalid, "invalid_scopes", "A token needs at least one scope.")
 	}
-	for _, sc := range scopes {
-		if sc != ScopeRead && sc != ScopeTasksWork {
-			return "", Token{}, fail.New(fail.Invalid, "invalid_scopes", "A member's token can have the scopes read and tasks:work.")
+	if bridge != nil {
+		var owner int64
+		err := s.pool.QueryRow(ctx, "SELECT owner_id FROM bridge WHERE id = $1", *bridge).Scan(&owner)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && owner != c.Member.ID) {
+			return "", Token{}, fail.New(fail.NotFound, "not_found", "You own no such bridge.")
+		}
+		if err != nil {
+			return "", Token{}, err
+		}
+		if len(scopes) != 1 || scopes[0] != ScopeAssertionsWrite {
+			return "", Token{}, fail.New(fail.Invalid, "invalid_scopes", "A bridge's token has the one scope assertions:write.")
+		}
+	} else {
+		for _, sc := range scopes {
+			if sc != ScopeRead && sc != ScopeTasksWork {
+				return "", Token{}, fail.New(fail.Invalid, "invalid_scopes", "A member's token can have the scopes read and tasks:work.")
+			}
 		}
 	}
 	if expires != nil && !expires.After(s.now()) {
@@ -55,9 +71,9 @@ func (s *Service) CreateToken(ctx context.Context, c *Caller, name string, scope
 	}
 	id := randomText(6)
 	secret := TokenPrefix + id + "_" + randomText(32)
-	t := Token{ID: id, Name: name, Scopes: scopes, ExpiresAt: expires}
-	err := s.pool.QueryRow(ctx, `INSERT INTO api_token (id, member_id, name, secret_hash, scopes, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at`, id, c.Member.ID, name, digest(secret), scopes, expires).
+	t := Token{ID: id, Name: name, Scopes: scopes, ExpiresAt: expires, BridgeID: bridge}
+	err := s.pool.QueryRow(ctx, `INSERT INTO api_token (id, member_id, name, secret_hash, scopes, expires_at, bridge_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING created_at`, id, c.Member.ID, name, digest(secret), scopes, expires, bridge).
 		Scan(&t.CreatedAt)
 	if err != nil {
 		return "", Token{}, err
@@ -75,10 +91,11 @@ func (s *Service) TokenCaller(ctx context.Context, token string) (*Caller, error
 	var c Caller
 	var hash []byte
 	var expires, revoked, lastUsed *time.Time
-	err := s.pool.QueryRow(ctx, "SELECT "+memberColumns+", t.secret_hash, t.scopes, t.expires_at, t.revoked_at, t.last_used_at "+
+	var bridge *int64
+	err := s.pool.QueryRow(ctx, "SELECT "+memberColumns+", t.secret_hash, t.scopes, t.expires_at, t.revoked_at, t.last_used_at, t.bridge_id "+
 		"FROM api_token t JOIN member m ON m.id = t.member_id WHERE t.id = $1", id).
 		Scan(&c.Member.ID, &c.Member.DisplayName, &c.Member.Admin, &c.Member.Rules, &c.Member.Disabled, &c.Member.CreatedAt,
-			&hash, &c.Scopes, &expires, &revoked, &lastUsed)
+			&hash, &c.Scopes, &expires, &revoked, &lastUsed, &bridge)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, errBadToken
 	}
@@ -96,19 +113,22 @@ func (s *Service) TokenCaller(ctx context.Context, token string) (*Caller, error
 		}
 	}
 	c.TokenID = id
+	if bridge != nil {
+		c.BridgeID = *bridge
+	}
 	return &c, nil
 }
 
 // Tokens lists a member's tokens, newest first.
 func (s *Service) Tokens(ctx context.Context, memberID int64) ([]Token, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, scopes, created_at, last_used_at, expires_at, revoked_at
+	rows, err := s.pool.Query(ctx, `SELECT id, name, scopes, created_at, last_used_at, expires_at, revoked_at, bridge_id
 		FROM api_token WHERE member_id = $1 ORDER BY created_at DESC, id`, memberID)
 	if err != nil {
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Token, error) {
 		var t Token
-		err := row.Scan(&t.ID, &t.Name, &t.Scopes, &t.CreatedAt, &t.LastUsedAt, &t.ExpiresAt, &t.RevokedAt)
+		err := row.Scan(&t.ID, &t.Name, &t.Scopes, &t.CreatedAt, &t.LastUsedAt, &t.ExpiresAt, &t.RevokedAt, &t.BridgeID)
 		return t, err
 	})
 }

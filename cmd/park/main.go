@@ -28,6 +28,7 @@ import (
 	"github.com/NickWilde18/Park/internal/config"
 	"github.com/NickWilde18/Park/internal/facts"
 	_ "github.com/NickWilde18/Park/internal/forges/github" // the forge kinds Park supports
+	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/httpapi"
 	"github.com/NickWilde18/Park/internal/identity"
 	"github.com/NickWilde18/Park/internal/secret"
@@ -106,9 +107,12 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		return err
 	}
 	collected := facts.New(pool, box, log)
+	groups := grouping.New(pool, log)
+	collected.Follow(groups.FactsFollower())
 	// Each stage gives the runner its work before it starts.
 	runner := work.NewRunner(pool, log, work.Options{})
 	collected.Register(runner)
+	groups.Register(runner)
 	if err := collected.Start(ctx); err != nil {
 		return fmt.Errorf("schedule collection: %w", err)
 	}
@@ -151,6 +155,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		Logger:   log,
 		Identity: ids,
 		Facts:    collected,
+		Grouping: groups,
 		Pool:     pool,
 	})
 	if err != nil {

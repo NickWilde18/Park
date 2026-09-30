@@ -32,15 +32,18 @@ func init() {
 
 var hubAt = time.Date(2026, 9, 3, 11, 0, 0, 0, time.UTC)
 
-func (hub) FetchPR(_ context.Context, _ facts.Repo, n int, _ map[string]facts.Protection) (facts.Fetched, error) {
+// hubRepos are the forge's IDs of the repositories the hub has.
+var hubRepos = map[string]int64{"api": 1001, "web": 1002}
+
+func (hub) FetchPR(_ context.Context, r facts.Repo, n int, _ map[string]facts.Protection) (facts.Fetched, error) {
 	p := facts.PR{Number: n, Title: "Billing export", State: facts.StateOpen, Author: 501, HeadSHA: "abc", HeadBranch: "feat/x",
-		HeadRepo: 1001, BaseBranch: "main", CreatedAt: hubAt, UpdatedAt: hubAt, HeadPushedAt: hubAt, Mergeable: facts.MergeableClean,
+		HeadRepo: r.ForgeRepo, BaseBranch: "main", CreatedAt: hubAt, UpdatedAt: hubAt, HeadPushedAt: hubAt, Mergeable: facts.MergeableClean,
 		Labels: []string{"billing"}, MergeBlockers: []string{}, ReviewRequests: []facts.Request{{Account: 502, CodeOwner: false}},
 		Reviews:      []facts.Review{{ID: 1, Author: 503, State: facts.ReviewChangesRequested, Commit: "abc", At: hubAt, HasBody: true, Counts: true}},
 		Threads:      []facts.Thread{{ID: "T1", Comments: []facts.Comment{{ID: 7, Author: 503, At: hubAt}}}},
 		Conversation: []facts.Comment{}, Checks: []facts.Check{{Name: "build", State: facts.CheckFailing, Required: true}},
 		MissingChecks: []string{}, References: []facts.Ref{}, ClosesIssues: []facts.Ref{}, RequiredApproval: 1}
-	return facts.Fetched{PR: p, AuthorLogin: "ana", ForgeRepo: 1001, Accounts: []forges.Account{
+	return facts.Fetched{PR: p, AuthorLogin: "ana", ForgeRepo: r.ForgeRepo, Accounts: []forges.Account{
 		{ID: 501, Login: "ana", Name: "Ana"}, {ID: 502, Login: "ben"}, {ID: 503, Login: "carol", Name: "Carol"}}}, nil
 }
 
@@ -51,7 +54,7 @@ func (hub) ListOpen(context.Context, facts.Repo) ([]facts.Listed, error) {
 func (hub) Light(context.Context, facts.Repo, int) (facts.Light, error) { return facts.Light{}, nil }
 
 func (hub) Repository(_ context.Context, owner, name string) (facts.RepoFacts, error) {
-	return facts.RepoFacts{Owner: owner, Name: name, DefaultBranch: "main", ForgeRepo: 1001}, nil
+	return facts.RepoFacts{Owner: owner, Name: name, DefaultBranch: "main", ForgeRepo: hubRepos[name]}, nil
 }
 
 func (hub) Protection(context.Context, facts.Repo, []string) (map[string]facts.Protection, error) {

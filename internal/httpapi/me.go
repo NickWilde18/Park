@@ -17,7 +17,7 @@ func identityOut(i identity.Identity) Identity {
 
 func tokenOut(t identity.Token) Token {
 	return Token{Id: t.ID, Name: t.Name, Scopes: t.Scopes, CreatedAt: t.CreatedAt, LastUsedAt: t.LastUsedAt,
-		ExpiresAt: t.ExpiresAt, RevokedAt: t.RevokedAt}
+		ExpiresAt: t.ExpiresAt, RevokedAt: t.RevokedAt, BridgeId: t.BridgeID}
 }
 
 func (s *server) GetMe(ctx context.Context, _ GetMeRequestObject) (GetMeResponseObject, error) {
@@ -89,7 +89,7 @@ func (s *server) CreateMyToken(ctx context.Context, req CreateMyTokenRequestObje
 	for _, sc := range req.Body.Scopes {
 		scopes = append(scopes, string(sc))
 	}
-	secret, t, err := s.id.CreateToken(ctx, c, req.Body.Name, scopes, req.Body.ExpiresAt)
+	secret, t, err := s.id.CreateToken(ctx, c, req.Body.Name, scopes, req.Body.ExpiresAt, req.Body.BridgeId)
 	if err != nil {
 		return nil, err
 	}

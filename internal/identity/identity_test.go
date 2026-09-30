@@ -286,7 +286,7 @@ func TestSessions(t *testing.T) {
 func TestTokens(t *testing.T) {
 	e := newEnv(t)
 	admin := e.admin(t)
-	token, rec, err := e.s.CreateToken(e.ctx, admin, "executor", []string{ScopeTasksWork, ScopeRead, ScopeRead}, nil)
+	token, rec, err := e.s.CreateToken(e.ctx, admin, "executor", []string{ScopeTasksWork, ScopeRead, ScopeRead}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,9 +308,9 @@ func TestTokens(t *testing.T) {
 	if err != nil || c.Member.ID != admin.Member.ID || !c.HasScope(ScopeTasksWork) || c.HasScope("assertions:write") {
 		t.Fatalf("caller %+v, %v", c, err)
 	}
-	_, _, err = e.s.CreateToken(e.ctx, c, "from a token", []string{ScopeRead}, nil)
+	_, _, err = e.s.CreateToken(e.ctx, c, "from a token", []string{ScopeRead}, nil, nil)
 	wantCode(t, err, "session_required")
-	_, _, err = e.s.CreateToken(e.ctx, admin, "bridge", []string{"assertions:write"}, nil)
+	_, _, err = e.s.CreateToken(e.ctx, admin, "bridge", []string{"assertions:write"}, nil, nil)
 	wantCode(t, err, "invalid_scopes")
 
 	for _, bad := range []string{"", "park_", "park_" + rec.ID, "park_" + rec.ID + "_wrong", strings.Replace(token, "park_", "bark_", 1)} {
@@ -324,7 +324,7 @@ func TestTokens(t *testing.T) {
 	wantCode(t, err, "invalid_token")
 
 	soon := e.clock.now().Add(time.Hour)
-	expiring, _, err := e.s.CreateToken(e.ctx, admin, "short-lived", []string{ScopeRead}, &soon)
+	expiring, _, err := e.s.CreateToken(e.ctx, admin, "short-lived", []string{ScopeRead}, &soon, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,7 +463,7 @@ func TestDisableMember(t *testing.T) {
 		t.Fatal(err)
 	}
 	session, _, _ := e.s.StartSession(e.ctx, ana.Member.ID)
-	token, _, _ := e.s.CreateToken(e.ctx, ana, "t", []string{ScopeRead}, nil)
+	token, _, _ := e.s.CreateToken(e.ctx, ana, "t", []string{ScopeRead}, nil, nil)
 	yes := true
 	m, err := e.s.UpdateMember(e.ctx, admin, ana.Member.ID, MemberPatch{Disabled: &yes})
 	if err != nil || !m.Disabled {
@@ -534,5 +534,28 @@ func TestSignInNeedsPublicURL(t *testing.T) {
 	_, _, err := e.s.StartSignIn(e.ctx, "hub", ModeSignIn, "", nil)
 	if f, ok := fail.As(err); !ok || f.Kind != fail.Unavailable {
 		t.Fatalf("got %v", err)
+	}
+}
+
+// A bridge's token belongs to the bridge's owner, carries only assertions:write, and names the bridge as its caller's.
+func TestBridgeTokens(t *testing.T) {
+	e := newEnv(t)
+	admin := e.admin(t)
+	ana := e.member(t, admin, "ana")
+	var bridge int64
+	if err := e.pool.QueryRow(e.ctx, "INSERT INTO bridge (name, owner_id) VALUES ('Tracker', $1) RETURNING id", ana.Member.ID).Scan(&bridge); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := e.s.CreateToken(e.ctx, admin, "not mine", []string{ScopeAssertionsWrite}, nil, &bridge)
+	wantCode(t, err, "not_found")
+	_, _, err = e.s.CreateToken(e.ctx, ana, "too much", []string{ScopeRead}, nil, &bridge)
+	wantCode(t, err, "invalid_scopes")
+	token, rec, err := e.s.CreateToken(e.ctx, ana, "tracker bridge", []string{ScopeAssertionsWrite}, nil, &bridge)
+	if err != nil || rec.BridgeID == nil || *rec.BridgeID != bridge {
+		t.Fatalf("token %+v, %v", rec, err)
+	}
+	c, err := e.s.TokenCaller(e.ctx, token)
+	if err != nil || c.BridgeID != bridge || !c.HasScope(ScopeAssertionsWrite) || c.HasScope(ScopeRead) {
+		t.Fatalf("caller %+v, %v", c, err)
 	}
 }

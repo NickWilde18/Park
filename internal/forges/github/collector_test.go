@@ -208,10 +208,10 @@ func TestProtection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m := got["main"]; m.RequiredApprovals != 2 || !m.CodeOwners || !slices.Equal(m.RequiredChecks, []string{"build"}) {
+	if m := got["main"]; m.RequiredApprovals != 2 || !m.CodeOwners || !slices.Equal(m.RequiredChecks, []string{"build"}) || !m.Protected {
 		t.Errorf("main: %+v", m)
 	}
-	if r := got["release"]; r.RequiredApprovals != -1 || !slices.Equal(r.RequiredChecks, []string{"e2e"}) {
+	if r := got["release"]; r.RequiredApprovals != -1 || !slices.Equal(r.RequiredChecks, []string{"e2e"}) || !r.Protected {
 		t.Errorf("release: %+v", r)
 	}
 	if _, ok := got["gone"]; ok {

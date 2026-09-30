@@ -1,9 +1,11 @@
-"""A model of chain derivation and membership resolution, as 03-grouping.md words them, and the outcomes they need.
+"""A model of chain derivation and membership resolution, as 03-grouping.md words them, and the outcomes they need —
+among them that the order assertions arrive in does not change the groups (D50).
 
 The long-lived branch names come from the Defaults table of 03-grouping.md. The flows themselves are modelled by
 hand: a change to "Flow: derive chains" or "Flow: resolve memberships" changes this model in the same pull request.
 """
 import fnmatch
+import itertools
 import os
 import re
 import sys
@@ -89,6 +91,53 @@ RESOLUTION_CASES = [
      {frozenset({"a"}), frozenset({"c", "d"}), frozenset({"e"})}),
 ]
 
+# ---------- arrival order ----------
+def arrive(events):
+    """Resolution after each assertion arrives, remembering where anchors point and where pull requests are. An anchor
+    not mapped yet takes the group holding most of its winners, among groups that no other winning claim keeps
+    (D50), or a new one."""
+    live, anchors, current, groups = {}, {}, {}, []
+    for kind, key, prs in events:
+        seen = live[key]["seen"] if key in live else len(live) + 1
+        live[key] = claim(kind, key, prs, seen)
+        canonical = lambda a: (STRENGTH[a["kind"]], a["seen"], a["key"])
+        members = sorted({p for a in live.values() for p in a["prs"]})
+        winner = {p: min((a for a in live.values() if p in a["prs"]), key=canonical) for p in members}
+        kept = {anchors[a["key"]] for a in live.values() if a["key"] in anchors and any(winner[p] is a for p in members)}
+        placed = {}
+        for a in sorted(live.values(), key=canonical):
+            winners = [p for p in members if winner[p] is a]
+            if not winners:
+                continue
+            g = anchors.get(a["key"])
+            if g is None:
+                counts = {}
+                for p in winners:
+                    if p in current and current[p] not in kept:
+                        counts[current[p]] = counts.get(current[p], 0) + 1
+                g = min(counts, key=lambda x: (-counts[x], x)) if counts else len(groups)
+                if g == len(groups):
+                    groups.append(a["key"])
+                anchors[a["key"]] = g
+                kept.add(g)
+            for p in winners:
+                placed[p] = g
+        current = placed
+    out = {}
+    for p, g in current.items():
+        out.setdefault(g, set()).add(p)
+    return frozenset(frozenset(x) for x in out.values())
+
+
+ARRIVAL_CASES = [
+    ("a branch {api#1, web#2} and an issue {web#2, mobile#3}, in either order",
+     [("branch", "branch:feat/x", ["api#1", "web#2"]), ("issue", "issue:99", ["web#2", "mobile#3"])],
+     {frozenset({"api#1"}), frozenset({"web#2", "mobile#3"})}),
+    ("a–c by branch, c–d by issue, d–e by branch, in every order",
+     [("branch", "branch:one", ["a", "c"]), ("issue", "issue:7", ["c", "d"]), ("branch", "branch:two", ["d", "e"])],
+     {frozenset({"a"}), frozenset({"c", "d"}), frozenset({"e"})}),
+]
+
 print(f"long-lived branches: {', '.join(LONG_LIVED)}")
 failed = 0
 got = edges(CHAIN_PRS)
@@ -104,5 +153,10 @@ for title, assertions, want in RESOLUTION_CASES:
     failed += not ok
     print(f"{'ok  ' if ok else 'FAIL'} {title}\n      "
           + " | ".join(", ".join(sorted(g)) for g in sorted(got, key=sorted)))
+for title, events, want in ARRIVAL_CASES:
+    outcomes = {arrive(list(order)) for order in itertools.permutations(events)}
+    ok = outcomes == {frozenset(want)}
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} arrival: {title}: {len(outcomes)} outcome(s)")
 print("all pass" if not failed else f"{failed} failing")
 sys.exit(1 if failed else 0)

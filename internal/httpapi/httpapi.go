@@ -24,6 +24,7 @@ import (
 	"github.com/NickWilde18/Park/api"
 	"github.com/NickWilde18/Park/internal/facts"
 	"github.com/NickWilde18/Park/internal/fail"
+	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/identity"
 )
 
@@ -36,6 +37,7 @@ type Options struct {
 	Logger   *slog.Logger
 	Identity *identity.Service
 	Facts    *facts.Service
+	Grouping *grouping.Service
 	Pool     *pgxpool.Pool
 }
 
@@ -62,7 +64,7 @@ func New(opts Options) (http.Handler, error) {
 		log.InfoContext(r.Context(), "bad request", "path", r.URL.Path, "error", err)
 		writeError(w, http.StatusBadRequest, "bad_request", "The request is not valid.")
 	}
-	srv := &server{id: opts.Identity, facts: opts.Facts, pool: opts.Pool, log: log}
+	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, pool: opts.Pool, log: log}
 	strict := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  badRequest,
 		ResponseErrorHandlerFunc: srv.respondError,
@@ -80,10 +82,11 @@ func New(opts Options) (http.Handler, error) {
 
 // server implements the API.
 type server struct {
-	id    *identity.Service
-	facts *facts.Service
-	pool  *pgxpool.Pool
-	log   *slog.Logger
+	id       *identity.Service
+	facts    *facts.Service
+	grouping *grouping.Service
+	pool     *pgxpool.Pool
+	log      *slog.Logger
 }
 
 // statuses maps each kind of error the caller can act on to its HTTP status.

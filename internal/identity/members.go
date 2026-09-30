@@ -162,3 +162,6 @@ func (s *Service) DeleteInvite(ctx context.Context, c *Caller, id int64) error {
 	}
 	return nil
 }
+
+// MemberByID returns one member.
+func (s *Service) MemberByID(ctx context.Context, id int64) (Member, error) { return s.member(ctx, id) }
