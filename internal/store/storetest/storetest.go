@@ -15,6 +15,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/NickWilde18/Park/internal/store"
 )
 
 // Database creates an empty database, drops it when the test ends, and returns its URL.
@@ -58,6 +60,37 @@ func Database(t testing.TB) string {
 func Pool(t testing.TB) *pgxpool.Pool {
 	t.Helper()
 	pool, err := pgxpool.New(context.Background(), Database(t))
+	if err != nil {
+		t.Fatalf("open the test database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+// MigratedDatabase is Database with Park's schema applied.
+func MigratedDatabase(t testing.TB) string {
+	t.Helper()
+	url := Database(t)
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, url)
+	if err != nil {
+		t.Fatalf("open the test database: %v", err)
+	}
+	defer pool.Close()
+	migrations, err := store.Migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Migrate(ctx, pool, migrations); err != nil {
+		t.Fatalf("migrate the test database: %v", err)
+	}
+	return url
+}
+
+// MigratedPool opens a connection pool to a new database from MigratedDatabase, closed when the test ends.
+func MigratedPool(t testing.TB) *pgxpool.Pool {
+	t.Helper()
+	pool, err := pgxpool.New(context.Background(), MigratedDatabase(t))
 	if err != nil {
 		t.Fatalf("open the test database: %v", err)
 	}
