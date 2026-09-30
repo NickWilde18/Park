@@ -91,7 +91,15 @@ func (s *Service) UpdateMember(ctx context.Context, c *Caller, id int64, p Membe
 			if _, err := tx.Exec(ctx, "DELETE FROM browser_session WHERE member_id = $1", id); err != nil {
 				return err
 			}
-			_, err = tx.Exec(ctx, "UPDATE api_token SET revoked_at = now() WHERE member_id = $1 AND revoked_at IS NULL", id)
+			rows, err := tx.Query(ctx, "UPDATE api_token SET revoked_at = now() WHERE member_id = $1 AND revoked_at IS NULL RETURNING id", id)
+			if err != nil {
+				return err
+			}
+			tokens, err := pgx.CollectRows(rows, pgx.RowTo[string])
+			if err != nil {
+				return err
+			}
+			return s.revoked(ctx, tx, Revoked{Tokens: tokens, Member: id, Disabled: true})
 		}
 		return err
 	})
