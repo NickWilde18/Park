@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 
@@ -128,6 +129,24 @@ func (s *Service) drop(ctx context.Context, tx pgx.Tx, unit string, wanted map[i
 				left++
 				continue
 			}
+			now, open, err := unitOfPR(ctx, tx, it.PR)
+			if err != nil {
+				return err
+			}
+			if open && now != unit {
+				// The pull request moved: its item waits in the new unit, whose verdict keeps or drops it.
+				to, err := s.queuedTask(ctx, tx, t.Member, now, it.Priority)
+				if err != nil {
+					return err
+				}
+				if err := s.absorb(ctx, tx, to, it); err != nil {
+					return err
+				}
+				if err := record(ctx, tx, to, "item_moved", park, Queued, map[string]any{"from": id, "pr": it.PR, "action": it.Action}); err != nil {
+					return err
+				}
+				continue
+			}
 			if _, err := tx.Exec(ctx, "UPDATE task_item SET state = 'dropped' WHERE id = $1", it.ID); err != nil {
 				return err
 			}
@@ -142,6 +161,20 @@ func (s *Service) drop(ctx context.Context, tx pgx.Tx, unit string, wanted map[i
 		}
 	}
 	return nil
+}
+
+// unitOfPR is the unit a pull request is in now, and whether it is open.
+func unitOfPR(ctx context.Context, tx pgx.Tx, pr int64) (string, bool, error) {
+	var open bool
+	var group *int64
+	err := tx.QueryRow(ctx, "SELECT p.open, m.group_id FROM pr_fact p LEFT JOIN membership m ON m.pr_id = p.id WHERE p.id = $1", pr).Scan(&open, &group)
+	if err != nil {
+		return "", false, err
+	}
+	if group != nil {
+		return "group:" + strconv.FormatInt(*group, 10), open, nil
+	}
+	return "pr:" + strconv.FormatInt(pr, 10), open, nil
 }
 
 // finish moves a task to a final state, or to needs_person, releasing its locks.
@@ -195,6 +228,9 @@ func (s *Service) add(ctx context.Context, tx pgx.Tx, member int64, unit string,
 	if check(w.action, pr.facts, targets, now, mine[pr.forge], login).satisfied {
 		return nil
 	}
+	if err := s.moveHere(ctx, tx, member, unit, w); err != nil {
+		return err
+	}
 	rows, err := tx.Query(ctx, `SELECT i.targets FROM task_item i JOIN task t ON t.id = i.task_id
 		WHERE t.member_id = $1 AND t.state IN ('queued', 'leased', 'verifying', 'needs_person') AND i.pr_id = $2 AND i.action = $3
 			AND i.state = 'open'`, member, w.pr, w.action)
@@ -222,21 +258,75 @@ func (s *Service) add(ctx context.Context, tx pgx.Tx, member int64, unit string,
 	return s.place(ctx, tx, member, unit, w, fresh, now)
 }
 
+// queuedTask is the member's queued task on the unit, started when there is none.
+func (s *Service) queuedTask(ctx context.Context, tx pgx.Tx, member int64, unit, priority string) (int64, error) {
+	var task int64
+	err := tx.QueryRow(ctx, "SELECT id FROM task WHERE member_id = $1 AND unit = $2 AND state = 'queued' FOR UPDATE", member, unit).Scan(&task)
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return task, err
+	}
+	err = tx.QueryRow(ctx, "INSERT INTO task (member_id, unit, priority, next_attempt_at, queued_at) VALUES ($1, $2, $3, $4, $4) RETURNING id",
+		member, unit, priority, s.now()).Scan(&task)
+	if err == nil {
+		err = record(ctx, tx, task, "created", park, Queued, nil)
+	}
+	if err == nil {
+		err = later(ctx, tx, KindUnclaimed, task, s.now().Add(s.settings.Unclaimed))
+	}
+	return task, err
+}
+
+// moveHere moves the member's queued items for the same pull request and action on other units into their queued task
+// on this one, with what earlier attempts found: the pull request moved to another group. A queued task left with
+// nothing is cancelled.
+func (s *Service) moveHere(ctx context.Context, tx pgx.Tx, member int64, unit string, w want) error {
+	rows, err := tx.Query(ctx, `SELECT i.task_id FROM task_item i JOIN task t ON t.id = i.task_id
+		WHERE t.member_id = $1 AND t.state = 'queued' AND t.unit <> $2 AND i.pr_id = $3 AND i.action = $4 AND i.state = 'open'
+		ORDER BY t.id FOR UPDATE OF t`, member, unit, w.pr, w.action)
+	if err != nil {
+		return err
+	}
+	from, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+	if err != nil || len(from) == 0 {
+		return err
+	}
+	here, err := s.queuedTask(ctx, tx, member, unit, w.priority)
+	if err != nil {
+		return err
+	}
+	for _, old := range from {
+		t, err := load(ctx, tx, old, false)
+		if err != nil {
+			return err
+		}
+		for _, it := range t.open() {
+			if !w.same(it) {
+				continue
+			}
+			if err := s.absorb(ctx, tx, here, it); err != nil {
+				return err
+			}
+			if err := record(ctx, tx, here, "item_moved", park, Queued, map[string]any{"from": old, "pr": it.PR, "action": it.Action}); err != nil {
+				return err
+			}
+		}
+		var left bool
+		if err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM task_item WHERE task_id = $1 AND state = 'open')", old).Scan(&left); err != nil {
+			return err
+		}
+		if !left {
+			if err := s.finish(ctx, tx, old, Cancelled, park, "its pull request moved to another group"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // place puts an item in the member's queued task on the unit, merging it with the item for the same pull request and
 // action, or starts the task.
 func (s *Service) place(ctx context.Context, tx pgx.Tx, member int64, unit string, w want, targets Targets, start Start) error {
-	var task int64
-	err := tx.QueryRow(ctx, "SELECT id FROM task WHERE member_id = $1 AND unit = $2 AND state = 'queued' FOR UPDATE", member, unit).Scan(&task)
-	if errors.Is(err, pgx.ErrNoRows) {
-		err = tx.QueryRow(ctx, "INSERT INTO task (member_id, unit, priority, next_attempt_at, queued_at) VALUES ($1, $2, $3, $4, $4) RETURNING id",
-			member, unit, w.priority, s.now()).Scan(&task)
-		if err == nil {
-			err = record(ctx, tx, task, "created", park, Queued, nil)
-		}
-		if err == nil {
-			err = later(ctx, tx, KindUnclaimed, task, s.now().Add(s.settings.Unclaimed))
-		}
-	}
+	task, err := s.queuedTask(ctx, tx, member, unit, w.priority)
 	if err != nil {
 		return err
 	}

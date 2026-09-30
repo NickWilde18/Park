@@ -552,3 +552,37 @@ func TestVerifyWaitsForFreshFacts(t *testing.T) {
 		t.Fatalf("with the answer fetched: %s", got.State)
 	}
 }
+
+// When a pull request moves to another group, its items in queued tasks move to the new unit, with what earlier
+// attempts found, whichever of the two units is evaluated first; a queued task left with nothing is cancelled.
+func TestPullRequestMoves(t *testing.T) {
+	for _, newFirst := range []bool{true, false} {
+		t.Run(map[bool]string{true: "the new unit first", false: "the old unit first"}[newFirst], func(t *testing.T) {
+			e := newEnv(t)
+			a := e.store(t, 12, waitingOn(pull(anaAccount), "T1"))
+			e.evaluate(t, prUnit(a))
+			old := e.taskOf(t, "ana", prUnit(a), Queued)
+			_, err := e.pool.Exec(e.ctx, "UPDATE task_item SET failures = '{\"1 of 1 threads have no answer: T1\"}'")
+			must(t, err)
+			b := e.store(t, 13, pull(benAccount))
+			g, err := e.groups.Create(e.ctx, e.members["ana"], "Billing", []int64{a, b})
+			must(t, err)
+			group := "group:" + strconv.FormatInt(g, 10)
+			units := []string{group, prUnit(a)}
+			if !newFirst {
+				units = []string{prUnit(a), group}
+			}
+			for _, u := range units {
+				e.evaluate(t, u)
+			}
+			moved := e.taskOf(t, "ana", group, Queued)
+			item := openItems(moved)["address_comments"]
+			if !slices.Equal(item.Targets.Threads, []string{"T1"}) || !slices.Equal(item.Failures, []string{"1 of 1 threads have no answer: T1"}) {
+				t.Fatalf("in the new unit: %+v", moved)
+			}
+			if got, _ := e.tasks.Task(e.ctx, old.ID); got.State != Cancelled {
+				t.Fatalf("the old unit's task: %s", got.State)
+			}
+		})
+	}
+}
