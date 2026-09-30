@@ -374,3 +374,38 @@ func TestFollowersAndTriggers(t *testing.T) {
 		}
 	}
 }
+
+// Two resolutions at once, as two servers would run them, map an anchor once (G7): the second waits for the first,
+// then finds the anchor mapped, and the branch pair is one group.
+func TestConcurrentResolutions(t *testing.T) {
+	e := newEnv(t)
+	e.pr(t, "api", 12, "feat/schedule", "main", nil)
+	e.pr(t, "web", 7, "feat/schedule", "main", nil)
+	first, err := e.pool.Begin(e.ctx)
+	must(t, err)
+	defer func() { _ = first.Rollback(e.ctx) }()
+	must(t, e.s.resolveTx(e.ctx, first))
+	second := make(chan error, 1)
+	go func() { second <- e.s.Resolve(e.ctx) }()
+	// The first commits only once the second waits on a lock the first holds.
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		var waiting int
+		must(t, e.pool.QueryRow(e.ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting))
+		if waiting > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the second resolution never waited for the first")
+		}
+	}
+	must(t, first.Commit(e.ctx))
+	must(t, <-second)
+	var groups, anchors int
+	must(t, e.pool.QueryRow(e.ctx, "SELECT count(*) FROM pr_group").Scan(&groups))
+	must(t, e.pool.QueryRow(e.ctx, "SELECT count(*) FROM anchor").Scan(&anchors))
+	g, _, _ := e.group(t, "api#12")
+	if g2, _, _ := e.group(t, "web#7"); groups != 1 || anchors != 1 || g == 0 || g2 != g {
+		t.Fatalf("%d groups, %d anchors; api#12 in %d, web#7 in %d", groups, anchors, g, g2)
+	}
+}

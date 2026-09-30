@@ -277,6 +277,23 @@ func TestWorkedExample(t *testing.T) {
 	}
 }
 
+// An exclusion holds against every source (G6): a pull request a member took out of a group stays out, though a
+// bridge's thread and its branch name both still claim it for that group.
+func TestExclusionHoldsAgainstEverySource(t *testing.T) {
+	s := newSimulator(12, 7)
+	s.assert("branch:ana/feat/schedule", AuthorityStructural, KindBranch, 12, 7)
+	s.assert("bridge:1/thread", AuthorityExternal, "", 12, 7)
+	g := s.current[12]
+	s.excluded[7] = map[int64]bool{g: true}
+	s.resolve()
+	if s.current[12] != g {
+		t.Fatalf("api#12 left its group: %v", s.current)
+	}
+	if _, grouped := s.current[7]; grouped {
+		t.Fatalf("a bridge's thread overrode an exclusion: %v", s.current)
+	}
+}
+
 // Authority (G3): manual beats external beats structural; manual and external ties go to the newest, structural ones
 // to the stronger kind, then to the claim that keeps the pull request where it is (G4).
 func TestWinningClaims(t *testing.T) {
