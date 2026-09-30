@@ -107,3 +107,21 @@ func TestMissingFile(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// Park's public address is optional; when set, it is an address with no path, since links are built from it.
+func TestPublicURL(t *testing.T) {
+	for addr, ok := range map[string]bool{
+		"https://park.example.com":      true,
+		"https://park.example.com/":     true,
+		"http://localhost:8080":         true,
+		"park.example.com":              false,
+		"https://park.example.com/park": false,
+		"https://park.example.com/?x=1": false,
+	} {
+		_, err := Load("", env(map[string]string{"PARK_DATABASE_URL": "postgres://db/park", "PARK_SECRET_KEY": key,
+			"PARK_HTTP_PUBLIC_URL": addr}))
+		if ok != (err == nil) {
+			t.Errorf("%s: got %v", addr, err)
+		}
+	}
+}

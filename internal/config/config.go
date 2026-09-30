@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 
 	"go.yaml.in/yaml/v3"
@@ -23,6 +24,9 @@ type Config struct {
 	HTTP struct {
 		// Addr is the address the HTTP server listens on.
 		Addr string `yaml:"addr"`
+		// PublicURL is Park's own address as browsers reach it, such as https://park.example.com. Forge sign-in
+		// needs it, to tell the forge where to send browsers back.
+		PublicURL string `yaml:"public_url"`
 	} `yaml:"http"`
 	Database struct {
 		// URL is the Postgres connection string.
@@ -30,6 +34,9 @@ type Config struct {
 	} `yaml:"database"`
 	// SecretKey encrypts the secrets Park stores, such as forge credentials.
 	SecretKey string `yaml:"secret_key"`
+	// SetupCode, if set, is the one-time code that creates the first administrator, instead of one printed to the
+	// log — for where logs are readable by more people than the operator.
+	SetupCode string `yaml:"setup_code"`
 }
 
 // Load reads the file at path, if path is not empty, applies the environment through getenv, fills in defaults,
@@ -70,8 +77,10 @@ type variable struct {
 func (c *Config) variables() []variable {
 	return []variable{
 		{"PARK_HTTP_ADDR", &c.HTTP.Addr},
+		{"PARK_HTTP_PUBLIC_URL", &c.HTTP.PublicURL},
 		{"PARK_DATABASE_URL", &c.Database.URL},
 		{"PARK_SECRET_KEY", &c.SecretKey},
+		{"PARK_SETUP_CODE", &c.SetupCode},
 	}
 }
 
@@ -85,6 +94,13 @@ func (c *Config) validate() error {
 		errs = append(errs, errors.New("secret_key is required (PARK_SECRET_KEY)"))
 	case len(c.SecretKey) < MinSecretKeyLength:
 		errs = append(errs, fmt.Errorf("secret_key must be at least %d bytes long", MinSecretKeyLength))
+	}
+	if c.HTTP.PublicURL != "" {
+		u, err := url.Parse(c.HTTP.PublicURL)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || (u.Path != "" && u.Path != "/") ||
+			u.RawQuery != "" || u.User != nil {
+			errs = append(errs, errors.New("http.public_url must be an address such as https://park.example.com, with no path"))
+		}
 	}
 	return errors.Join(errs...)
 }

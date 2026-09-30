@@ -5,40 +5,580 @@ info:
   description: >-
     Park's API: the one contract that the dashboard, executors, and bridges use. Server code and client types are
     generated from this document. Within v1, changes only add.
+
+
+    A browser signs in and holds a session cookie; every request that changes state must then carry the session's
+    CSRF token, from `GET /me`, in the `X-CSRF-Token` header. A program sends an API token as
+    `Authorization: Bearer park_…`, and may do only what the token's scopes allow. Request bodies are JSON.
   license:
     name: MIT
 servers:
   - url: /api/v1
+security:
+  - session: []
+  - token: []
 paths:
+  /setup:
+    get:
+      operationId: getSetup
+      summary: Whether Park still needs its first administrator
+      tags: [session]
+      security: []
+      responses:
+        "200":
+          description: Whether setup is needed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupStatus"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: completeSetup
+      summary: Create the first administrator
+      description: >-
+        Needs the one-time setup code that Park printed to its log, or took from its environment, when it started with
+        no members. The new administrator is signed in.
+      tags: [session]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetupRequest"
+      responses:
+        "201":
+          description: The first administrator, signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        default:
+          $ref: "#/components/responses/Error"
   /auth/providers:
     get:
       operationId: listAuthProviders
       summary: The ways to sign in
-      description: >-
-        The sign-in providers an admin has configured, for the sign-in page. Needs no session.
+      description: The sign-in providers an admin has configured, for the sign-in page.
       tags: [session]
+      security: []
       responses:
         "200":
-          description: The configured sign-in providers.
+          description: The ways to sign in.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthProviders"
         default:
           $ref: "#/components/responses/Error"
+  /auth/login:
+    post:
+      operationId: login
+      summary: Sign in with a local account
+      description: Failures are limited per username and per client address.
+      tags: [session]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: The member, signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        default:
+          $ref: "#/components/responses/Error"
+  /auth/register:
+    post:
+      operationId: register
+      summary: Join with an invite and a local account
+      tags: [session]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: The new member, signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        default:
+          $ref: "#/components/responses/Error"
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Sign this browser out
+      tags: [session]
+      responses:
+        "204":
+          description: Signed out.
+        default:
+          $ref: "#/components/responses/Error"
+  /auth/{provider}/start:
+    get:
+      operationId: startSignIn
+      summary: Begin signing in, or connecting an account, through a forge
+      description: >-
+        Redirects the browser to the forge. With `mode=link`, the signed-in member connects the forge account they
+        authorize. With an `invite`, a forge account new to Park joins.
+      tags: [session]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ProviderID"
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [signin, link]
+            default: signin
+        - name: invite
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: To the forge.
+        default:
+          $ref: "#/components/responses/Error"
+  /auth/{provider}/callback:
+    get:
+      operationId: finishSignIn
+      summary: Where the forge sends the browser back
+      description: >-
+        Redirects to `/` when signed in, to `/settings` when an account was connected, and otherwise to `/` with
+        `sign_in_error` set to the error's code.
+      tags: [session]
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ProviderID"
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: error
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Back into Park.
+        default:
+          $ref: "#/components/responses/Error"
+  /me:
+    get:
+      operationId: getMe
+      summary: Who is calling
+      tags: [me]
+      responses:
+        "200":
+          description: The calling member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Error"
+  /me/identities:
+    get:
+      operationId: listMyIdentities
+      summary: My linked forge accounts
+      tags: [me]
+      responses:
+        "200":
+          description: The calling member's forge accounts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Identities"
+        default:
+          $ref: "#/components/responses/Error"
+  /me/identities/{id}:
+    delete:
+      operationId: deleteMyIdentity
+      summary: Disconnect one of my forge accounts
+      tags: [me]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Disconnected.
+        default:
+          $ref: "#/components/responses/Error"
+  /me/tokens:
+    get:
+      operationId: listMyTokens
+      summary: My API tokens
+      tags: [me]
+      responses:
+        "200":
+          description: The calling member's tokens, without their secrets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tokens"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createMyToken
+      summary: Create an API token
+      description: From a browser session only. The token is in this response and never again.
+      tags: [me]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "201":
+          description: The new token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewToken"
+        default:
+          $ref: "#/components/responses/Error"
+  /me/tokens/{token}:
+    delete:
+      operationId: revokeMyToken
+      summary: Revoke one of my API tokens, at once
+      tags: [me]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: The token's ID, from its prefix.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Revoked.
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/members:
+    get:
+      operationId: listMembers
+      summary: Every member
+      tags: [admin]
+      responses:
+        "200":
+          description: Every member, including disabled ones.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Members"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/members/{id}:
+    patch:
+      operationId: updateMember
+      summary: Change a member's name or permissions, or disable them
+      description: >-
+        Disabling a member ends their sessions and revokes their tokens. Members are never deleted. Park keeps at
+        least one active admin.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberPatch"
+      responses:
+        "200":
+          description: The member, changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/members/{id}/identities:
+    post:
+      operationId: linkMemberIdentity
+      summary: Link a forge account to a member by hand
+      description: The account is named by its numeric ID on the forge, never by a login. The link records who made it.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkRequest"
+      responses:
+        "201":
+          description: The link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Identity"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/invites:
+    get:
+      operationId: listInvites
+      summary: Every invite
+      tags: [admin]
+      responses:
+        "200":
+          description: Every invite, without its code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invites"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createInvite
+      summary: Create an invite
+      description: The code is in this response and never again.
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteRequest"
+      responses:
+        "201":
+          description: The new invite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewInvite"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/invites/{id}:
+    delete:
+      operationId: deleteInvite
+      summary: Withdraw an unused invite
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Withdrawn.
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/forges:
+    get:
+      operationId: listForges
+      summary: Every forge
+      tags: [admin]
+      responses:
+        "200":
+          description: Every forge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Forges"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createForge
+      summary: Add a forge
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgeRequest"
+      responses:
+        "201":
+          description: The new forge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Forge"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/forges/{id}:
+    patch:
+      operationId: updateForge
+      summary: Rename a forge, or move it to a new base address
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgePatch"
+      responses:
+        "200":
+          description: The forge, changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Forge"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/providers:
+    get:
+      operationId: listProviders
+      summary: Every sign-in provider
+      tags: [admin]
+      responses:
+        "200":
+          description: Every sign-in provider, without its client secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Providers"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createProvider
+      summary: Add a sign-in provider
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderRequest"
+      responses:
+        "201":
+          description: The new provider.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/providers/{provider}:
+    patch:
+      operationId: updateProvider
+      summary: Change a sign-in provider's name or client
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ProviderID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderPatch"
+      responses:
+        "200":
+          description: The provider, changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteProvider
+      summary: Remove a sign-in provider
+      description: Linked forge accounts belong to their forge, and stay.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ProviderID"
+      responses:
+        "204":
+          description: Removed.
+        default:
+          $ref: "#/components/responses/Error"
 components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: park_session
+      description: A browser session. Requests that change state also carry the X-CSRF-Token header.
+    token:
+      type: http
+      scheme: bearer
+      description: An API token, park_<id>_<secret>.
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ProviderID:
+      name: provider
+      in: path
+      required: true
+      description: The stable ID an admin gave the sign-in provider.
+      schema:
+        type: string
   schemas:
+    SetupStatus:
+      type: object
+      required: [needed]
+      properties:
+        needed:
+          type: boolean
+    SetupRequest:
+      type: object
+      required: [code, username, password, display_name]
+      properties:
+        code:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        display_name:
+          type: string
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    RegisterRequest:
+      type: object
+      required: [invite, username, password, display_name]
+      properties:
+        invite:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        display_name:
+          type: string
     AuthProviders:
       type: object
-      required: [providers]
+      required: [local, providers]
       properties:
+        local:
+          type: boolean
+          description: Whether local accounts can sign in.
         providers:
           type: array
           items:
             $ref: "#/components/schemas/AuthProvider"
     AuthProvider:
       type: object
-      required: [id, kind]
+      required: [id, kind, name]
       properties:
         id:
           type: string
@@ -46,6 +586,311 @@ components:
         kind:
           type: string
           enum: [forge, oidc]
+        name:
+          type: string
+          description: What the sign-in page calls it.
+    Member:
+      type: object
+      required: [id, display_name, admin, rules, disabled, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        display_name:
+          type: string
+        admin:
+          type: boolean
+        rules:
+          type: boolean
+          description: May draft and publish rule sets.
+        disabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    Members:
+      type: object
+      required: [members]
+      properties:
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/Member"
+    Me:
+      type: object
+      required: [member]
+      properties:
+        member:
+          $ref: "#/components/schemas/Member"
+        csrf_token:
+          type: string
+          description: For a browser session, the value of the X-CSRF-Token header.
+        scopes:
+          type: array
+          description: For an API token, its scopes.
+          items:
+            type: string
+    MemberPatch:
+      type: object
+      properties:
+        display_name:
+          type: string
+        admin:
+          type: boolean
+        rules:
+          type: boolean
+        disabled:
+          type: boolean
+    Identity:
+      type: object
+      required: [id, forge_id, forge_name, account_id, login, name, linked_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        forge_id:
+          type: integer
+          format: int64
+        forge_name:
+          type: string
+        account_id:
+          type: integer
+          format: int64
+          description: The account's stable ID on the forge.
+        login:
+          type: string
+          description: Display only; it can change.
+        name:
+          type: string
+        linked_by:
+          type: integer
+          format: int64
+          nullable: true
+          description: The admin who linked it by hand; null when it was verified through the forge.
+        linked_at:
+          type: string
+          format: date-time
+    Identities:
+      type: object
+      required: [identities]
+      properties:
+        identities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Identity"
+    LinkRequest:
+      type: object
+      required: [forge_id, account_id]
+      properties:
+        forge_id:
+          type: integer
+          format: int64
+        account_id:
+          type: integer
+          format: int64
+    Token:
+      type: object
+      required: [id, name, scopes, created_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+    Tokens:
+      type: object
+      required: [tokens]
+      properties:
+        tokens:
+          type: array
+          items:
+            $ref: "#/components/schemas/Token"
+    TokenRequest:
+      type: object
+      required: [name, scopes]
+      properties:
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+            enum: [read, "tasks:work"]
+        expires_at:
+          type: string
+          format: date-time
+    NewToken:
+      type: object
+      required: [token, record]
+      properties:
+        token:
+          type: string
+          description: Shown this once.
+        record:
+          $ref: "#/components/schemas/Token"
+    Invite:
+      type: object
+      required: [id, created_by, created_at, expires_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        created_by:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        used_by:
+          type: integer
+          format: int64
+          nullable: true
+        used_at:
+          type: string
+          format: date-time
+          nullable: true
+    Invites:
+      type: object
+      required: [invites]
+      properties:
+        invites:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invite"
+    InviteRequest:
+      type: object
+      properties:
+        expires_in_hours:
+          type: integer
+          description: 168, a week, by default; at most 720.
+    NewInvite:
+      type: object
+      required: [code, invite]
+      properties:
+        code:
+          type: string
+          description: Shown this once.
+        invite:
+          $ref: "#/components/schemas/Invite"
+    Forge:
+      type: object
+      required: [id, kind, name, base_address, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum: [github]
+        name:
+          type: string
+        base_address:
+          type: string
+          description: Such as https://github.com. Links and API addresses are built from it.
+        created_at:
+          type: string
+          format: date-time
+    Forges:
+      type: object
+      required: [forges]
+      properties:
+        forges:
+          type: array
+          items:
+            $ref: "#/components/schemas/Forge"
+    ForgeRequest:
+      type: object
+      required: [kind, name, base_address]
+      properties:
+        kind:
+          type: string
+          enum: [github]
+        name:
+          type: string
+        base_address:
+          type: string
+    ForgePatch:
+      type: object
+      properties:
+        name:
+          type: string
+        base_address:
+          type: string
+    Provider:
+      type: object
+      required: [id, kind, name, forge_id, client_id, created_at]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [forge]
+        name:
+          type: string
+        forge_id:
+          type: integer
+          format: int64
+        client_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    Providers:
+      type: object
+      required: [providers]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Provider"
+    ProviderRequest:
+      type: object
+      required: [id, kind, name, forge_id, client_id, client_secret]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [forge]
+        name:
+          type: string
+        forge_id:
+          type: integer
+          format: int64
+        client_id:
+          type: string
+        client_secret:
+          type: string
+    ProviderPatch:
+      type: object
+      properties:
+        name:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
     Error:
       type: object
       required: [error]
