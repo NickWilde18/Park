@@ -37,6 +37,7 @@ jobs:
       - run: python3 docs/design/checks/rule_trees.py --check
       - run: python3 docs/design/checks/regress.py
       - run: python3 docs/design/checks/grouping.py
+      - run: python3 docs/design/checks/default_rules.py
       - run: python3 docs/design/checks/sweep.py
 
   charts:
