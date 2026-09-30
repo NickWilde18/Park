@@ -10,12 +10,28 @@ draft, check state, dismissal permission, new commits, elapsed time, and nudge. 
 - a reviewer holds it only with an act part;
 - no model answer changes anyone's kind or action;
 - "all answered" never holds while a written review is unanswered.
+
+It also writes, for every thousand states, a digest of the rule each person reaches, to
+internal/verdicts/testdata/sweep.json: the Go port of the sweep must reach the same rules in every state. With --write,
+the file is written; otherwise the run fails if it differs from what the tables give.
 """
+import hashlib
 import itertools
+import json
+import os
 import sys
 import time
 
 from placement import AUTHOR, REVIEWER, evaluate, people, place
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+DIGESTS = os.path.join(ROOT, "internal", "verdicts", "testdata", "sweep.json")
+CHUNK = 1000
+
+
+def digest(records):
+    """A chunk's digest: each state's people, by name, with the rule each reaches."""
+    return hashlib.sha256(";".join(records).encode()).hexdigest()[:16]
 
 
 def reviewer_states():
@@ -67,9 +83,14 @@ def main():
     start = time.time()
     count = bad = 0
     seen = {}
+    records, digests = [], []
     for (ben, carol, required, draft, checks, can_dismiss, new_commits, hours, nudge), unit in states():
         count += 1
         side, holders, parts = place(unit)
+        records.append(",".join(f"{p['person']}:{p['n']}" for p in sorted(parts, key=lambda p: p["person"])))
+        if len(records) == CHUNK:
+            digests.append(digest(records))
+            records = []
         problems = []
         if side == "fallback":
             problems.append("the ball needs the fallback")
@@ -96,8 +117,25 @@ def main():
         for p in problems:
             seen.setdefault(p, (ben, carol, required, draft, checks, can_dismiss, new_commits, hours, nudge, parts))
             bad += 1
+    if records:
+        digests.append(digest(records))
+    about = ("Written by docs/design/checks/sweep.py; do not edit. For every chunk of states, in the sweep's order, a "
+             "digest of each person's name and the rule they reach, people by name, joined as name:rule.")
+    lines = ",\n".join(f'    "{d}"' for d in digests)
+    text = (f'{{\n  "about": {json.dumps(about)},\n  "states": {count},\n  "chunk": {CHUNK},\n'
+            f'  "digests": [\n{lines}\n  ]\n}}\n')
+    if "--write" in sys.argv:
+        with open(DIGESTS, "w", encoding="utf-8") as f:
+            f.write(text)
+    elif not os.path.exists(DIGESTS) or open(DIGESTS, encoding="utf-8").read() != text:
+        seen.setdefault(f"{os.path.relpath(DIGESTS, ROOT)} is not what the tables give; run with --write", None)
+        bad += 1
     print(f"states: {count}; failing: {bad}; kinds of failure: {len(seen)}; {time.time() - start:.0f}s")
-    for p, (ben, carol, *rest, parts) in seen.items():
+    for p, example in seen.items():
+        if example is None:
+            print(f"  {p}")
+            continue
+        ben, carol, *rest, parts = example
         print(f"  {p}: ben={ben} carol={carol} rest={rest}\n    "
               + "; ".join(f"{x['person']} #{x['n']} {x['name']} → {x['kind']}" for x in parts))
     sys.exit(1 if bad else 0)

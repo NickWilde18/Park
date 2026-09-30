@@ -19,8 +19,9 @@ web: ## Build the frontend into web/dist
 build: web ## Build bin/park with the frontend embedded
 	go build -ldflags "-X main.version=$(VERSION)" -o bin/park ./cmd/park
 
-test: ## Run the Go tests; the database tests need `make db`
+test: ## Run the Go tests, then the whole sweep without the race detector; the database tests need `make db`
 	go test -race ./...
+	go test -count=1 -run TestSweep ./internal/verdicts/
 
 lint: ## Lint the Go code and the frontend
 	golangci-lint run
