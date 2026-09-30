@@ -25,6 +25,8 @@ curl -c cookies -H 'Content-Type: application/json' http://localhost:8080/api/v1
 
 To collect pull requests, an admin adds a forge, an installation — a token, or a GitHub App's credentials — and the repositories to watch, through `/api/v1/admin/forges`, `/api/v1/admin/installations`, and `/api/v1/admin/repos`. The forge sends deliveries to `/hooks/{installation}`; without them, polling keeps Park correct, only slower.
 
+Each member's queue — the units whose ball they hold — and waiting list are at `GET /api/v1/queue`, once an admin links their forge account, `POST /api/v1/admin/members/{id}/identities`, or they sign in through the forge.
+
 Park publishes its [default rule set](internal/rules/default.json) when it first starts. A member with the rules permission changes the rules by importing a rule-set file as a draft, `POST /api/v1/rulesets/drafts` with `{"rules": …}`, which lists any problems, and publishing it, `POST /api/v1/rulesets/drafts/{id}/publish`.
 
 | Command | Does |
