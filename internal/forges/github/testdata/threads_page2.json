@@ -1,0 +1,7 @@
+{
+  "data": {"repository": {"pullRequest": {"reviewThreads": {"pageInfo": {"hasNextPage": false, "endCursor": "t2"}, "nodes": [
+    {"id": "THREAD_B", "isResolved": true, "isOutdated": true,
+     "first": {"nodes": [{"databaseId": 7101, "createdAt": "2026-09-02T09:10:00Z", "lastEditedAt": null, "author": {"__typename": "User", "login": "carol", "databaseId": 503}}]},
+     "recent": {"nodes": [{"databaseId": 7101, "createdAt": "2026-09-02T09:10:00Z", "lastEditedAt": null, "author": {"__typename": "User", "login": "carol", "databaseId": 503}}]}}
+  ]}}}}
+}

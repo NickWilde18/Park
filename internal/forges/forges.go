@@ -47,6 +47,8 @@ type SignIn interface {
 // Kind is what a forge kind provides.
 type Kind struct {
 	SignIn SignIn
+	// PullURL is the address of a pull request, built from the forge's base address when it is shown.
+	PullURL func(base, owner, name string, number int) string
 }
 
 var kinds = map[string]Kind{}

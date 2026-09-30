@@ -23,6 +23,8 @@ curl -c cookies -H 'Content-Type: application/json' http://localhost:8080/api/v1
   -d '{"code": "XXXX-XXXX-XXXX", "username": "admin", "password": "a long passphrase", "display_name": "Admin"}'
 ```
 
+To collect pull requests, an admin adds a forge, an installation — a token, or a GitHub App's credentials — and the repositories to watch, through `/api/v1/admin/forges`, `/api/v1/admin/installations`, and `/api/v1/admin/repos`. The forge sends deliveries to `/hooks/{installation}`; without them, polling keeps Park correct, only slower.
+
 | Command | Does |
 |---|---|
 | `park serve [-config file]` | Runs the HTTP server, applying pending migrations first |

@@ -14,7 +14,7 @@ Park learns about the world through facts: immutable, attributed records. This c
 |---|---|---|
 | `forge` | One forge instance — github.com, or a company's own server: its kind, its base address, and a stable ID. Every external ID below is unique only within its forge, so every key includes the forge's ID | An admin |
 | `installation` | A connection to a forge, such as one organization's app installation: the forge, credentials, webhook secret, watched repositories. Installations on one forge share its keys | An admin |
-| `repo` | Forge repository ID, display name, default branch, watched flag; its branch protection and rulesets by branch pattern — required checks, required approvals, code-owner review, who may dismiss reviews | Repository refresh |
+| `repo` | Forge repository ID, display name, default branch, watched flag; what its branch protection and rulesets require of pull requests into the default branch and each base branch in use — required checks, required approvals, code-owner review | Repository refresh |
 | `account` | Forge account ID, display login, display name | Refreshes, as a side effect |
 | `team` | Forge team ID, member account IDs | Repository refresh; used to resolve team review requests |
 | `pr_fact` | The current state of one pull request (below) | The refresh flow only |
@@ -31,7 +31,7 @@ Park learns about the world through facts: immutable, attributed records. This c
 | Merge | Mergeability: clean, conflicting, or unknown; and the forge's own merge verdict: whether it can be merged now, and what blocks it — reviews, code owners, checks, being behind the base, conflicts, or something else |
 | Review requests | Each requested account or team, with the time of the request, and whether it was made to a code owner |
 | Reviews | Each review: ID, author, state (approved, changes requested, or commented), the commit it was on, time, whether it was dismissed, whether it has a written body, and whether its author's approval counts toward the forge's requirement |
-| Threads | Each review thread: ID, resolved, outdated, and every comment's ID, author, time, and last edit time |
+| Threads | Each review thread: ID, resolved, outdated, and the ID, author, time, and last edit time of its first comment and its latest twenty ([D49](10-design-log.md#d49-collecting-within-the-forges-limits)) |
 | Conversation | The ID, author, and time of each comment on the pull request itself |
 | Checks | Each check on the head commit: name, state, and whether it is required; the required checks that have not reported on it yet |
 | References | Pull requests referenced in the title and description; issues the pull request closes |
@@ -42,6 +42,8 @@ Park learns about the world through facts: immutable, attributed records. This c
 - **Comment text is not stored.** Threads, reviews, and the conversation keep each comment's ID, author, and times, and a review only whether it has a written body; a question that needs the text fetches it from the forge when it is asked (see [Verdicts](04-verdicts.md)). The description is not stored either — only the references parsed from it.
 - **Required checks and approvals** come from the branch protection and rulesets that apply to the pull request's base branch. Without protection, every check on the head commit counts as required, and the forge requires no approval; the team's minimum still applies ([Rules](05-rules.md#the-field-catalog)). A required check that has not reported on the head commit counts as pending, not as passing.
 - **Mergeability** that the forge has not finished computing is stored as `unknown`, and another refresh is scheduled shortly after.
+- **Required approvals** the forge will not reveal — a branch's protection needs administration read access — are worked out from the forge's own review decision: one more than the approvals that count while it asks for review, and the approvals there are once it is satisfied.
+- **Whether the author may dismiss** comes from their access level in the repository as the forge reports it — write or more — kept for an hour; when the forge will not say, from their standing in the repository: owner, member, or collaborator.
 - **References** are parsed from the title and the first 2,000 characters of the description; later text is often pasted logs, where `#N` is a line or build number. A bare `#N` refers to the same repository and never to another. `name#N` or `owner/name#N` counts only when it names exactly one watched repository. Closed issues come from the forge's own closing references, not from parsing.
 
 ## Flow: refresh one pull request
@@ -82,9 +84,9 @@ For each watched repository, on a schedule:
 
 Less often, a full sweep refreshes every open pull request regardless of update time, because some changes — a check run finishing, for example — do not move a pull request's update time.
 
-Pull requests that are about to change without moving their update time are polled on a short period instead: those whose required checks are pending, those whose mergeability is unknown, and those a verifying task touches ([Tasks](06-tasks.md)). This keeps Park correct without webhooks, and quick to notice checks finishing.
+Pull requests that are about to change without moving their update time are polled on a short period instead: those whose required checks are pending, those whose mergeability is unknown, and those a verifying task touches ([Tasks](06-tasks.md)). A short poll is a cheap look at the head, the checks, and mergeability, and calls for a full refresh only when they changed. This keeps Park correct without webhooks, and quick to notice checks finishing.
 
-Collection obeys the forge's rate-limit signals. While limited, refreshes scheduled by webhooks keep priority and polling pauses until the limit resets.
+Collection obeys the forge's rate-limit signals. While limited, collection through that installation waits until the limit resets, and a failure is retried with a backoff; neither counts against anything else.
 
 ## Flow: repository refresh
 
