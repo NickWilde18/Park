@@ -49,8 +49,8 @@ for f in files:
         continue
     checked += 1
     for n, line in enumerate(text.splitlines(), 1):
-        if CJK.search(line):
-            problems.append(f"{f}:{n}: not English: {line.strip()[:60]}")
+        if m := CJK.search(line):
+            problems.append(f"{f}:{n}:{m.start() + 1}: not English, U+{ord(m[0]):04X}")
         for entry, pattern in names:
             for m in pattern.finditer(line):
                 problems.append(f"{f}:{n}: private name {m[0]!r} (entry {entry})")
