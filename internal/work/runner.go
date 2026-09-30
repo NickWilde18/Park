@@ -14,8 +14,24 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Handler does the work of one item. Returning nil finishes it; returning an error retries it after a backoff.
+// Handler does the work of one item. Returning nil finishes it; returning an error retries it after a backoff;
+// returning RetryAt puts it back until a time, without counting a failure.
 type Handler func(ctx context.Context, item Item) error
+
+// RetryAt is returned by a handler that must wait until a time, such as a forge's rate limit resetting: the item
+// runs again then, and the attempt is not counted as a failure.
+func RetryAt(at time.Time, cause error) error { return &retryAt{at: at, cause: cause} }
+
+type retryAt struct {
+	at    time.Time
+	cause error
+}
+
+func (r *retryAt) Error() string {
+	return "retry at " + r.at.UTC().Format(time.RFC3339) + ": " + r.cause.Error()
+}
+
+func (r *retryAt) Unwrap() error { return r.cause }
 
 // Item is one piece of work, as its handler sees it.
 type Item struct {
@@ -213,11 +229,15 @@ func (r *Runner) run(ctx context.Context, t taken) {
 		return
 	}
 	bg := context.WithoutCancel(ctx)
+	var wait *retryAt
 	switch {
 	case err == nil:
 		err = r.finish(bg, t)
 	case ctx.Err() != nil:
 		err = r.release(bg, t)
+	case errors.As(err, &wait):
+		r.log.InfoContext(ctx, "work waits", "kind", t.Kind, "key", t.Key, "until", wait.at, "reason", wait.cause)
+		err = r.delay(bg, t, wait.at)
 	default:
 		r.log.WarnContext(ctx, "work failed", "kind", t.Kind, "key", t.Key, "attempt", t.Attempt, "error", err)
 		err = r.retry(bg, t, r.opts.Backoff(t.Attempt))
@@ -293,6 +313,14 @@ func (r *Runner) retry(ctx context.Context, t taken, backoff time.Duration) erro
 	_, err := r.pool.Exec(ctx, `UPDATE work_item
 		SET state = 'waiting', run_after = now() + make_interval(secs => $3), rerun_after = NULL, lease_until = NULL
 		WHERE id = $1 AND run = $2`, t.id, t.run, backoff.Seconds())
+	return err
+}
+
+// delay puts an item back until a time, without counting the attempt. A rerun asked for meanwhile is folded in.
+func (r *Runner) delay(ctx context.Context, t taken, at time.Time) error {
+	_, err := r.pool.Exec(ctx, `UPDATE work_item
+		SET state = 'waiting', run_after = $3, rerun_after = NULL, attempts = attempts - 1, lease_until = NULL
+		WHERE id = $1 AND run = $2`, t.id, t.run, at)
 	return err
 }
 

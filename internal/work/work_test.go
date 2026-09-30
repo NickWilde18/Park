@@ -456,3 +456,25 @@ func TestConcurrentRunners(t *testing.T) {
 		}
 	}
 }
+
+// A handler that must wait returns RetryAt: the item waits until then, and its attempt is not counted.
+func TestRetryAt(t *testing.T) {
+	pool := storetest.MigratedPool(t)
+	r, logs := newRunner(pool, Options{})
+	attempts := make(chan int, 4)
+	resets := time.Now().Add(time.Hour)
+	r.Handle("refresh", func(_ context.Context, it Item) error {
+		attempts <- it.Attempt
+		return RetryAt(resets, errors.New("rate limited"))
+	})
+	start(t, r, logs)
+	enqueue(t, pool, "refresh", "pr/1", time.Time{})
+	<-attempts
+	eventually(t, "the item to wait", func() bool {
+		row, ok := read(t, pool, "refresh", "pr/1")
+		return ok && row.state == "waiting"
+	})
+	if row, _ := read(t, pool, "refresh", "pr/1"); !near(row.runAfter, resets) || row.attempts != 0 {
+		t.Fatalf("after RetryAt: %+v", row)
+	}
+}
