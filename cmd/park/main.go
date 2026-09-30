@@ -34,6 +34,7 @@ import (
 	"github.com/NickWilde18/Park/internal/rules"
 	"github.com/NickWilde18/Park/internal/secret"
 	"github.com/NickWilde18/Park/internal/store"
+	"github.com/NickWilde18/Park/internal/verdicts"
 	"github.com/NickWilde18/Park/internal/work"
 	"github.com/NickWilde18/Park/web"
 )
@@ -113,13 +114,21 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	}
 	collected := facts.New(pool, box, log)
 	groups := grouping.New(pool, log)
+	balls := verdicts.New(pool, log, ruleSets, groups)
 	collected.Follow(groups.FactsFollower())
+	collected.Follow(balls.FactsFollower())
+	groups.Follow(balls.GroupingFollower())
+	ruleSets.Follow(balls.RulesFollower())
 	// Each stage gives the runner its work before it starts.
 	runner := work.NewRunner(pool, log, work.Options{})
 	collected.Register(runner)
 	groups.Register(runner)
+	balls.Register(runner)
 	if err := collected.Start(ctx); err != nil {
 		return fmt.Errorf("schedule collection: %w", err)
+	}
+	if err := balls.Start(ctx); err != nil {
+		return fmt.Errorf("schedule verdicts: %w", err)
 	}
 	worked := make(chan error, 1)
 	go func() { worked <- runner.Run(ctx) }()
@@ -162,6 +171,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		Facts:    collected,
 		Grouping: groups,
 		Rules:    ruleSets,
+		Verdicts: balls,
 		Pool:     pool,
 	})
 	if err != nil {

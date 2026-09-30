@@ -197,6 +197,48 @@ func (e GroupMemberSource) Valid() bool {
 	}
 }
 
+// Defines values for HeldPartKind.
+const (
+	HeldPartKindAct    HeldPartKind = "act"
+	HeldPartKindFinish HeldPartKind = "finish"
+	HeldPartKindHold   HeldPartKind = "hold"
+	HeldPartKindIdle   HeldPartKind = "idle"
+)
+
+// Valid indicates whether the value is a known member of the HeldPartKind enum.
+func (e HeldPartKind) Valid() bool {
+	switch e {
+	case HeldPartKindAct:
+		return true
+	case HeldPartKindFinish:
+		return true
+	case HeldPartKindHold:
+		return true
+	case HeldPartKindIdle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HeldPartPriority.
+const (
+	HeldPartPriorityLow    HeldPartPriority = "low"
+	HeldPartPriorityNormal HeldPartPriority = "normal"
+)
+
+// Valid indicates whether the value is a known member of the HeldPartPriority enum.
+func (e HeldPartPriority) Valid() bool {
+	switch e {
+	case HeldPartPriorityLow:
+		return true
+	case HeldPartPriorityNormal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InstallationKind.
 const (
 	InstallationKindApp   InstallationKind = "app"
@@ -227,6 +269,30 @@ func (e InstallationRequestKind) Valid() bool {
 	case InstallationRequestKindApp:
 		return true
 	case InstallationRequestKindToken:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PathStepOutcome.
+const (
+	PathStepOutcomeError      PathStepOutcome = "error"
+	PathStepOutcomeMatched    PathStepOutcome = "matched"
+	PathStepOutcomeNotMatched PathStepOutcome = "not_matched"
+	PathStepOutcomeUnknown    PathStepOutcome = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the PathStepOutcome enum.
+func (e PathStepOutcome) Valid() bool {
+	switch e {
+	case PathStepOutcomeError:
+		return true
+	case PathStepOutcomeMatched:
+		return true
+	case PathStepOutcomeNotMatched:
+		return true
+	case PathStepOutcomeUnknown:
 		return true
 	default:
 		return false
@@ -491,6 +557,138 @@ func (e TokenRequestScopes) Valid() bool {
 	case TokenRequestScopesRead:
 		return true
 	case TokenRequestScopesTasksWork:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UnitKind.
+const (
+	UnitKindGroup       UnitKind = "group"
+	UnitKindPullRequest UnitKind = "pull_request"
+)
+
+// Valid indicates whether the value is a known member of the UnitKind enum.
+func (e UnitKind) Valid() bool {
+	switch e {
+	case UnitKindGroup:
+		return true
+	case UnitKindPullRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerdictClosed.
+const (
+	VerdictClosedClosed VerdictClosed = "closed"
+	VerdictClosedMerged VerdictClosed = "merged"
+)
+
+// Valid indicates whether the value is a known member of the VerdictClosed enum.
+func (e VerdictClosed) Valid() bool {
+	switch e {
+	case VerdictClosedClosed:
+		return true
+	case VerdictClosedMerged:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerdictSide.
+const (
+	VerdictSideAuthor   VerdictSide = "author"
+	VerdictSideReviewer VerdictSide = "reviewer"
+)
+
+// Valid indicates whether the value is a known member of the VerdictSide enum.
+func (e VerdictSide) Valid() bool {
+	switch e {
+	case VerdictSideAuthor:
+		return true
+	case VerdictSideReviewer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerdictInputRole.
+const (
+	VerdictInputRoleAuthor   VerdictInputRole = "author"
+	VerdictInputRoleReviewer VerdictInputRole = "reviewer"
+)
+
+// Valid indicates whether the value is a known member of the VerdictInputRole enum.
+func (e VerdictInputRole) Valid() bool {
+	switch e {
+	case VerdictInputRoleAuthor:
+		return true
+	case VerdictInputRoleReviewer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerdictPartKind.
+const (
+	VerdictPartKindAct    VerdictPartKind = "act"
+	VerdictPartKindFinish VerdictPartKind = "finish"
+	VerdictPartKindHold   VerdictPartKind = "hold"
+	VerdictPartKindIdle   VerdictPartKind = "idle"
+)
+
+// Valid indicates whether the value is a known member of the VerdictPartKind enum.
+func (e VerdictPartKind) Valid() bool {
+	switch e {
+	case VerdictPartKindAct:
+		return true
+	case VerdictPartKindFinish:
+		return true
+	case VerdictPartKindHold:
+		return true
+	case VerdictPartKindIdle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerdictPartPriority.
+const (
+	VerdictPartPriorityLow    VerdictPartPriority = "low"
+	VerdictPartPriorityNormal VerdictPartPriority = "normal"
+)
+
+// Valid indicates whether the value is a known member of the VerdictPartPriority enum.
+func (e VerdictPartPriority) Valid() bool {
+	switch e {
+	case VerdictPartPriorityLow:
+		return true
+	case VerdictPartPriorityNormal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerdictPartRole.
+const (
+	VerdictPartRoleAuthor   VerdictPartRole = "author"
+	VerdictPartRoleReviewer VerdictPartRole = "reviewer"
+)
+
+// Valid indicates whether the value is a known member of the VerdictPartRole enum.
+func (e VerdictPartRole) Valid() bool {
+	switch e {
+	case VerdictPartRoleAuthor:
+		return true
+	case VerdictPartRoleReviewer:
 		return true
 	default:
 		return false
@@ -824,6 +1022,29 @@ type Groups struct {
 	Groups []Group `json:"groups"`
 }
 
+// HeldPart defines model for HeldPart.
+type HeldPart struct {
+	Action      *string          `json:"action,omitempty"`
+	Kind        HeldPartKind     `json:"kind"`
+	Priority    HeldPartPriority `json:"priority"`
+	PullRequest int64            `json:"pull_request"`
+	Reason      string           `json:"reason"`
+	Targets     *[]string        `json:"targets,omitempty"`
+}
+
+// HeldPartKind defines model for HeldPart.Kind.
+type HeldPartKind string
+
+// HeldPartPriority defines model for HeldPart.Priority.
+type HeldPartPriority string
+
+// Holder defines model for Holder.
+type Holder struct {
+	Account Account    `json:"account"`
+	Parts   []HeldPart `json:"parts"`
+	Since   time.Time  `json:"since"`
+}
+
 // Identities defines model for Identities.
 type Identities struct {
 	Identities []Identity `json:"identities"`
@@ -994,6 +1215,21 @@ type PRName struct {
 	Repo string `json:"repo"`
 }
 
+// PathStep defines model for PathStep.
+type PathStep struct {
+	Error *string `json:"error,omitempty"`
+
+	// Judgements The questions an unknown outcome depends on.
+	Judgements *[]string       `json:"judgements,omitempty"`
+	Name       string          `json:"name"`
+	Outcome    PathStepOutcome `json:"outcome"`
+	PassedOver *string         `json:"passed_over,omitempty"`
+	Rule       int             `json:"rule"`
+}
+
+// PathStepOutcome defines model for PathStep.Outcome.
+type PathStepOutcome string
+
 // Problem defines model for Problem.
 type Problem struct {
 	Code    string       `json:"code"`
@@ -1162,12 +1398,25 @@ type Questions struct {
 	Questions []Question `json:"questions"`
 }
 
+// Queue defines model for Queue.
+type Queue struct {
+	Holding []Verdict `json:"holding"`
+	Waiting []Verdict `json:"waiting"`
+}
+
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	DisplayName string `json:"display_name"`
 	Invite      string `json:"invite"`
 	Password    string `json:"password"`
 	Username    string `json:"username"`
+}
+
+// Reminder defines model for Reminder.
+type Reminder struct {
+	Account     Account `json:"account"`
+	PullRequest int64   `json:"pull_request"`
+	Reason      string  `json:"reason"`
 }
 
 // Repo defines model for Repo.
@@ -1364,6 +1613,90 @@ type TokenRequestScopes string
 // Tokens defines model for Tokens.
 type Tokens struct {
 	Tokens []Token `json:"tokens"`
+}
+
+// Unit defines model for Unit.
+type Unit struct {
+	Id   int64    `json:"id"`
+	Kind UnitKind `json:"kind"`
+}
+
+// UnitKind defines model for Unit.Kind.
+type UnitKind string
+
+// Verdict defines model for Verdict.
+type Verdict struct {
+	Closed      *VerdictClosed `json:"closed,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	Current     bool           `json:"current"`
+	EvaluatedAt time.Time      `json:"evaluated_at"`
+
+	// Fallback The rules found nothing for anyone to do, and the authors hold the ball.
+	Fallback bool     `json:"fallback"`
+	Holders  []Holder `json:"holders"`
+	Id       int64    `json:"id"`
+
+	// Inputs What every person's list read; only for a single verdict.
+	Inputs      *[]VerdictInput `json:"inputs,omitempty"`
+	Parts       []VerdictPart   `json:"parts"`
+	Reminders   []Reminder      `json:"reminders"`
+	RuleVersion int             `json:"rule_version"`
+
+	// Side Where the ball is; absent once every pull request of the unit is merged or closed.
+	Side *VerdictSide `json:"side,omitempty"`
+	Unit Unit         `json:"unit"`
+}
+
+// VerdictClosed defines model for Verdict.Closed.
+type VerdictClosed string
+
+// VerdictSide Where the ball is; absent once every pull request of the unit is merged or closed.
+type VerdictSide string
+
+// VerdictInput defines model for VerdictInput.
+type VerdictInput struct {
+	Account     Account                `json:"account"`
+	Fields      map[string]interface{} `json:"fields"`
+	PullRequest int64                  `json:"pull_request"`
+	Role        VerdictInputRole       `json:"role"`
+}
+
+// VerdictInputRole defines model for VerdictInput.Role.
+type VerdictInputRole string
+
+// VerdictPart defines model for VerdictPart.
+type VerdictPart struct {
+	Account     Account             `json:"account"`
+	Action      *string             `json:"action,omitempty"`
+	Kind        VerdictPartKind     `json:"kind"`
+	Path        []PathStep          `json:"path"`
+	Priority    VerdictPartPriority `json:"priority"`
+	PullRequest int64               `json:"pull_request"`
+	Reason      string              `json:"reason"`
+
+	// ReasonError Why the reason could not be shown; the reason is then the rule's name.
+	ReasonError *string         `json:"reason_error,omitempty"`
+	Remind      *bool           `json:"remind,omitempty"`
+	Role        VerdictPartRole `json:"role"`
+
+	// Rule The number of the rule that decided, in the role's list.
+	Rule    int       `json:"rule"`
+	Targets *[]string `json:"targets,omitempty"`
+	Task    *bool     `json:"task,omitempty"`
+}
+
+// VerdictPartKind defines model for VerdictPart.Kind.
+type VerdictPartKind string
+
+// VerdictPartPriority defines model for VerdictPart.Priority.
+type VerdictPartPriority string
+
+// VerdictPartRole defines model for VerdictPart.Role.
+type VerdictPartRole string
+
+// Verdicts defines model for Verdicts.
+type Verdicts struct {
+	Verdicts []Verdict `json:"verdicts"`
 }
 
 // ID defines model for ID.
@@ -1615,6 +1948,9 @@ type ServerInterface interface {
 	// GetPullRequest A pull request's facts
 	// (GET /prs/{id})
 	GetPullRequest(w http.ResponseWriter, r *http.Request, id ID)
+	// MarkNudged Mark a pull request as nudged, having reminded the people it waits on
+	// (POST /prs/{id}/nudged)
+	MarkNudged(w http.ResponseWriter, r *http.Request, id ID)
 	// RefreshPullRequest Refresh a pull request from its forge now
 	// (POST /prs/{id}/refresh)
 	RefreshPullRequest(w http.ResponseWriter, r *http.Request, id ID)
@@ -1624,6 +1960,9 @@ type ServerInterface interface {
 	// ListQuestions The questions judgements answer
 	// (GET /questions)
 	ListQuestions(w http.ResponseWriter, r *http.Request)
+	// GetQueue My queue, the open units whose ball I hold, and my waiting list, the ones where someone else holds it
+	// (GET /queue)
+	GetQueue(w http.ResponseWriter, r *http.Request)
 	// ListRuleSets The published rule set versions, newest first; the first is in force
 	// (GET /rulesets)
 	ListRuleSets(w http.ResponseWriter, r *http.Request)
@@ -1654,6 +1993,12 @@ type ServerInterface interface {
 	// DismissSuggestion Dismiss a suggestion; it does not open again
 	// (POST /suggestions/{id}/dismiss)
 	DismissSuggestion(w http.ResponseWriter, r *http.Request, id ID)
+	// ListVerdicts The current verdicts of the open units
+	// (GET /verdicts)
+	ListVerdicts(w http.ResponseWriter, r *http.Request)
+	// GetVerdict A verdict, current or superseded, with the inputs it read
+	// (GET /verdicts/{id})
+	GetVerdict(w http.ResponseWriter, r *http.Request, id ID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -2668,6 +3013,32 @@ func (siw *ServerInterfaceWrapper) GetPullRequest(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// MarkNudged operation middleware
+func (siw *ServerInterfaceWrapper) MarkNudged(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MarkNudged(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RefreshPullRequest operation middleware
 func (siw *ServerInterfaceWrapper) RefreshPullRequest(w http.ResponseWriter, r *http.Request) {
 
@@ -2725,6 +3096,20 @@ func (siw *ServerInterfaceWrapper) ListQuestions(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListQuestions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetQueue operation middleware
+func (siw *ServerInterfaceWrapper) GetQueue(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetQueue(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2934,6 +3319,46 @@ func (siw *ServerInterfaceWrapper) DismissSuggestion(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// ListVerdicts operation middleware
+func (siw *ServerInterfaceWrapper) ListVerdicts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListVerdicts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetVerdict operation middleware
+func (siw *ServerInterfaceWrapper) GetVerdict(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetVerdict(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -3113,6 +3538,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts", wrapper.CreateRuleSetDraft)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/rulesets/drafts/{id}", wrapper.UpdateRuleSetDraft)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts/{id}/publish", wrapper.PublishRuleSetDraft)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/queue", wrapper.GetQueue)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verdicts", wrapper.ListVerdicts)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verdicts/{id}", wrapper.GetVerdict)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/prs/{id}/nudged", wrapper.MarkNudged)
 
 	return m
 }
@@ -4858,6 +5287,39 @@ func (response GetPullRequestdefaultJSONResponse) VisitGetPullRequestResponse(w 
 	return err
 }
 
+type MarkNudgedRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type MarkNudgedResponseObject interface {
+	VisitMarkNudgedResponse(w http.ResponseWriter) error
+}
+
+type MarkNudged204Response struct {
+}
+
+func (response MarkNudged204Response) VisitMarkNudgedResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type MarkNudgeddefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response MarkNudgeddefaultJSONResponse) VisitMarkNudgedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RefreshPullRequestRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -4957,6 +5419,44 @@ type ListQuestionsdefaultJSONResponse struct {
 }
 
 func (response ListQuestionsdefaultJSONResponse) VisitListQuestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetQueueRequestObject struct {
+}
+
+type GetQueueResponseObject interface {
+	VisitGetQueueResponse(w http.ResponseWriter) error
+}
+
+type GetQueue200JSONResponse Queue
+
+func (response GetQueue200JSONResponse) VisitGetQueueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetQueuedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetQueuedefaultJSONResponse) VisitGetQueueResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5344,6 +5844,83 @@ func (response DismissSuggestiondefaultJSONResponse) VisitDismissSuggestionRespo
 	return err
 }
 
+type ListVerdictsRequestObject struct {
+}
+
+type ListVerdictsResponseObject interface {
+	VisitListVerdictsResponse(w http.ResponseWriter) error
+}
+
+type ListVerdicts200JSONResponse Verdicts
+
+func (response ListVerdicts200JSONResponse) VisitListVerdictsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListVerdictsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListVerdictsdefaultJSONResponse) VisitListVerdictsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVerdictRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetVerdictResponseObject interface {
+	VisitGetVerdictResponse(w http.ResponseWriter) error
+}
+
+type GetVerdict200JSONResponse Verdict
+
+func (response GetVerdict200JSONResponse) VisitGetVerdictResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVerdictdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetVerdictdefaultJSONResponse) VisitGetVerdictResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// ListBridges Every registered bridge
@@ -5484,6 +6061,9 @@ type StrictServerInterface interface {
 	// GetPullRequest A pull request's facts
 	// (GET /prs/{id})
 	GetPullRequest(ctx context.Context, request GetPullRequestRequestObject) (GetPullRequestResponseObject, error)
+	// MarkNudged Mark a pull request as nudged, having reminded the people it waits on
+	// (POST /prs/{id}/nudged)
+	MarkNudged(ctx context.Context, request MarkNudgedRequestObject) (MarkNudgedResponseObject, error)
 	// RefreshPullRequest Refresh a pull request from its forge now
 	// (POST /prs/{id}/refresh)
 	RefreshPullRequest(ctx context.Context, request RefreshPullRequestRequestObject) (RefreshPullRequestResponseObject, error)
@@ -5493,6 +6073,9 @@ type StrictServerInterface interface {
 	// ListQuestions The questions judgements answer
 	// (GET /questions)
 	ListQuestions(ctx context.Context, request ListQuestionsRequestObject) (ListQuestionsResponseObject, error)
+	// GetQueue My queue, the open units whose ball I hold, and my waiting list, the ones where someone else holds it
+	// (GET /queue)
+	GetQueue(ctx context.Context, request GetQueueRequestObject) (GetQueueResponseObject, error)
 	// ListRuleSets The published rule set versions, newest first; the first is in force
 	// (GET /rulesets)
 	ListRuleSets(ctx context.Context, request ListRuleSetsRequestObject) (ListRuleSetsResponseObject, error)
@@ -5523,6 +6106,12 @@ type StrictServerInterface interface {
 	// DismissSuggestion Dismiss a suggestion; it does not open again
 	// (POST /suggestions/{id}/dismiss)
 	DismissSuggestion(ctx context.Context, request DismissSuggestionRequestObject) (DismissSuggestionResponseObject, error)
+	// ListVerdicts The current verdicts of the open units
+	// (GET /verdicts)
+	ListVerdicts(ctx context.Context, request ListVerdictsRequestObject) (ListVerdictsResponseObject, error)
+	// GetVerdict A verdict, current or superseded, with the inputs it read
+	// (GET /verdicts/{id})
+	GetVerdict(ctx context.Context, request GetVerdictRequestObject) (GetVerdictResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -6860,6 +7449,32 @@ func (sh *strictHandler) GetPullRequest(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// MarkNudged operation middleware
+func (sh *strictHandler) MarkNudged(w http.ResponseWriter, r *http.Request, id ID) {
+	var request MarkNudgedRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MarkNudged(ctx, request.(MarkNudgedRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MarkNudged")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MarkNudgedResponseObject); ok {
+		if err := validResponse.VisitMarkNudgedResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RefreshPullRequest operation middleware
 func (sh *strictHandler) RefreshPullRequest(w http.ResponseWriter, r *http.Request, id ID) {
 	var request RefreshPullRequestRequestObject
@@ -6929,6 +7544,30 @@ func (sh *strictHandler) ListQuestions(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListQuestionsResponseObject); ok {
 		if err := validResponse.VisitListQuestionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetQueue operation middleware
+func (sh *strictHandler) GetQueue(w http.ResponseWriter, r *http.Request) {
+	var request GetQueueRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetQueue(ctx, request.(GetQueueRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetQueue")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetQueueResponseObject); ok {
+		if err := validResponse.VisitGetQueueResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -7200,6 +7839,56 @@ func (sh *strictHandler) DismissSuggestion(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DismissSuggestionResponseObject); ok {
 		if err := validResponse.VisitDismissSuggestionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListVerdicts operation middleware
+func (sh *strictHandler) ListVerdicts(w http.ResponseWriter, r *http.Request) {
+	var request ListVerdictsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListVerdicts(ctx, request.(ListVerdictsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListVerdicts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListVerdictsResponseObject); ok {
+		if err := validResponse.VisitListVerdictsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetVerdict operation middleware
+func (sh *strictHandler) GetVerdict(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetVerdictRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetVerdict(ctx, request.(GetVerdictRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetVerdict")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetVerdictResponseObject); ok {
+		if err := validResponse.VisitGetVerdictResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
