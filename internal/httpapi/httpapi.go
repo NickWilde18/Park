@@ -27,6 +27,7 @@ import (
 	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/identity"
 	"github.com/NickWilde18/Park/internal/rules"
+	"github.com/NickWilde18/Park/internal/verdicts"
 )
 
 // Options are what the handler needs from the rest of Park.
@@ -40,6 +41,7 @@ type Options struct {
 	Facts    *facts.Service
 	Grouping *grouping.Service
 	Rules    *rules.Service
+	Verdicts *verdicts.Service
 	Pool     *pgxpool.Pool
 }
 
@@ -66,7 +68,8 @@ func New(opts Options) (http.Handler, error) {
 		log.InfoContext(r.Context(), "bad request", "path", r.URL.Path, "error", err)
 		writeError(w, http.StatusBadRequest, "bad_request", "The request is not valid.")
 	}
-	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, rules: opts.Rules, pool: opts.Pool, log: log}
+	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, rules: opts.Rules, verdicts: opts.Verdicts, pool: opts.Pool,
+		log: log}
 	strict := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  badRequest,
 		ResponseErrorHandlerFunc: srv.respondError,
@@ -88,6 +91,7 @@ type server struct {
 	facts    *facts.Service
 	grouping *grouping.Service
 	rules    *rules.Service
+	verdicts *verdicts.Service
 	pool     *pgxpool.Pool
 	log      *slog.Logger
 }

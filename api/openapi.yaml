@@ -1076,6 +1076,62 @@ paths:
                 $ref: "#/components/schemas/RuleSetVersion"
         default:
           $ref: "#/components/responses/Error"
+  /queue:
+    get:
+      operationId: getQueue
+      summary: My queue, the open units whose ball I hold, and my waiting list, the ones where someone else holds it
+      tags: [verdicts]
+      responses:
+        "200":
+          description: The caller's queue and waiting list, oldest verdict first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+        default:
+          $ref: "#/components/responses/Error"
+  /verdicts:
+    get:
+      operationId: listVerdicts
+      summary: The current verdicts of the open units
+      tags: [verdicts]
+      responses:
+        "200":
+          description: The verdicts, without their inputs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Verdicts"
+        default:
+          $ref: "#/components/responses/Error"
+  /verdicts/{id}:
+    get:
+      operationId: getVerdict
+      summary: A verdict, current or superseded, with the inputs it read
+      tags: [verdicts]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The verdict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Verdict"
+        default:
+          $ref: "#/components/responses/Error"
+  /prs/{id}/nudged:
+    post:
+      operationId: markNudged
+      summary: Mark a pull request as nudged, having reminded the people it waits on
+      tags: [prs]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Marked; its unit is evaluated again.
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     session:
@@ -2340,6 +2396,202 @@ components:
         base_version:
           type: integer
           description: Moves the draft's base, to bring it up to date with the version published now.
+    Unit:
+      type: object
+      required: [kind, id]
+      properties:
+        kind:
+          type: string
+          enum: [group, pull_request]
+        id:
+          type: integer
+          format: int64
+    Verdict:
+      type: object
+      required: [id, unit, current, fallback, holders, parts, reminders, rule_version, evaluated_at, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        unit:
+          $ref: "#/components/schemas/Unit"
+        current:
+          type: boolean
+        side:
+          type: string
+          enum: [author, reviewer]
+          description: Where the ball is; absent once every pull request of the unit is merged or closed.
+        closed:
+          type: string
+          enum: [merged, closed]
+        fallback:
+          type: boolean
+          description: The rules found nothing for anyone to do, and the authors hold the ball.
+        holders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Holder"
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerdictPart"
+        reminders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reminder"
+        rule_version:
+          type: integer
+        evaluated_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        inputs:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerdictInput"
+          description: What every person's list read; only for a single verdict.
+    Holder:
+      type: object
+      required: [account, since, parts]
+      properties:
+        account:
+          $ref: "#/components/schemas/Account"
+        since:
+          type: string
+          format: date-time
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/HeldPart"
+    HeldPart:
+      type: object
+      required: [pull_request, kind, priority, reason]
+      properties:
+        pull_request:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum: [act, hold, finish, idle]
+        action:
+          type: string
+        targets:
+          type: array
+          items:
+            type: string
+        priority:
+          type: string
+          enum: [normal, low]
+        reason:
+          type: string
+    VerdictPart:
+      type: object
+      required: [pull_request, account, role, kind, priority, reason, rule, path]
+      properties:
+        pull_request:
+          type: integer
+          format: int64
+        account:
+          $ref: "#/components/schemas/Account"
+        role:
+          type: string
+          enum: [author, reviewer]
+        kind:
+          type: string
+          enum: [act, hold, finish, idle]
+        action:
+          type: string
+        targets:
+          type: array
+          items:
+            type: string
+        priority:
+          type: string
+          enum: [normal, low]
+        reason:
+          type: string
+        reason_error:
+          type: string
+          description: Why the reason could not be shown; the reason is then the rule's name.
+        remind:
+          type: boolean
+        task:
+          type: boolean
+        rule:
+          type: integer
+          description: The number of the rule that decided, in the role's list.
+        path:
+          type: array
+          items:
+            $ref: "#/components/schemas/PathStep"
+    PathStep:
+      type: object
+      required: [rule, name, outcome]
+      properties:
+        rule:
+          type: integer
+        name:
+          type: string
+        passed_over:
+          type: string
+        outcome:
+          type: string
+          enum: [matched, not_matched, unknown, error]
+        judgements:
+          type: array
+          items:
+            type: string
+          description: The questions an unknown outcome depends on.
+        error:
+          type: string
+    Reminder:
+      type: object
+      required: [account, pull_request, reason]
+      properties:
+        account:
+          $ref: "#/components/schemas/Account"
+        pull_request:
+          type: integer
+          format: int64
+        reason:
+          type: string
+    VerdictInput:
+      type: object
+      required: [pull_request, account, role, fields]
+      properties:
+        pull_request:
+          type: integer
+          format: int64
+        account:
+          $ref: "#/components/schemas/Account"
+        role:
+          type: string
+          enum: [author, reviewer]
+        fields:
+          type: object
+          additionalProperties: true
+    Verdicts:
+      type: object
+      required: [verdicts]
+      properties:
+        verdicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Verdict"
+    Queue:
+      type: object
+      required: [holding, waiting]
+      properties:
+        holding:
+          type: array
+          items:
+            $ref: "#/components/schemas/Verdict"
+        waiting:
+          type: array
+          items:
+            $ref: "#/components/schemas/Verdict"
     Error:
       type: object
       required: [error]

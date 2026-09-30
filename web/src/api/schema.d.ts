@@ -866,6 +866,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My queue, the open units whose ball I hold, and my waiting list, the ones where someone else holds it */
+        get: operations["getQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/verdicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The current verdicts of the open units */
+        get: operations["listVerdicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/verdicts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A verdict, current or superseded, with the inputs it read */
+        get: operations["getVerdict"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prs/{id}/nudged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a pull request as nudged, having reminded the people it waits on */
+        post: operations["markNudged"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1544,6 +1612,108 @@ export interface components {
             rules: components["schemas"]["RuleSetDocument"];
             /** @description Moves the draft's base, to bring it up to date with the version published now. */
             base_version?: number;
+        };
+        Unit: {
+            /** @enum {string} */
+            kind: "group" | "pull_request";
+            /** Format: int64 */
+            id: number;
+        };
+        Verdict: {
+            /** Format: int64 */
+            id: number;
+            unit: components["schemas"]["Unit"];
+            current: boolean;
+            /**
+             * @description Where the ball is; absent once every pull request of the unit is merged or closed.
+             * @enum {string}
+             */
+            side?: "author" | "reviewer";
+            /** @enum {string} */
+            closed?: "merged" | "closed";
+            /** @description The rules found nothing for anyone to do, and the authors hold the ball. */
+            fallback: boolean;
+            holders: components["schemas"]["Holder"][];
+            parts: components["schemas"]["VerdictPart"][];
+            reminders: components["schemas"]["Reminder"][];
+            rule_version: number;
+            /** Format: date-time */
+            evaluated_at: string;
+            /** Format: date-time */
+            created_at: string;
+            /** @description What every person's list read; only for a single verdict. */
+            inputs?: components["schemas"]["VerdictInput"][];
+        };
+        Holder: {
+            account: components["schemas"]["Account"];
+            /** Format: date-time */
+            since: string;
+            parts: components["schemas"]["HeldPart"][];
+        };
+        HeldPart: {
+            /** Format: int64 */
+            pull_request: number;
+            /** @enum {string} */
+            kind: "act" | "hold" | "finish" | "idle";
+            action?: string;
+            targets?: string[];
+            /** @enum {string} */
+            priority: "normal" | "low";
+            reason: string;
+        };
+        VerdictPart: {
+            /** Format: int64 */
+            pull_request: number;
+            account: components["schemas"]["Account"];
+            /** @enum {string} */
+            role: "author" | "reviewer";
+            /** @enum {string} */
+            kind: "act" | "hold" | "finish" | "idle";
+            action?: string;
+            targets?: string[];
+            /** @enum {string} */
+            priority: "normal" | "low";
+            reason: string;
+            /** @description Why the reason could not be shown; the reason is then the rule's name. */
+            reason_error?: string;
+            remind?: boolean;
+            task?: boolean;
+            /** @description The number of the rule that decided, in the role's list. */
+            rule: number;
+            path: components["schemas"]["PathStep"][];
+        };
+        PathStep: {
+            rule: number;
+            name: string;
+            passed_over?: string;
+            /** @enum {string} */
+            outcome: "matched" | "not_matched" | "unknown" | "error";
+            /** @description The questions an unknown outcome depends on. */
+            judgements?: string[];
+            error?: string;
+        };
+        Reminder: {
+            account: components["schemas"]["Account"];
+            /** Format: int64 */
+            pull_request: number;
+            reason: string;
+        };
+        VerdictInput: {
+            /** Format: int64 */
+            pull_request: number;
+            account: components["schemas"]["Account"];
+            /** @enum {string} */
+            role: "author" | "reviewer";
+            fields: {
+                [key: string]: unknown;
+            };
+        };
+        Verdicts: {
+            verdicts: components["schemas"]["Verdict"][];
+        };
+        Queue: {
+            holding: components["schemas"]["Verdict"][];
+            waiting: components["schemas"]["Verdict"][];
         };
         Error: {
             error: {
@@ -2954,6 +3124,92 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RuleSetVersion"];
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's queue and waiting list, oldest verdict first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Queue"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listVerdicts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The verdicts, without their inputs. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Verdicts"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getVerdict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The verdict. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Verdict"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    markNudged: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Marked; its unit is evaluated again. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };

@@ -251,3 +251,13 @@ Set aside: decimal hours, which a threshold under an hour would need, and no rul
 The default rule set, a rule-set file kept in git, a draft, and a published version are one document: each role's list, and each rule with its condition and conclusion. Importing a file is posting it. The design checks read it with Python's standard library, and hold the default to its tables rule by rule, term by term. It is read strictly: a key the document does not have is refused rather than dropped, so that a mistyped `remind` cannot quietly change a rule.
 
 Set aside: YAML, which reads more easily, but which the checks could not read without a library.
+
+### D54. Fact sequence numbers are kept pull request by pull request
+
+Each pull request's facts are numbered on their own, so the numbers of two pull requests say nothing about each other, and a unit can hold several. A verdict therefore records the number it read of each pull request, and one is replaced only by a verdict that read no older facts of any of them.
+
+### D55. Links and team changes wait for the hourly pass
+
+Linking an account, or a team's members changing, can change people's roles. In the first release, those changes reach verdicts with the next hourly pass, which evaluates every open unit, rather than by finding the units each change touches.
+
+Set aside: queuing the units of every pull request that names the account or the team, which the hourly pass makes unneeded at the size of one team.

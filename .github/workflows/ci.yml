@@ -41,6 +41,8 @@ jobs:
           test -z "$(git status --porcelain)"
       - run: go vet ./...
       - run: go test -race ./...
+      - name: The whole sweep, which the race detector makes too slow
+        run: go test -count=1 -run TestSweep ./internal/verdicts/
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.14.0

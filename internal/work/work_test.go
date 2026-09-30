@@ -443,11 +443,20 @@ func TestConcurrentRunners(t *testing.T) {
 		final[key]++
 		time.Sleep(time.Duration(rand.IntN(3)) * time.Millisecond)
 	}
-	eventually(t, "the queue to drain", func() bool {
+	drainStarted := time.Now()
+	for deadline := drainStarted.Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
 		var n int
 		_ = pool.QueryRow(ctx, "SELECT count(*) FROM work_item").Scan(&n)
-		return n == 0
-	})
+		if n == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			rows, _ := pool.Query(ctx, `SELECT format('%s %s %s run_after %s rerun_after %s attempts %s lease_until %s',
+				kind, key, state, run_after - now(), rerun_after - now(), attempts, lease_until - now()) FROM work_item ORDER BY key`)
+			left, _ := pgx.CollectRows(rows, pgx.RowTo[string])
+			t.Fatalf("the queue did not drain in %v; left: %q", time.Since(drainStarted), left)
+		}
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	for key, n := range final {

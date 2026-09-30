@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,10 +20,44 @@ import (
 	"github.com/NickWilde18/Park/internal/fail"
 )
 
+// Follower is told, inside the publishing transaction, that a version was published, so that a later stage can queue
+// its work.
+type Follower func(ctx context.Context, tx pgx.Tx, version int) error
+
 // Service keeps rule sets: the published versions, and drafts of the next one.
 type Service struct {
-	pool *pgxpool.Pool
-	log  *slog.Logger
+	pool      *pgxpool.Pool
+	log       *slog.Logger
+	followers []Follower
+	// compiled holds each version compiled, once: versions never change.
+	compiled sync.Map
+}
+
+// Follow adds a follower. It must be called before anything is published.
+func (s *Service) Follow(f Follower) { s.followers = append(s.followers, f) }
+
+// Current returns the number of the version in force, and the version compiled for evaluation.
+func (s *Service) Current(ctx context.Context) (int, *Compiled, error) {
+	n, err := current(ctx, s.pool)
+	if err != nil {
+		return 0, nil, err
+	}
+	if n == 0 {
+		return 0, nil, errNoVersion
+	}
+	if c, ok := s.compiled.Load(n); ok {
+		return n, c.(*Compiled), nil
+	}
+	v, err := s.Version(ctx, n)
+	if err != nil {
+		return 0, nil, err
+	}
+	c, problems := Compile(v.Rules)
+	if len(problems) > 0 {
+		return 0, nil, fmt.Errorf("version %d does not compile: %s", n, problems[0].Message)
+	}
+	s.compiled.Store(n, c)
+	return n, c, nil
 }
 
 // New returns the rule-set service.
@@ -309,8 +344,15 @@ func (s *Service) Publish(ctx context.Context, actor, id int64) (Version, error)
 			n, data, d.BaseVersion, actor); err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, "UPDATE rule_draft SET published_version = $2, updated_at = now() WHERE id = $1", id, n)
-		return err
+		if _, err := tx.Exec(ctx, "UPDATE rule_draft SET published_version = $2, updated_at = now() WHERE id = $1", id, n); err != nil {
+			return err
+		}
+		for _, f := range s.followers {
+			if err := f(ctx, tx, n); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return Version{}, err

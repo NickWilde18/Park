@@ -133,7 +133,7 @@ A **reminder** is not an action. A part can offer one to a person who is waiting
 
 ## Flow: evaluate a unit
 
-Runs when, for this unit: the facts of any of its pull requests change; its membership changes; a judgement about it is recorded; a member acts on it, such as marking it nudged; a new rule set is published; or an account link or team membership changes someone's role. An hourly pass also re-evaluates every open unit, because rules can read elapsed time. When a pull request moves between groups, both units are evaluated.
+Runs when, for this unit: the facts of any of its pull requests change; its membership changes; a judgement about it is recorded; a member acts on it, such as marking it nudged; a new rule set is published; or an account link or team membership changes someone's role — in the first release, with the next hourly pass ([D55](10-design-log.md#d55-links-and-team-changes-wait-for-the-hourly-pass)). An hourly pass also re-evaluates every open unit, because rules can read elapsed time. When a pull request moves between groups, both units are evaluated.
 
 Evaluations of one unit are serialized: each takes the unit's lock, so two pull requests of a group changing at once cannot evaluate the unit side by side.
 
@@ -147,9 +147,9 @@ Evaluations of one unit are serialized: each takes the unit's lock, so two pull 
 5. **Place the ball** (above).
 6. **Refine.** For each holder, and for each waiting person whose path passed over a reminder rule on an unknown judgement, look those judgements up, and evaluate that person's list again with the ones that are recorded. A refined part is kept only if nothing but its reason or reminder changed; otherwise the part from step 4 stands, and the rule is flagged. A judgement not recorded yet does not hold anything up: it is asked in the background (next flow), and when its answer is recorded, the unit is evaluated again.
 7. **Compare** with the unit's current verdict. If the side, the holders with their actions and reasons, and the reminders are all unchanged, store nothing.
-8. **Otherwise store** a new verdict and make it current, and queue work for tasks and the dashboard. A verdict records the highest fact sequence number it read, and never replaces one computed from newer facts.
+8. **Otherwise store** a new verdict and make it current, and queue work for tasks and the dashboard. A verdict records the fact sequence number it read of each pull request, and never replaces one computed from newer facts of any of them ([D54](10-design-log.md#d54-fact-sequence-numbers-are-kept-pull-request-by-pull-request)).
 
-When every pull request of a unit is merged or closed, its verdict is closed out, with the reason "Merged" or "Closed".
+When every pull request of a unit is merged or closed, its verdict is closed out, with the reason "Merged" when every one of them merged, or "Closed". A unit that was never evaluated while open gets no verdict, and a unit left with no pull requests — a group merged into another — has none.
 
 ## Model judgement
 
