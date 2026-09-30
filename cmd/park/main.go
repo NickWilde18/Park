@@ -28,6 +28,7 @@ import (
 	"github.com/NickWilde18/Park/internal/config"
 	"github.com/NickWilde18/Park/internal/httpapi"
 	"github.com/NickWilde18/Park/internal/store"
+	"github.com/NickWilde18/Park/internal/work"
 	"github.com/NickWilde18/Park/web"
 )
 
@@ -94,6 +95,19 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 }
 
 func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxpool.Pool, migrations []store.Migration, listening chan<- string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// The stages register their handlers on the runner as they are built.
+	runner := work.NewRunner(pool, log, work.Options{})
+	worked := make(chan error, 1)
+	go func() { worked <- runner.Run(ctx) }()
+	defer func() {
+		cancel()
+		if err := <-worked; err != nil {
+			log.ErrorContext(ctx, "work runner", "error", err)
+		}
+	}()
+
 	handler, err := httpapi.New(httpapi.Options{
 		Ready: func(ctx context.Context) error {
 			pending, err := store.Pending(ctx, pool, migrations)
