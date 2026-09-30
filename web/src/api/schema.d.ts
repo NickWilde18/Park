@@ -741,6 +741,131 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The field catalog, every field a condition or a reason can read */
+        get: operations["listFields"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The questions judgements answer */
+        get: operations["listQuestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rulesets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The published rule set versions, newest first; the first is in force */
+        get: operations["listRuleSets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rulesets/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A published rule set version */
+        get: operations["getRuleSet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rulesets/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a draft of the next version, from the published one or from an imported rule-set file
+         * @description Needs the rules permission. A draft with problems is saved, and lists them; it cannot be published until it has none.
+         */
+        post: operations["createRuleSetDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rulesets/drafts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a draft's rules, and with base_version, bring it up to date */
+        put: operations["updateRuleSetDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rulesets/drafts/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a draft as the next version
+         * @description Refused with stale_draft when another version was published since the draft's base, and with draft_has_problems while it has any.
+         */
+        post: operations["publishRuleSetDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1285,6 +1410,140 @@ export interface components {
              */
             owner_id?: number;
             link_template?: string;
+        };
+        Field: {
+            /** @description Such as pr.checks. */
+            name: string;
+            /**
+             * @description Numbers are whole numbers, and hours whole hours; accounts are logins.
+             * @enum {string}
+             */
+            type: "boolean" | "number" | "optional number" | "choice" | "text" | "account" | "list of text" | "list of accounts" | "list of accounts and teams" | "list of choices" | "judgement";
+            meaning: string;
+            /** @description The values of a choice, a list of choices, or a judgement. */
+            choices?: string[];
+        };
+        Fields: {
+            fields: components["schemas"]["Field"][];
+        };
+        Question: {
+            /** @description A condition reads its answer as judgement.<name>. */
+            name: string;
+            /**
+             * @description The role it is asked for.
+             * @enum {string}
+             */
+            role: "author" | "reviewer";
+            asks: string;
+            answers: string[];
+        };
+        Questions: {
+            questions: components["schemas"]["Question"][];
+        };
+        /** @description Each role's ordered list of rules. The first rule whose condition matches decides a person's part. */
+        RuleSet: {
+            author: components["schemas"]["Rule"][];
+            reviewer: components["schemas"]["Rule"][];
+        };
+        /** @description A rule set as RuleSet describes it, such as an imported rule-set file. It is read strictly: a key RuleSet does not have is refused, rather than dropped. */
+        RuleSetDocument: {
+            [key: string]: unknown;
+        };
+        Rule: {
+            name: string;
+            /** @description Shown in a path when the rule does not match. */
+            passed_over?: string;
+            when: components["schemas"]["Condition"];
+            then: components["schemas"]["Conclusion"];
+        };
+        /** @description Exactly one of: always, the catch-all; all or any of conditions; expr, a CEL expression, only as a whole condition; or a term, a field and an op, with a value when the op takes one. */
+        Condition: {
+            always?: boolean;
+            all?: components["schemas"]["Condition"][];
+            any?: components["schemas"]["Condition"][];
+            expr?: string;
+            field?: string;
+            /** @description is_true, is_false; eq, ne, lt, le, gt, ge; is, is_not, is_one_of; starts_with, contains; is_empty, is_not_empty; is_set, is_not_set. */
+            op?: string;
+            /** @description A whole number, a text, a list of texts for is_one_of, or {"field": name} for another number field. */
+            value?: unknown;
+        };
+        Conclusion: {
+            /** @description act, hold, finish, or idle; a reviewer's part is act or idle. */
+            kind: string;
+            /** @description Required for act; merge, or none, for finish. */
+            action?: string;
+            /** @description For request_review, a list-of-accounts field, such as pr.blocked_by. */
+            targets?: string;
+            /** @description normal, the default, or low. */
+            priority?: string;
+            /** @description Text, with expressions in braces; {{ and }} are literal braces. */
+            reason: string;
+            /** @description Only for idle. */
+            remind?: boolean;
+            /** @description The part may become a task; only for actions that can be tasks. */
+            task?: boolean;
+        };
+        Problem: {
+            /** @enum {string} */
+            role?: "author" | "reviewer";
+            /** @description The rule's number in its list, from 1; absent for a problem of a list or of the draft. */
+            rule?: number;
+            /** @enum {string} */
+            part: "list" | "name" | "when" | "then" | "reason" | "base";
+            code: string;
+            message: string;
+        };
+        RuleSetVersionSummary: {
+            version: number;
+            /** @description The version its draft started from; absent for the first. */
+            based_on?: number;
+            /**
+             * Format: int64
+             * @description The member who published it; absent for the default rule set, published by Park.
+             */
+            published_by?: number;
+            /** Format: date-time */
+            published_at: string;
+        };
+        RuleSetVersions: {
+            versions: components["schemas"]["RuleSetVersionSummary"][];
+        };
+        RuleSetVersion: {
+            version: number;
+            based_on?: number;
+            /** Format: int64 */
+            published_by?: number;
+            /** Format: date-time */
+            published_at: string;
+            rules: components["schemas"]["RuleSet"];
+        };
+        RuleSetDraft: {
+            /** Format: int64 */
+            id: number;
+            /** @description The version it started from; absent before the first. */
+            base_version?: number;
+            rules: components["schemas"]["RuleSet"];
+            /** @description What keeps it from being published now; empty when nothing does. */
+            problems: components["schemas"]["Problem"][];
+            /** Format: int64 */
+            created_by: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** @description The version it became, once published. */
+            published_version?: number;
+        };
+        DraftRequest: {
+            /** @description The version it starts from; the one published now by default. */
+            base_version?: number;
+            rules?: components["schemas"]["RuleSetDocument"];
+        };
+        DraftUpdate: {
+            rules: components["schemas"]["RuleSetDocument"];
+            /** @description Moves the draft's base, to bring it up to date with the version published now. */
+            base_version?: number;
         };
         Error: {
             error: {
@@ -2533,6 +2792,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Bridge"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listFields: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The fields, judgements last. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Fields"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The questions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Questions"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listRuleSets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The versions, without their rules. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleSetVersions"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getRuleSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The version, with its rules. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleSetVersion"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createRuleSetDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft, with its problems. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleSetDraft"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    updateRuleSetDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftUpdate"];
+            };
+        };
+        responses: {
+            /** @description The draft, with its problems. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleSetDraft"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    publishRuleSetDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new version. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleSetVersion"];
                 };
             };
             default: components["responses"]["Error"];

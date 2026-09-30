@@ -56,6 +56,51 @@ func (e CheckFactState) Valid() bool {
 	}
 }
 
+// Defines values for FieldType.
+const (
+	FieldTypeAccount                FieldType = "account"
+	FieldTypeBoolean                FieldType = "boolean"
+	FieldTypeChoice                 FieldType = "choice"
+	FieldTypeJudgement              FieldType = "judgement"
+	FieldTypeListOfAccounts         FieldType = "list of accounts"
+	FieldTypeListOfAccountsAndTeams FieldType = "list of accounts and teams"
+	FieldTypeListOfChoices          FieldType = "list of choices"
+	FieldTypeListOfText             FieldType = "list of text"
+	FieldTypeNumber                 FieldType = "number"
+	FieldTypeOptionalNumber         FieldType = "optional number"
+	FieldTypeText                   FieldType = "text"
+)
+
+// Valid indicates whether the value is a known member of the FieldType enum.
+func (e FieldType) Valid() bool {
+	switch e {
+	case FieldTypeAccount:
+		return true
+	case FieldTypeBoolean:
+		return true
+	case FieldTypeChoice:
+		return true
+	case FieldTypeJudgement:
+		return true
+	case FieldTypeListOfAccounts:
+		return true
+	case FieldTypeListOfAccountsAndTeams:
+		return true
+	case FieldTypeListOfChoices:
+		return true
+	case FieldTypeListOfText:
+		return true
+	case FieldTypeNumber:
+		return true
+	case FieldTypeOptionalNumber:
+		return true
+	case FieldTypeText:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ForgeKind.
 const (
 	ForgeKindGithub ForgeKind = "github"
@@ -182,6 +227,54 @@ func (e InstallationRequestKind) Valid() bool {
 	case InstallationRequestKindApp:
 		return true
 	case InstallationRequestKindToken:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProblemPart.
+const (
+	ProblemPartBase   ProblemPart = "base"
+	ProblemPartList   ProblemPart = "list"
+	ProblemPartName   ProblemPart = "name"
+	ProblemPartReason ProblemPart = "reason"
+	ProblemPartThen   ProblemPart = "then"
+	ProblemPartWhen   ProblemPart = "when"
+)
+
+// Valid indicates whether the value is a known member of the ProblemPart enum.
+func (e ProblemPart) Valid() bool {
+	switch e {
+	case ProblemPartBase:
+		return true
+	case ProblemPartList:
+		return true
+	case ProblemPartName:
+		return true
+	case ProblemPartReason:
+		return true
+	case ProblemPartThen:
+		return true
+	case ProblemPartWhen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProblemRole.
+const (
+	ProblemRoleAuthor   ProblemRole = "author"
+	ProblemRoleReviewer ProblemRole = "reviewer"
+)
+
+// Valid indicates whether the value is a known member of the ProblemRole enum.
+func (e ProblemRole) Valid() bool {
+	switch e {
+	case ProblemRoleAuthor:
+		return true
+	case ProblemRoleReviewer:
 		return true
 	default:
 		return false
@@ -335,6 +428,24 @@ func (e PullRequestSummaryState) Valid() bool {
 	case PullRequestSummaryStateMerged:
 		return true
 	case PullRequestSummaryStateOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QuestionRole.
+const (
+	QuestionRoleAuthor   QuestionRole = "author"
+	QuestionRoleReviewer QuestionRole = "reviewer"
+)
+
+// Valid indicates whether the value is a known member of the QuestionRole enum.
+func (e QuestionRole) Valid() bool {
+	switch e {
+	case QuestionRoleAuthor:
+		return true
+	case QuestionRoleReviewer:
 		return true
 	default:
 		return false
@@ -530,6 +641,63 @@ type CommentFact struct {
 	Id       int64      `json:"id"`
 }
 
+// Conclusion defines model for Conclusion.
+type Conclusion struct {
+	// Action Required for act; merge, or none, for finish.
+	Action *string `json:"action,omitempty"`
+
+	// Kind act, hold, finish, or idle; a reviewer's part is act or idle.
+	Kind string `json:"kind"`
+
+	// Priority normal, the default, or low.
+	Priority *string `json:"priority,omitempty"`
+
+	// Reason Text, with expressions in braces; {{ and }} are literal braces.
+	Reason string `json:"reason"`
+
+	// Remind Only for idle.
+	Remind *bool `json:"remind,omitempty"`
+
+	// Targets For request_review, a list-of-accounts field, such as pr.blocked_by.
+	Targets *string `json:"targets,omitempty"`
+
+	// Task The part may become a task; only for actions that can be tasks.
+	Task *bool `json:"task,omitempty"`
+}
+
+// Condition Exactly one of: always, the catch-all; all or any of conditions; expr, a CEL expression, only as a whole condition; or a term, a field and an op, with a value when the op takes one.
+type Condition struct {
+	All    *[]Condition `json:"all,omitempty"`
+	Always *bool        `json:"always,omitempty"`
+	Any    *[]Condition `json:"any,omitempty"`
+	Expr   *string      `json:"expr,omitempty"`
+	Field  *string      `json:"field,omitempty"`
+
+	// Op is_true, is_false; eq, ne, lt, le, gt, ge; is, is_not, is_one_of; starts_with, contains; is_empty, is_not_empty; is_set, is_not_set.
+	Op *string `json:"op,omitempty"`
+
+	// Value A whole number, a text, a list of texts for is_one_of, or {"field": name} for another number field.
+	Value interface{} `json:"value,omitempty"`
+}
+
+// DraftRequest defines model for DraftRequest.
+type DraftRequest struct {
+	// BaseVersion The version it starts from; the one published now by default.
+	BaseVersion *int `json:"base_version,omitempty"`
+
+	// Rules A rule set as RuleSet describes it, such as an imported rule-set file. It is read strictly: a key RuleSet does not have is refused, rather than dropped.
+	Rules *RuleSetDocument `json:"rules,omitempty"`
+}
+
+// DraftUpdate defines model for DraftUpdate.
+type DraftUpdate struct {
+	// BaseVersion Moves the draft's base, to bring it up to date with the version published now.
+	BaseVersion *int `json:"base_version,omitempty"`
+
+	// Rules A rule set as RuleSet describes it, such as an imported rule-set file. It is read strictly: a key RuleSet does not have is refused, rather than dropped.
+	Rules RuleSetDocument `json:"rules"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Error struct {
@@ -550,10 +718,31 @@ type FactEvent struct {
 	Source     string                 `json:"source"`
 }
 
+// Field defines model for Field.
+type Field struct {
+	// Choices The values of a choice, a list of choices, or a judgement.
+	Choices *[]string `json:"choices,omitempty"`
+	Meaning string    `json:"meaning"`
+
+	// Name Such as pr.checks.
+	Name string `json:"name"`
+
+	// Type Numbers are whole numbers, and hours whole hours; accounts are logins.
+	Type FieldType `json:"type"`
+}
+
+// FieldType Numbers are whole numbers, and hours whole hours; accounts are logins.
+type FieldType string
+
 // FieldChange defines model for FieldChange.
 type FieldChange struct {
 	New interface{} `json:"new"`
 	Old interface{} `json:"old"`
+}
+
+// Fields defines model for Fields.
+type Fields struct {
+	Fields []Field `json:"fields"`
 }
 
 // Forge defines model for Forge.
@@ -805,6 +994,23 @@ type PRName struct {
 	Repo string `json:"repo"`
 }
 
+// Problem defines model for Problem.
+type Problem struct {
+	Code    string       `json:"code"`
+	Message string       `json:"message"`
+	Part    ProblemPart  `json:"part"`
+	Role    *ProblemRole `json:"role,omitempty"`
+
+	// Rule The rule's number in its list, from 1; absent for a problem of a list or of the draft.
+	Rule *int `json:"rule,omitempty"`
+}
+
+// ProblemPart defines model for Problem.Part.
+type ProblemPart string
+
+// ProblemRole defines model for Problem.Role.
+type ProblemRole string
+
 // Provider defines model for Provider.
 type Provider struct {
 	ClientId  string       `json:"client_id"`
@@ -936,6 +1142,26 @@ type PullRequests struct {
 	PullRequests []PullRequestSummary `json:"pull_requests"`
 }
 
+// Question defines model for Question.
+type Question struct {
+	Answers []string `json:"answers"`
+	Asks    string   `json:"asks"`
+
+	// Name A condition reads its answer as judgement.<name>.
+	Name string `json:"name"`
+
+	// Role The role it is asked for.
+	Role QuestionRole `json:"role"`
+}
+
+// QuestionRole The role it is asked for.
+type QuestionRole string
+
+// Questions defines model for Questions.
+type Questions struct {
+	Questions []Question `json:"questions"`
+}
+
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	DisplayName string `json:"display_name"`
@@ -1002,6 +1228,73 @@ type ReviewRequest struct {
 	CodeOwner   bool       `json:"code_owner"`
 	RequestedAt *time.Time `json:"requested_at,omitempty"`
 	Team        *int64     `json:"team,omitempty"`
+}
+
+// Rule defines model for Rule.
+type Rule struct {
+	Name string `json:"name"`
+
+	// PassedOver Shown in a path when the rule does not match.
+	PassedOver *string    `json:"passed_over,omitempty"`
+	Then       Conclusion `json:"then"`
+
+	// When Exactly one of: always, the catch-all; all or any of conditions; expr, a CEL expression, only as a whole condition; or a term, a field and an op, with a value when the op takes one.
+	When Condition `json:"when"`
+}
+
+// RuleSet Each role's ordered list of rules. The first rule whose condition matches decides a person's part.
+type RuleSet struct {
+	Author   []Rule `json:"author"`
+	Reviewer []Rule `json:"reviewer"`
+}
+
+// RuleSetDocument A rule set as RuleSet describes it, such as an imported rule-set file. It is read strictly: a key RuleSet does not have is refused, rather than dropped.
+type RuleSetDocument map[string]interface{}
+
+// RuleSetDraft defines model for RuleSetDraft.
+type RuleSetDraft struct {
+	// BaseVersion The version it started from; absent before the first.
+	BaseVersion *int      `json:"base_version,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedBy   int64     `json:"created_by"`
+	Id          int64     `json:"id"`
+
+	// Problems What keeps it from being published now; empty when nothing does.
+	Problems []Problem `json:"problems"`
+
+	// PublishedVersion The version it became, once published.
+	PublishedVersion *int `json:"published_version,omitempty"`
+
+	// Rules Each role's ordered list of rules. The first rule whose condition matches decides a person's part.
+	Rules     RuleSet   `json:"rules"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// RuleSetVersion defines model for RuleSetVersion.
+type RuleSetVersion struct {
+	BasedOn     *int      `json:"based_on,omitempty"`
+	PublishedAt time.Time `json:"published_at"`
+	PublishedBy *int64    `json:"published_by,omitempty"`
+
+	// Rules Each role's ordered list of rules. The first rule whose condition matches decides a person's part.
+	Rules   RuleSet `json:"rules"`
+	Version int     `json:"version"`
+}
+
+// RuleSetVersionSummary defines model for RuleSetVersionSummary.
+type RuleSetVersionSummary struct {
+	// BasedOn The version its draft started from; absent for the first.
+	BasedOn     *int      `json:"based_on,omitempty"`
+	PublishedAt time.Time `json:"published_at"`
+
+	// PublishedBy The member who published it; absent for the default rule set, published by Park.
+	PublishedBy *int64 `json:"published_by,omitempty"`
+	Version     int    `json:"version"`
+}
+
+// RuleSetVersions defines model for RuleSetVersions.
+type RuleSetVersions struct {
+	Versions []RuleSetVersionSummary `json:"versions"`
 }
 
 // SetupRequest defines model for SetupRequest.
@@ -1173,6 +1466,12 @@ type SplitGroupJSONRequestBody = GroupRequest
 // CreateMyTokenJSONRequestBody defines body for CreateMyToken for application/json ContentType.
 type CreateMyTokenJSONRequestBody = TokenRequest
 
+// CreateRuleSetDraftJSONRequestBody defines body for CreateRuleSetDraft for application/json ContentType.
+type CreateRuleSetDraftJSONRequestBody = DraftRequest
+
+// UpdateRuleSetDraftJSONRequestBody defines body for UpdateRuleSetDraft for application/json ContentType.
+type UpdateRuleSetDraftJSONRequestBody = DraftUpdate
+
 // CompleteSetupJSONRequestBody defines body for CompleteSetup for application/json ContentType.
 type CompleteSetupJSONRequestBody = SetupRequest
 
@@ -1265,6 +1564,9 @@ type ServerInterface interface {
 	// StartSignIn Begin signing in, or connecting an account, through a forge
 	// (GET /auth/{provider}/start)
 	StartSignIn(w http.ResponseWriter, r *http.Request, provider ProviderID, params StartSignInParams)
+	// ListFields The field catalog, every field a condition or a reason can read
+	// (GET /fields)
+	ListFields(w http.ResponseWriter, r *http.Request)
 	// ListGroups The active groups, with their pull requests
 	// (GET /groups)
 	ListGroups(w http.ResponseWriter, r *http.Request)
@@ -1319,6 +1621,24 @@ type ServerInterface interface {
 	// GetPullRequestTimeline A pull request's fact events
 	// (GET /prs/{id}/timeline)
 	GetPullRequestTimeline(w http.ResponseWriter, r *http.Request, id ID)
+	// ListQuestions The questions judgements answer
+	// (GET /questions)
+	ListQuestions(w http.ResponseWriter, r *http.Request)
+	// ListRuleSets The published rule set versions, newest first; the first is in force
+	// (GET /rulesets)
+	ListRuleSets(w http.ResponseWriter, r *http.Request)
+	// CreateRuleSetDraft Start a draft of the next version, from the published one or from an imported rule-set file
+	// (POST /rulesets/drafts)
+	CreateRuleSetDraft(w http.ResponseWriter, r *http.Request)
+	// UpdateRuleSetDraft Replace a draft's rules, and with base_version, bring it up to date
+	// (PUT /rulesets/drafts/{id})
+	UpdateRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID)
+	// PublishRuleSetDraft Publish a draft as the next version
+	// (POST /rulesets/drafts/{id}/publish)
+	PublishRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID)
+	// GetRuleSet A published rule set version
+	// (GET /rulesets/{version})
+	GetRuleSet(w http.ResponseWriter, r *http.Request, version int)
 	// GetSetup Whether Park still needs its first administrator
 	// (GET /setup)
 	GetSetup(w http.ResponseWriter, r *http.Request)
@@ -1961,6 +2281,20 @@ func (siw *ServerInterfaceWrapper) StartSignIn(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListFields operation middleware
+func (siw *ServerInterfaceWrapper) ListFields(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFields(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListGroups operation middleware
 func (siw *ServerInterfaceWrapper) ListGroups(w http.ResponseWriter, r *http.Request) {
 
@@ -2386,6 +2720,126 @@ func (siw *ServerInterfaceWrapper) GetPullRequestTimeline(w http.ResponseWriter,
 	handler.ServeHTTP(w, r)
 }
 
+// ListQuestions operation middleware
+func (siw *ServerInterfaceWrapper) ListQuestions(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListQuestions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRuleSets operation middleware
+func (siw *ServerInterfaceWrapper) ListRuleSets(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRuleSets(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateRuleSetDraft operation middleware
+func (siw *ServerInterfaceWrapper) CreateRuleSetDraft(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateRuleSetDraft(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateRuleSetDraft operation middleware
+func (siw *ServerInterfaceWrapper) UpdateRuleSetDraft(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateRuleSetDraft(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PublishRuleSetDraft operation middleware
+func (siw *ServerInterfaceWrapper) PublishRuleSetDraft(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PublishRuleSetDraft(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRuleSet operation middleware
+func (siw *ServerInterfaceWrapper) GetRuleSet(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "version" -------------
+	var version int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "version", r.PathValue("version"), &version, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRuleSet(w, r, version)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSetup operation middleware
 func (siw *ServerInterfaceWrapper) GetSetup(w http.ResponseWriter, r *http.Request) {
 
@@ -2652,6 +3106,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/assertions", wrapper.PostAssertion)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/bridges", wrapper.ListBridges)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/bridges", wrapper.CreateBridge)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/fields", wrapper.ListFields)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/questions", wrapper.ListQuestions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rulesets", wrapper.ListRuleSets)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rulesets/{version}", wrapper.GetRuleSet)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts", wrapper.CreateRuleSetDraft)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/rulesets/drafts/{id}", wrapper.UpdateRuleSetDraft)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts/{id}/publish", wrapper.PublishRuleSetDraft)
 
 	return m
 }
@@ -3752,6 +4213,44 @@ func (response StartSignIndefaultJSONResponse) VisitStartSignInResponse(w http.R
 	return err
 }
 
+type ListFieldsRequestObject struct {
+}
+
+type ListFieldsResponseObject interface {
+	VisitListFieldsResponse(w http.ResponseWriter) error
+}
+
+type ListFields200JSONResponse Fields
+
+func (response ListFields200JSONResponse) VisitListFieldsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFieldsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListFieldsdefaultJSONResponse) VisitListFieldsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListGroupsRequestObject struct {
 }
 
@@ -4431,6 +4930,239 @@ func (response GetPullRequestTimelinedefaultJSONResponse) VisitGetPullRequestTim
 	return err
 }
 
+type ListQuestionsRequestObject struct {
+}
+
+type ListQuestionsResponseObject interface {
+	VisitListQuestionsResponse(w http.ResponseWriter) error
+}
+
+type ListQuestions200JSONResponse Questions
+
+func (response ListQuestions200JSONResponse) VisitListQuestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListQuestionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListQuestionsdefaultJSONResponse) VisitListQuestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRuleSetsRequestObject struct {
+}
+
+type ListRuleSetsResponseObject interface {
+	VisitListRuleSetsResponse(w http.ResponseWriter) error
+}
+
+type ListRuleSets200JSONResponse RuleSetVersions
+
+func (response ListRuleSets200JSONResponse) VisitListRuleSetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRuleSetsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListRuleSetsdefaultJSONResponse) VisitListRuleSetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateRuleSetDraftRequestObject struct {
+	Body *CreateRuleSetDraftJSONRequestBody
+}
+
+type CreateRuleSetDraftResponseObject interface {
+	VisitCreateRuleSetDraftResponse(w http.ResponseWriter) error
+}
+
+type CreateRuleSetDraft201JSONResponse RuleSetDraft
+
+func (response CreateRuleSetDraft201JSONResponse) VisitCreateRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateRuleSetDraftdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CreateRuleSetDraftdefaultJSONResponse) VisitCreateRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRuleSetDraftRequestObject struct {
+	Id   ID `json:"id"`
+	Body *UpdateRuleSetDraftJSONRequestBody
+}
+
+type UpdateRuleSetDraftResponseObject interface {
+	VisitUpdateRuleSetDraftResponse(w http.ResponseWriter) error
+}
+
+type UpdateRuleSetDraft200JSONResponse RuleSetDraft
+
+func (response UpdateRuleSetDraft200JSONResponse) VisitUpdateRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRuleSetDraftdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response UpdateRuleSetDraftdefaultJSONResponse) VisitUpdateRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishRuleSetDraftRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type PublishRuleSetDraftResponseObject interface {
+	VisitPublishRuleSetDraftResponse(w http.ResponseWriter) error
+}
+
+type PublishRuleSetDraft201JSONResponse RuleSetVersion
+
+func (response PublishRuleSetDraft201JSONResponse) VisitPublishRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishRuleSetDraftdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PublishRuleSetDraftdefaultJSONResponse) VisitPublishRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRuleSetRequestObject struct {
+	Version int `json:"version"`
+}
+
+type GetRuleSetResponseObject interface {
+	VisitGetRuleSetResponse(w http.ResponseWriter) error
+}
+
+type GetRuleSet200JSONResponse RuleSetVersion
+
+func (response GetRuleSet200JSONResponse) VisitGetRuleSetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRuleSetdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetRuleSetdefaultJSONResponse) VisitGetRuleSetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSetupRequestObject struct {
 }
 
@@ -4701,6 +5433,9 @@ type StrictServerInterface interface {
 	// StartSignIn Begin signing in, or connecting an account, through a forge
 	// (GET /auth/{provider}/start)
 	StartSignIn(ctx context.Context, request StartSignInRequestObject) (StartSignInResponseObject, error)
+	// ListFields The field catalog, every field a condition or a reason can read
+	// (GET /fields)
+	ListFields(ctx context.Context, request ListFieldsRequestObject) (ListFieldsResponseObject, error)
 	// ListGroups The active groups, with their pull requests
 	// (GET /groups)
 	ListGroups(ctx context.Context, request ListGroupsRequestObject) (ListGroupsResponseObject, error)
@@ -4755,6 +5490,24 @@ type StrictServerInterface interface {
 	// GetPullRequestTimeline A pull request's fact events
 	// (GET /prs/{id}/timeline)
 	GetPullRequestTimeline(ctx context.Context, request GetPullRequestTimelineRequestObject) (GetPullRequestTimelineResponseObject, error)
+	// ListQuestions The questions judgements answer
+	// (GET /questions)
+	ListQuestions(ctx context.Context, request ListQuestionsRequestObject) (ListQuestionsResponseObject, error)
+	// ListRuleSets The published rule set versions, newest first; the first is in force
+	// (GET /rulesets)
+	ListRuleSets(ctx context.Context, request ListRuleSetsRequestObject) (ListRuleSetsResponseObject, error)
+	// CreateRuleSetDraft Start a draft of the next version, from the published one or from an imported rule-set file
+	// (POST /rulesets/drafts)
+	CreateRuleSetDraft(ctx context.Context, request CreateRuleSetDraftRequestObject) (CreateRuleSetDraftResponseObject, error)
+	// UpdateRuleSetDraft Replace a draft's rules, and with base_version, bring it up to date
+	// (PUT /rulesets/drafts/{id})
+	UpdateRuleSetDraft(ctx context.Context, request UpdateRuleSetDraftRequestObject) (UpdateRuleSetDraftResponseObject, error)
+	// PublishRuleSetDraft Publish a draft as the next version
+	// (POST /rulesets/drafts/{id}/publish)
+	PublishRuleSetDraft(ctx context.Context, request PublishRuleSetDraftRequestObject) (PublishRuleSetDraftResponseObject, error)
+	// GetRuleSet A published rule set version
+	// (GET /rulesets/{version})
+	GetRuleSet(ctx context.Context, request GetRuleSetRequestObject) (GetRuleSetResponseObject, error)
 	// GetSetup Whether Park still needs its first administrator
 	// (GET /setup)
 	GetSetup(ctx context.Context, request GetSetupRequestObject) (GetSetupResponseObject, error)
@@ -5636,6 +6389,30 @@ func (sh *strictHandler) StartSignIn(w http.ResponseWriter, r *http.Request, pro
 	}
 }
 
+// ListFields operation middleware
+func (sh *strictHandler) ListFields(w http.ResponseWriter, r *http.Request) {
+	var request ListFieldsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFields(ctx, request.(ListFieldsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFields")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFieldsResponseObject); ok {
+		if err := validResponse.VisitListFieldsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListGroups operation middleware
 func (sh *strictHandler) ListGroups(w http.ResponseWriter, r *http.Request) {
 	var request ListGroupsRequestObject
@@ -6128,6 +6905,170 @@ func (sh *strictHandler) GetPullRequestTimeline(w http.ResponseWriter, r *http.R
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetPullRequestTimelineResponseObject); ok {
 		if err := validResponse.VisitGetPullRequestTimelineResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListQuestions operation middleware
+func (sh *strictHandler) ListQuestions(w http.ResponseWriter, r *http.Request) {
+	var request ListQuestionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListQuestions(ctx, request.(ListQuestionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListQuestions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListQuestionsResponseObject); ok {
+		if err := validResponse.VisitListQuestionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListRuleSets operation middleware
+func (sh *strictHandler) ListRuleSets(w http.ResponseWriter, r *http.Request) {
+	var request ListRuleSetsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRuleSets(ctx, request.(ListRuleSetsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRuleSets")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRuleSetsResponseObject); ok {
+		if err := validResponse.VisitListRuleSetsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateRuleSetDraft operation middleware
+func (sh *strictHandler) CreateRuleSetDraft(w http.ResponseWriter, r *http.Request) {
+	var request CreateRuleSetDraftRequestObject
+
+	var body CreateRuleSetDraftJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateRuleSetDraft(ctx, request.(CreateRuleSetDraftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateRuleSetDraft")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateRuleSetDraftResponseObject); ok {
+		if err := validResponse.VisitCreateRuleSetDraftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateRuleSetDraft operation middleware
+func (sh *strictHandler) UpdateRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID) {
+	var request UpdateRuleSetDraftRequestObject
+
+	request.Id = id
+
+	var body UpdateRuleSetDraftJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateRuleSetDraft(ctx, request.(UpdateRuleSetDraftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateRuleSetDraft")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateRuleSetDraftResponseObject); ok {
+		if err := validResponse.VisitUpdateRuleSetDraftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PublishRuleSetDraft operation middleware
+func (sh *strictHandler) PublishRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PublishRuleSetDraftRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PublishRuleSetDraft(ctx, request.(PublishRuleSetDraftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PublishRuleSetDraft")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PublishRuleSetDraftResponseObject); ok {
+		if err := validResponse.VisitPublishRuleSetDraftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRuleSet operation middleware
+func (sh *strictHandler) GetRuleSet(w http.ResponseWriter, r *http.Request, version int) {
+	var request GetRuleSetRequestObject
+
+	request.Version = version
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRuleSet(ctx, request.(GetRuleSetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRuleSet")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRuleSetResponseObject); ok {
+		if err := validResponse.VisitGetRuleSetResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
