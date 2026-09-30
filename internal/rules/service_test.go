@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -195,7 +196,8 @@ func TestStaleDraft(t *testing.T) {
 	}
 }
 
-// Two drafts of one version published at once: one becomes the next version, and the other is stale.
+// Two drafts of one version published at once: one becomes the next version, and the other is stale. Both publishes
+// are held on their drafts' rows until both are under way, then let go together.
 func TestConcurrentPublish(t *testing.T) {
 	e := newEnv(t)
 	_, err := e.s.Bootstrap(e.ctx)
@@ -206,6 +208,11 @@ func TestConcurrentPublish(t *testing.T) {
 		must(t, err)
 		ids = append(ids, d.ID)
 	}
+	hold, err := e.pool.Begin(e.ctx)
+	must(t, err)
+	defer func() { _ = hold.Rollback(e.ctx) }()
+	_, err = hold.Exec(e.ctx, "SELECT 1 FROM rule_draft WHERE id = ANY($1) FOR UPDATE", ids)
+	must(t, err)
 	errs := make([]error, 2)
 	var wg sync.WaitGroup
 	for i, id := range ids {
@@ -215,6 +222,18 @@ func TestConcurrentPublish(t *testing.T) {
 			_, errs[i] = e.s.Publish(e.ctx, e.member, id)
 		}()
 	}
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		var waiting int
+		must(t, e.pool.QueryRow(e.ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting))
+		if waiting == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d publishes waiting, not 2", waiting)
+		}
+	}
+	must(t, hold.Rollback(e.ctx))
 	wg.Wait()
 	codes := []string{code(errs[0]), code(errs[1])}
 	if (errs[0] == nil) == (errs[1] == nil) || (codes[0] != "stale_draft" && codes[1] != "stale_draft") {
