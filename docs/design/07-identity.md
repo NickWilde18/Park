@@ -19,11 +19,12 @@ Three ways to sign in, all resolving to the same member, plus one machine identi
 |---|---|
 | `member` | Display name, state (active or disabled), permissions |
 | `sign_in_provider` | A configured way to sign in: a stable ID — the `{provider}` in `/auth/{provider}` — its kind (OIDC, or a forge), and its settings, such as an OIDC issuer and client. Configuration, like a forge's base address |
-| `member_identity` | Member, provider (a forge's ID, a sign-in provider's ID, or `local`), subject, verified, linked time |
+| `member_identity` | Member, forge, subject — the forge account's numeric ID — the admin who linked it by hand, if one did, and linked time. A link made through the forge is verified by construction. OIDC identities, keyed by their sign-in provider, arrive with OIDC |
 | `local_credential` | Member, username, password hash |
 | `api_token` | Member or bridge, name, prefix, hash, scopes, created, last used, expiry, revoked |
 | `browser_session` | Hash of the session ID, member, created, last seen, expiry |
 | `invite` | Hash of the invite code, who created it, expiry, who used it |
+| `setup_code` | Hash of the one-time setup code, and its expiry; there is at most one |
 | `repo_access` | Repository, forge account, access level — from repository refreshes |
 
 An identity's **subject** is stable within its provider: a forge account's numeric ID, within that forge ([Facts](02-facts.md#data)); the OIDC `sub` claim, within that sign-in provider; a local account's own ID. No URL is stored with an identity: the OIDC issuer lives only in the provider's settings, and each sign-in checks that the token's `iss` matches it. The same numeric account on two forges, or the same `sub` from two providers, are two different identities. Roles are derived from forge subjects ([Verdicts](04-verdicts.md#roles)).
@@ -38,10 +39,12 @@ Park's own permissions are distinct from the roles a member holds on pull reques
 | Rules | Draft and publish rule sets |
 | Admin | Installations and repositories; members, invites, and permissions; sign-in and model providers; grouping settings; retry or dismiss anyone's tasks |
 
+Admins change settings from a browser session: no token scope allows it. Park keeps at least one active admin, so the last one can be neither demoted nor disabled.
+
 ## Flow: first start
 
 1. When Park starts with no members, it prints a one-time setup code to its log — or takes one from its environment, where logs are readable by more people than the operator.
-2. The setup page asks for that code, then creates the first administrator — with a local password, or through a sign-in provider configured in the file.
+2. The setup page asks for that code, then creates the first administrator, with a local password ([D48](10-design-log.md#d48-the-first-administrator-signs-up-with-a-local-password)); they connect a forge account afterwards.
 3. The code stops working once it is used, and expires after an hour; restarting Park issues a new one.
 
 There is never a default account or a default password.
@@ -50,8 +53,8 @@ There is never a default account or a default password.
 
 1. **Local**: a username and password, checked against the argon2id hash. Failures are rate-limited per account and per client address.
 2. **Forge or OIDC**: the authorization-code flow with PKCE and a state parameter, the state tied to the browser that started the flow by a short-lived cookie, so that nobody can finish a sign-in or a link in someone else's browser. The returned subject, with its provider, is looked up in `member_identity`.
-3. **A known identity** signs its member in. **An unknown one** becomes a new member only if admission allows it — the person holds an invite, or belongs to a forge organization or OIDC group the admin allowed — and is refused otherwise, with "ask an admin for an invite".
-4. A signed-in browser holds a session: a random ID in a cookie that is `HttpOnly`, `Secure`, and `SameSite=Lax`, stored only as a hash on the server. Requests that change state must also carry a CSRF header tied to the session.
+3. **A known identity** signs its member in. **An unknown one** becomes a new member only if admission allows it — the person holds an invite, or belongs to a forge organization or OIDC group the admin allowed — and is refused otherwise, with "ask an admin for an invite". An invited person may also join with a local account: a username, a password, and a display name.
+4. A signed-in browser holds a session: a random ID in a cookie that is `HttpOnly`, `Secure`, and `SameSite=Lax`, stored only as a hash on the server, for 30 days. Requests that change state must also carry a CSRF header tied to the session, and send their bodies as JSON, which other sites cannot send without asking first.
 
 ## Flow: link a forge account
 

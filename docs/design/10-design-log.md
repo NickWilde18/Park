@@ -217,3 +217,9 @@ Whether a request to a team counted as a pending request for each of its members
 Matching base branch names against head branch names alone made a release pull request from `develop` the parent of every pull request based on `develop`, and a contributor's fork, pushed from its own `main`, the parent of everything based on `main`. Chain edges now stay within one repository, never start from a fork's branch, and never hang from the default branch, a protected branch, or a configured long-lived name.
 
 Set aside: treating any branch that several pull requests are based on as long-lived, which would break legitimate stacked trees.
+
+### D48. The first administrator signs up with a local password
+
+Sign-in providers are stored in the database and configured by an admin, so none exists before the first admin does; configuring one in the file as well would give providers a second home. The setup code therefore creates a local account, and the admin connects a forge account right after, from the settings.
+
+Set aside: a sign-in provider read from the configuration file for the first start only, which the dashboard could then neither show nor change.
