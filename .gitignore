@@ -1,2 +1,6 @@
 .DS_Store
 __pycache__/
+/bin/
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
