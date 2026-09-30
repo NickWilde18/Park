@@ -124,7 +124,7 @@ func TestClaim(t *testing.T) {
 }
 
 // Two claims on one group at once, by Ana's and Ben's executors, each for their own task: one leases its task, and the
-// other finds the group locked and gets nothing (T4). Both claims are held on the group's rows until both wait, then
+// other finds the group locked and gets nothing (T4). Both claims are held from writing tasks until both wait, then
 // let go together.
 func TestConcurrentClaims(t *testing.T) {
 	e := newEnv(t)
@@ -139,7 +139,7 @@ func TestConcurrentClaims(t *testing.T) {
 	hold, err := e.pool.Begin(e.ctx)
 	must(t, err)
 	defer func() { _ = hold.Rollback(e.ctx) }()
-	_, err = hold.Exec(e.ctx, "SELECT id FROM pr_fact WHERE id = ANY($1) FOR UPDATE", []int64{a, b})
+	_, err = hold.Exec(e.ctx, "LOCK TABLE task IN SHARE MODE")
 	must(t, err)
 	got := make([]*Task, 2)
 	errs := make([]error, 2)
@@ -525,5 +525,30 @@ func TestDisabledMember(t *testing.T) {
 	}
 	if got, _ := e.tasks.Task(e.ctx, queued.ID); got.State != Cancelled {
 		t.Fatalf("the queued task: %s", got.State)
+	}
+}
+
+// Verification judges only facts fetched after the attempt ended (D56): Ana's executor answered the thread, but the
+// facts Park holds predate its report, so verification waits for them rather than failing the attempt; once they are
+// fetched, the task is done.
+func TestVerifyWaitsForFreshFacts(t *testing.T) {
+	e := newEnv(t)
+	id := e.store(t, 12, waitingOn(pull(anaAccount), "T1"))
+	e.evaluate(t, prUnit(id))
+	task := e.claim(t, "ana", "tok-ana", "address_comments")
+	e.clock = e.clock.Add(time.Minute)
+	if _, err := e.tasks.Report(e.ctx, e.members["ana"], task.ID, Report{Lease: task.LeaseID, Outcome: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	must(t, e.tasks.verify(e.ctx, task.ID))
+	if got, _ := e.tasks.Task(e.ctx, task.ID); got.State != Verifying {
+		t.Fatalf("judged facts older than the report: %s", got.State)
+	}
+	answered := waitingOn(pull(anaAccount), "T1")
+	answered.Threads[0].Comments = append(answered.Threads[0].Comments, facts.Comment{Author: anaAccount, At: e.clock.Add(-time.Second)})
+	e.store(t, 12, answered)
+	must(t, e.tasks.verify(e.ctx, task.ID))
+	if got, _ := e.tasks.Task(e.ctx, task.ID); got.State != Done {
+		t.Fatalf("with the answer fetched: %s", got.State)
 	}
 }
