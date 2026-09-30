@@ -397,6 +397,150 @@ export interface paths {
         patch: operations["updateProvider"];
         trace?: never;
     };
+    "/prs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pull requests Park collects */
+        get: operations["listPullRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A pull request's facts */
+        get: operations["getPullRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prs/{id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A pull request's fact events */
+        get: operations["getPullRequestTimeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prs/{id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh a pull request from its forge now */
+        post: operations["refreshPullRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/installations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every installation */
+        get: operations["listInstallations"];
+        put?: never;
+        /**
+         * Connect to a forge
+         * @description With a token, or an app installation. The credential and the webhook secret are sealed with the server's secret key, and never shown again. Deliveries for it go to `/hooks/{id}`.
+         */
+        post: operations["createInstallation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/installations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename an installation, or replace its credential or webhook secret */
+        patch: operations["updateInstallation"];
+        trace?: never;
+    };
+    "/admin/repos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every repository Park knows */
+        get: operations["listRepos"];
+        put?: never;
+        /** Watch a repository, through an installation */
+        post: operations["watchRepo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/repos/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Start or stop watching a repository
+         * @description Its facts stay either way.
+         */
+        patch: operations["updateRepo"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -596,6 +740,234 @@ export interface components {
             name?: string;
             client_id?: string;
             client_secret?: string;
+        };
+        RepoRef: {
+            /** Format: int64 */
+            id: number;
+            owner: string;
+            name: string;
+        };
+        Repo: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            forge_id: number;
+            /** Format: int64 */
+            installation_id: number;
+            owner: string;
+            name: string;
+            default_branch: string;
+            watched: boolean;
+            /** Format: date-time */
+            refreshed_at?: string | null;
+        };
+        Repos: {
+            repos: components["schemas"]["Repo"][];
+        };
+        RepoRequest: {
+            /** Format: int64 */
+            installation_id: number;
+            owner: string;
+            name: string;
+        };
+        RepoPatch: {
+            watched: boolean;
+        };
+        Installation: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            forge_id: number;
+            name: string;
+            /** @enum {string} */
+            kind: "token" | "app";
+            has_webhook_secret: boolean;
+            /** @description Where the forge sends deliveries, relative to Park's address. */
+            webhook_path: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        Installations: {
+            installations: components["schemas"]["Installation"][];
+        };
+        AppCredential: {
+            /** Format: int64 */
+            app_id: number;
+            /** Format: int64 */
+            installation_id: number;
+            /** @description PEM. */
+            private_key: string;
+        };
+        InstallationRequest: {
+            /** Format: int64 */
+            forge_id: number;
+            name: string;
+            /** @enum {string} */
+            kind: "token" | "app";
+            /** @description For kind token. */
+            token?: string;
+            app?: components["schemas"]["AppCredential"];
+            webhook_secret?: string;
+        };
+        InstallationPatch: {
+            name?: string;
+            token?: string;
+            app?: components["schemas"]["AppCredential"];
+            /** @description Empty to stop taking deliveries. */
+            webhook_secret?: string;
+        };
+        Account: {
+            /** Format: int64 */
+            id: number;
+            login: string;
+            name: string;
+        };
+        PullRequestSummary: {
+            /** Format: int64 */
+            id: number;
+            repo: components["schemas"]["RepoRef"];
+            number: number;
+            title: string;
+            /** @enum {string} */
+            state: "open" | "draft" | "merged" | "closed";
+            author: components["schemas"]["Account"];
+            head_branch: string;
+            base_branch: string;
+            /**
+             * @description The required checks, taken together.
+             * @enum {string}
+             */
+            checks: "none" | "passing" | "pending" | "failing";
+            /** @description The last refresh from the forge failed; these facts are as of refreshed_at. */
+            stale: boolean;
+            /** Format: date-time */
+            refreshed_at: string;
+            /** @description The pull request on its forge, built for this response. */
+            url: string;
+        };
+        PullRequests: {
+            pull_requests: components["schemas"]["PullRequestSummary"][];
+        };
+        PullRequest: {
+            summary: components["schemas"]["PullRequestSummary"];
+            facts: components["schemas"]["PullRequestFacts"];
+            /** @description The accounts the facts name, for display. */
+            accounts: components["schemas"]["Account"][];
+        };
+        PullRequestFacts: {
+            number: number;
+            title: string;
+            /** @enum {string} */
+            state: "open" | "draft" | "merged" | "closed";
+            /** Format: int64 */
+            author: number;
+            labels: string[];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: date-time */
+            ready_at?: string | null;
+            /** Format: date-time */
+            merged_at?: string | null;
+            /** Format: date-time */
+            closed_at?: string | null;
+            /**
+             * Format: int64
+             * @description The forge's ID of the head's repository; another repository's for a fork.
+             */
+            head_repo: number;
+            head_branch: string;
+            head_sha: string;
+            /** Format: date-time */
+            head_pushed_at: string;
+            base_branch: string;
+            /** @enum {string} */
+            mergeable: "clean" | "conflicting" | "unknown";
+            can_merge_now: boolean;
+            merge_blockers: ("reviews" | "code_owners" | "checks" | "behind" | "conflicts" | "other")[];
+            required_approvals: number;
+            code_owner_review_required: boolean;
+            author_can_dismiss: boolean;
+            review_requests: components["schemas"]["ReviewRequest"][];
+            reviews: components["schemas"]["ReviewFact"][];
+            threads: components["schemas"]["ThreadFact"][];
+            conversation: components["schemas"]["CommentFact"][];
+            checks: components["schemas"]["CheckFact"][];
+            /** @description Required checks that have not reported on the head commit; they count as pending. */
+            missing_required_checks: string[];
+            references: components["schemas"]["PullRef"][];
+            closes_issues: components["schemas"]["PullRef"][];
+        };
+        ReviewRequest: {
+            /** Format: int64 */
+            account?: number;
+            /** Format: int64 */
+            team?: number;
+            /** Format: date-time */
+            requested_at?: string | null;
+            code_owner: boolean;
+        };
+        ReviewFact: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            author: number;
+            /** @enum {string} */
+            state: "approved" | "changes_requested" | "commented" | "dismissed";
+            commit: string;
+            /** Format: date-time */
+            at: string;
+            has_body: boolean;
+            /** @description Whether the author's approval counts toward the forge's requirement. */
+            counts: boolean;
+        };
+        ThreadFact: {
+            id: string;
+            resolved: boolean;
+            outdated: boolean;
+            comments: components["schemas"]["CommentFact"][];
+        };
+        CommentFact: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            author: number;
+            /** Format: date-time */
+            at: string;
+            /** Format: date-time */
+            edited_at?: string | null;
+        };
+        CheckFact: {
+            name: string;
+            /** @enum {string} */
+            state: "passing" | "pending" | "failing";
+            required: boolean;
+            /** Format: date-time */
+            since?: string | null;
+        };
+        PullRef: {
+            /** Format: int64 */
+            repo: number;
+            number: number;
+        };
+        Timeline: {
+            events: components["schemas"]["FactEvent"][];
+        };
+        FactEvent: {
+            /** Format: int64 */
+            seq: number;
+            /** Format: date-time */
+            observed_at: string;
+            source: string;
+            /** @description Each changed field, with its value before and after. */
+            changes: {
+                [key: string]: components["schemas"]["FieldChange"];
+            };
+        };
+        FieldChange: {
+            old: unknown;
+            new: unknown;
         };
         Error: {
             error: {
@@ -1252,6 +1624,244 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Provider"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listPullRequests: {
+        parameters: {
+            query?: {
+                /** @description Only this repository's. */
+                repo?: number;
+                state?: "open" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pull requests, by repository and number. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequests"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getPullRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pull request, with every fact Park holds about it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequest"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getPullRequestTimeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Its fact events, in sequence order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Timeline"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    refreshPullRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The refresh is queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listInstallations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every installation, without its secrets. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Installations"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createInstallation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstallationRequest"];
+            };
+        };
+        responses: {
+            /** @description The new installation. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Installation"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    updateInstallation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstallationPatch"];
+            };
+        };
+        responses: {
+            /** @description The installation, changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Installation"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listRepos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every repository, watched or not. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Repos"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    watchRepo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepoRequest"];
+            };
+        };
+        responses: {
+            /** @description The repository, watched; polling starts at once. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Repo"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    updateRepo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepoPatch"];
+            };
+        };
+        responses: {
+            /** @description The repository, changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Repo"];
                 };
             };
             default: components["responses"]["Error"];

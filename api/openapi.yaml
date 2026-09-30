@@ -500,6 +500,191 @@ paths:
           description: Removed.
         default:
           $ref: "#/components/responses/Error"
+  /prs:
+    get:
+      operationId: listPullRequests
+      summary: Pull requests Park collects
+      tags: [prs]
+      parameters:
+        - name: repo
+          in: query
+          description: Only this repository's.
+          schema:
+            type: integer
+            format: int64
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [open, all]
+            default: open
+      responses:
+        "200":
+          description: The pull requests, by repository and number.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PullRequests"
+        default:
+          $ref: "#/components/responses/Error"
+  /prs/{id}:
+    get:
+      operationId: getPullRequest
+      summary: A pull request's facts
+      tags: [prs]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The pull request, with every fact Park holds about it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PullRequest"
+        default:
+          $ref: "#/components/responses/Error"
+  /prs/{id}/timeline:
+    get:
+      operationId: getPullRequestTimeline
+      summary: A pull request's fact events
+      tags: [prs]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Its fact events, in sequence order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Timeline"
+        default:
+          $ref: "#/components/responses/Error"
+  /prs/{id}/refresh:
+    post:
+      operationId: refreshPullRequest
+      summary: Refresh a pull request from its forge now
+      tags: [prs]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "202":
+          description: The refresh is queued.
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/installations:
+    get:
+      operationId: listInstallations
+      summary: Every installation
+      tags: [admin]
+      responses:
+        "200":
+          description: Every installation, without its secrets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Installations"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createInstallation
+      summary: Connect to a forge
+      description: >-
+        With a token, or an app installation. The credential and the webhook secret are sealed with the server's
+        secret key, and never shown again. Deliveries for it go to `/hooks/{id}`.
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstallationRequest"
+      responses:
+        "201":
+          description: The new installation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Installation"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/installations/{id}:
+    patch:
+      operationId: updateInstallation
+      summary: Rename an installation, or replace its credential or webhook secret
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstallationPatch"
+      responses:
+        "200":
+          description: The installation, changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Installation"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/repos:
+    get:
+      operationId: listRepos
+      summary: Every repository Park knows
+      tags: [admin]
+      responses:
+        "200":
+          description: Every repository, watched or not.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Repos"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: watchRepo
+      summary: Watch a repository, through an installation
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepoRequest"
+      responses:
+        "201":
+          description: The repository, watched; polling starts at once.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Repo"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/repos/{id}:
+    patch:
+      operationId: updateRepo
+      summary: Start or stop watching a repository
+      description: Its facts stay either way.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepoPatch"
+      responses:
+        "200":
+          description: The repository, changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Repo"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     session:
@@ -891,6 +1076,435 @@ components:
           type: string
         client_secret:
           type: string
+    RepoRef:
+      type: object
+      required: [id, owner, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        owner:
+          type: string
+        name:
+          type: string
+    Repo:
+      type: object
+      required: [id, forge_id, installation_id, owner, name, default_branch, watched]
+      properties:
+        id:
+          type: integer
+          format: int64
+        forge_id:
+          type: integer
+          format: int64
+        installation_id:
+          type: integer
+          format: int64
+        owner:
+          type: string
+        name:
+          type: string
+        default_branch:
+          type: string
+        watched:
+          type: boolean
+        refreshed_at:
+          type: string
+          format: date-time
+          nullable: true
+    Repos:
+      type: object
+      required: [repos]
+      properties:
+        repos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Repo"
+    RepoRequest:
+      type: object
+      required: [installation_id, owner, name]
+      properties:
+        installation_id:
+          type: integer
+          format: int64
+        owner:
+          type: string
+        name:
+          type: string
+    RepoPatch:
+      type: object
+      required: [watched]
+      properties:
+        watched:
+          type: boolean
+    Installation:
+      type: object
+      required: [id, forge_id, name, kind, has_webhook_secret, webhook_path, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        forge_id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [token, app]
+        has_webhook_secret:
+          type: boolean
+        webhook_path:
+          type: string
+          description: Where the forge sends deliveries, relative to Park's address.
+        created_at:
+          type: string
+          format: date-time
+    Installations:
+      type: object
+      required: [installations]
+      properties:
+        installations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Installation"
+    AppCredential:
+      type: object
+      required: [app_id, installation_id, private_key]
+      properties:
+        app_id:
+          type: integer
+          format: int64
+        installation_id:
+          type: integer
+          format: int64
+        private_key:
+          type: string
+          description: PEM.
+    InstallationRequest:
+      type: object
+      required: [forge_id, name, kind]
+      properties:
+        forge_id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [token, app]
+        token:
+          type: string
+          description: For kind token.
+        app:
+          $ref: "#/components/schemas/AppCredential"
+        webhook_secret:
+          type: string
+    InstallationPatch:
+      type: object
+      properties:
+        name:
+          type: string
+        token:
+          type: string
+        app:
+          $ref: "#/components/schemas/AppCredential"
+        webhook_secret:
+          type: string
+          description: Empty to stop taking deliveries.
+    Account:
+      type: object
+      required: [id, login, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        login:
+          type: string
+        name:
+          type: string
+    PullRequestSummary:
+      type: object
+      required: [id, repo, number, title, state, author, head_branch, base_branch, checks, stale, refreshed_at, url]
+      properties:
+        id:
+          type: integer
+          format: int64
+        repo:
+          $ref: "#/components/schemas/RepoRef"
+        number:
+          type: integer
+        title:
+          type: string
+        state:
+          type: string
+          enum: [open, draft, merged, closed]
+        author:
+          $ref: "#/components/schemas/Account"
+        head_branch:
+          type: string
+        base_branch:
+          type: string
+        checks:
+          type: string
+          enum: [none, passing, pending, failing]
+          description: The required checks, taken together.
+        stale:
+          type: boolean
+          description: The last refresh from the forge failed; these facts are as of refreshed_at.
+        refreshed_at:
+          type: string
+          format: date-time
+        url:
+          type: string
+          description: The pull request on its forge, built for this response.
+    PullRequests:
+      type: object
+      required: [pull_requests]
+      properties:
+        pull_requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/PullRequestSummary"
+    PullRequest:
+      type: object
+      required: [summary, facts, accounts]
+      properties:
+        summary:
+          $ref: "#/components/schemas/PullRequestSummary"
+        facts:
+          $ref: "#/components/schemas/PullRequestFacts"
+        accounts:
+          type: array
+          description: The accounts the facts name, for display.
+          items:
+            $ref: "#/components/schemas/Account"
+    PullRequestFacts:
+      type: object
+      required: [number, title, state, author, labels, created_at, updated_at, head_repo, head_branch, head_sha, head_pushed_at,
+        base_branch, mergeable, can_merge_now, merge_blockers, required_approvals, code_owner_review_required,
+        author_can_dismiss, review_requests, reviews, threads, conversation, checks, missing_required_checks, references,
+        closes_issues]
+      properties:
+        number:
+          type: integer
+        title:
+          type: string
+        state:
+          type: string
+          enum: [open, draft, merged, closed]
+        author:
+          type: integer
+          format: int64
+        labels:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        ready_at:
+          type: string
+          format: date-time
+          nullable: true
+        merged_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        head_repo:
+          type: integer
+          format: int64
+          description: The forge's ID of the head's repository; another repository's for a fork.
+        head_branch:
+          type: string
+        head_sha:
+          type: string
+        head_pushed_at:
+          type: string
+          format: date-time
+        base_branch:
+          type: string
+        mergeable:
+          type: string
+          enum: [clean, conflicting, unknown]
+        can_merge_now:
+          type: boolean
+        merge_blockers:
+          type: array
+          items:
+            type: string
+            enum: [reviews, code_owners, checks, behind, conflicts, other]
+        required_approvals:
+          type: integer
+        code_owner_review_required:
+          type: boolean
+        author_can_dismiss:
+          type: boolean
+        review_requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewRequest"
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewFact"
+        threads:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThreadFact"
+        conversation:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommentFact"
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/CheckFact"
+        missing_required_checks:
+          type: array
+          description: Required checks that have not reported on the head commit; they count as pending.
+          items:
+            type: string
+        references:
+          type: array
+          items:
+            $ref: "#/components/schemas/PullRef"
+        closes_issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/PullRef"
+    ReviewRequest:
+      type: object
+      required: [code_owner]
+      properties:
+        account:
+          type: integer
+          format: int64
+        team:
+          type: integer
+          format: int64
+        requested_at:
+          type: string
+          format: date-time
+          nullable: true
+        code_owner:
+          type: boolean
+    ReviewFact:
+      type: object
+      required: [id, author, state, commit, at, has_body, counts]
+      properties:
+        id:
+          type: integer
+          format: int64
+        author:
+          type: integer
+          format: int64
+        state:
+          type: string
+          enum: [approved, changes_requested, commented, dismissed]
+        commit:
+          type: string
+        at:
+          type: string
+          format: date-time
+        has_body:
+          type: boolean
+        counts:
+          type: boolean
+          description: Whether the author's approval counts toward the forge's requirement.
+    ThreadFact:
+      type: object
+      required: [id, resolved, outdated, comments]
+      properties:
+        id:
+          type: string
+        resolved:
+          type: boolean
+        outdated:
+          type: boolean
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommentFact"
+    CommentFact:
+      type: object
+      required: [id, author, at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        author:
+          type: integer
+          format: int64
+        at:
+          type: string
+          format: date-time
+        edited_at:
+          type: string
+          format: date-time
+          nullable: true
+    CheckFact:
+      type: object
+      required: [name, state, required]
+      properties:
+        name:
+          type: string
+        state:
+          type: string
+          enum: [passing, pending, failing]
+        required:
+          type: boolean
+        since:
+          type: string
+          format: date-time
+          nullable: true
+    PullRef:
+      type: object
+      required: [repo, number]
+      properties:
+        repo:
+          type: integer
+          format: int64
+        number:
+          type: integer
+    Timeline:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/FactEvent"
+    FactEvent:
+      type: object
+      required: [seq, observed_at, source, changes]
+      properties:
+        seq:
+          type: integer
+          format: int64
+        observed_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+        changes:
+          type: object
+          description: Each changed field, with its value before and after.
+          additionalProperties:
+            $ref: "#/components/schemas/FieldChange"
+    FieldChange:
+      type: object
+      required: [old, new]
+      properties:
+        old: {}
+        new: {}
     Error:
       type: object
       required: [error]

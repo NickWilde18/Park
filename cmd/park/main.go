@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/NickWilde18/Park/internal/config"
+	"github.com/NickWilde18/Park/internal/facts"
 	_ "github.com/NickWilde18/Park/internal/forges/github" // the forge kinds Park supports
 	"github.com/NickWilde18/Park/internal/httpapi"
 	"github.com/NickWilde18/Park/internal/identity"
@@ -100,8 +101,17 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxpool.Pool, migrations []store.Migration, listening chan<- string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	// The stages register their handlers on the runner as they are built.
+	box, err := secret.New(cfg.SecretKey)
+	if err != nil {
+		return err
+	}
+	collected := facts.New(pool, box, log)
+	// Each stage gives the runner its work before it starts.
 	runner := work.NewRunner(pool, log, work.Options{})
+	collected.Register(runner)
+	if err := collected.Start(ctx); err != nil {
+		return fmt.Errorf("schedule collection: %w", err)
+	}
 	worked := make(chan error, 1)
 	go func() { worked <- runner.Run(ctx) }()
 	defer func() {
@@ -111,10 +121,6 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		}
 	}()
 
-	box, err := secret.New(cfg.SecretKey)
-	if err != nil {
-		return err
-	}
 	ids, err := identity.New(pool, box, log, identity.Options{PublicURL: cfg.HTTP.PublicURL, SecretKey: cfg.SecretKey})
 	if err != nil {
 		return err
@@ -144,6 +150,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		UI:       web.Dist(),
 		Logger:   log,
 		Identity: ids,
+		Facts:    collected,
 		Pool:     pool,
 	})
 	if err != nil {

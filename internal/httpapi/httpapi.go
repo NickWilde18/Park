@@ -22,6 +22,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/NickWilde18/Park/api"
+	"github.com/NickWilde18/Park/internal/facts"
 	"github.com/NickWilde18/Park/internal/fail"
 	"github.com/NickWilde18/Park/internal/identity"
 )
@@ -34,8 +35,12 @@ type Options struct {
 	UI       fs.FS
 	Logger   *slog.Logger
 	Identity *identity.Service
+	Facts    *facts.Service
 	Pool     *pgxpool.Pool
 }
+
+// timeNow is the clock errors that carry a wait read.
+var timeNow = time.Now
 
 // New returns Park's HTTP handler.
 func New(opts Options) (http.Handler, error) {
@@ -57,7 +62,7 @@ func New(opts Options) (http.Handler, error) {
 		log.InfoContext(r.Context(), "bad request", "path", r.URL.Path, "error", err)
 		writeError(w, http.StatusBadRequest, "bad_request", "The request is not valid.")
 	}
-	srv := &server{id: opts.Identity, pool: opts.Pool, log: log}
+	srv := &server{id: opts.Identity, facts: opts.Facts, pool: opts.Pool, log: log}
 	strict := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  badRequest,
 		ResponseErrorHandlerFunc: srv.respondError,
@@ -66,15 +71,19 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "There is no such endpoint.")
 	})
+	if opts.Facts != nil {
+		mux.Handle("POST /hooks/{installation}", opts.Facts.Webhook())
+	}
 	mux.Handle("/", frontend(opts.UI))
 	return recoverPanics(log, logRequests(log, guardJSON(srv.authenticate(mux)))), nil
 }
 
 // server implements the API.
 type server struct {
-	id   *identity.Service
-	pool *pgxpool.Pool
-	log  *slog.Logger
+	id    *identity.Service
+	facts *facts.Service
+	pool  *pgxpool.Pool
+	log   *slog.Logger
 }
 
 // statuses maps each kind of error the caller can act on to its HTTP status.
