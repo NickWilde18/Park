@@ -40,10 +40,10 @@ A change enters as a fact and flows forward. Each stage reads facts and the outp
 
 | Term | Meaning |
 |---|---|
-| Forge | A code hosting service. GitHub is the only one implemented at first |
-| Installation | Park's connection to one forge: credentials, webhook secret, watched repositories |
+| Forge | A code hosting service at one address — github.com, or a company's own server. GitHub is the only kind implemented at first |
+| Installation | Park's connection to a forge, such as one organization's app: credentials, webhook secret, watched repositories |
 | Member | A person who uses Park |
-| Account | A member's identity on a forge, keyed by the forge's stable account ID |
+| Account | A person's identity on a forge, keyed by the forge and its stable account ID. A member links their accounts; other people's accounts appear too |
 | Fact | An immutable, attributed record: a forge state change, a model judgement, a grouping assertion, a member action |
 | Chain | Pull requests stacked on one another: one's base branch is another's head branch |
 | Group | Pull requests that form one piece of work, often across repositories |
@@ -65,4 +65,4 @@ A change enters as a fact and flows forward. Each stage reads facts and the outp
 | Item | One action on one pull request within a task, with its own post-condition |
 | Post-condition | What forge facts must show for an item to count as done |
 | Executor | A program or person that claims tasks and does the work. Park never executes |
-| Bridge | A program outside Park that feeds it signals, such as review threads from a chat tool |
+| Bridge | A program outside Park, registered by a member, that feeds it signals, such as review threads from a chat tool |

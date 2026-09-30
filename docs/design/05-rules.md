@@ -68,17 +68,24 @@ Everything a condition can read. Fields are computed for one person on one pull 
 | `pr.author` | account | The author |
 | `pr.draft` | boolean | The pull request is a draft |
 | `pr.conflicting` | boolean | The forge reports conflicts with the base branch |
-| `pr.checks` | choice | The required checks on the head commit: `failing` if any failed; else `pending` if any is still running; else `passing` if there are any; else `none` |
+| `pr.checks` | choice | The required checks on the head commit: `failing` if any failed; else `pending` if any is still running or has not reported on this head yet; else `passing` if there are any; else `none` |
 | `pr.failing_checks` | list of text | Names of the failing required checks |
-| `pr.approvals` | number | Reviewers whose decisive review approves and is not dismissed |
-| `pr.required_approvals` | number | From the repository's branch protection; 1 without it |
+| `pr.hours_checks_pending` | optional number | Hours since the required checks on the head commit started pending |
+| `pr.approvals` | number | Reviewers whose decisive review approves, is not dismissed, and counts toward the forge's requirement — for example, because they have write access |
+| `pr.required_approvals` | number | The larger of the forge's requirement for the base branch and the team's minimum, 1 by default |
 | `pr.blocked_by` | list of accounts | Reviewers whose decisive review requests changes and is not dismissed |
-| `pr.requested` | list of accounts and teams | Pending review requests |
+| `pr.blockers_rerequested` | boolean | Everyone in `pr.blocked_by` has a pending direct review request |
+| `pr.requested` | list of accounts and teams | Pending review requests: accounts, and teams with at least one member other than the author |
 | `pr.hours_requested` | optional number | Hours since the oldest pending review request |
 | `pr.reviewed` | boolean | Someone other than the author has submitted a review |
+| `pr.unanswered_reviews` | number | Reviews with a written body that request changes or only comment, after which the author has neither commented on the pull request nor pushed |
 | `pr.threads_on_reviewers` | number | Unresolved threads whose latest comment is the author's, and whose other participants include someone who has not approved |
 | `pr.awaited_reviewers` | list of accounts | Those participants: the ones who have not approved |
-| `pr.awaited_rerequested` | boolean | Everyone in `pr.awaited_reviewers` has a pending review request |
+| `pr.awaited_rerequested` | boolean | Everyone in `pr.awaited_reviewers` has a pending direct review request |
+| `pr.mergeable_now` | boolean | The forge says the pull request can be merged now |
+| `pr.merge_blocked_by` | list of choices | What the forge says blocks merging: `reviews`, `code_owners`, `checks`, `behind`, `conflicts`, or `other` |
+| `pr.code_owners_pending` | list of accounts and teams | Code owners whose approval the forge still requires |
+| `pr.author_can_dismiss` | boolean | The author is allowed to dismiss reviews in this repository |
 
 **The member**
 
@@ -87,7 +94,8 @@ Everything a condition can read. Fields are computed for one person on one pull 
 | `me.role` | choice | `author` or `reviewer` |
 | `me.threads_on_me` | number | Unresolved threads waiting on me. For the author: those whose latest comment is not the author's. For a reviewer: those I started or commented in whose latest comment is the author's |
 | `me.threads_open` | number | Unresolved threads I started |
-| `me.requested` | boolean | A review is requested from me directly |
+| `me.requested` | boolean | A review is requested from me directly, not only through a team |
+| `me.code_owner` | boolean | The forge requires my approval as a code owner |
 | `me.reviewed` | boolean | I have submitted a review |
 | `me.decision` | choice | My decisive review: `approved`, `changes_requested`, or `none` if there is none or it was dismissed |
 | `me.reviewed_since_decision` | boolean | I have submitted another review, such as a comment, since my decisive review |
@@ -111,7 +119,7 @@ Everything a condition can read. Fields are computed for one person on one pull 
 | `judgement.commits_address_my_comments` | judgement |
 | `judgement.comments_blocking` | judgement |
 
-No field exposes the forge's own summary review decision. It stays at "changes requested" after the author has answered everything but not yet asked for another review, and goes back to "review required" on every push, pulling reviewers who already reviewed back in. The fields above are built from individual reviews and threads, which do not drift that way.
+No field exposes the forge's own summary review decision. It stays at "changes requested" after the author has answered everything but not yet asked for another review, and goes back to "review required" on every push, pulling reviewers who already reviewed back in. The fields above are built from individual reviews and threads, which do not drift that way. The forge's own merge verdict is exposed (`pr.mergeable_now`, `pr.merge_blocked_by`), but only to decide whether a pull request can be merged, never whose turn it is.
 
 No field exposes where a fact came from, a task's state, another person's part, or where the ball is.
 
@@ -131,7 +139,7 @@ A conclusion says nothing about who else must act: that follows from placing the
 
 ## The default rule set
 
-Park ships with the rule set below, ported from its predecessor's decision tree, where it ran on a real team's pull requests, and reshaped so that each row states one person's part. Every rule whose action can be a task is marked as able to become one. The numbers in it — 24 hours, 48 hours, position 3 — are ordinary values, edited like anything else.
+Park ships with the rule set below, ported from its predecessor's decision tree, where it ran on a real team's pull requests, and reshaped so that each row states one person's part. Every rule whose action can be a task is marked as able to become one, unless its action says otherwise. The numbers in it — 2 hours, 24 hours, 48 hours, position 3 — are ordinary values, edited like anything else.
 
 In the trees below, each diamond is a rule, tried from the top. An edge labelled with a passed-over label shows what the path says when the rule does not match. Conclusions are coloured by kind: orange `act`, blue `hold`, green `finish`, grey `idle`.
 
@@ -140,139 +148,165 @@ In the trees below, each diamond is a rule, tried from the top. An edge labelled
 ```mermaid
 flowchart TD
     s(["author"]) --> a1{"1 Draft"}
-    a1 -->|yes| k1["hold · draft"]
+    a1 -->|yes| ak1["hold · draft"]
     a1 -->|not a draft| a2{"2 Conflicts"}
-    a2 -->|yes| k2["act · resolve conflicts"]
+    a2 -->|yes| ak2["act · resolve conflicts"]
     a2 -->|no conflicts| a3{"3 Checks failing"}
-    a3 -->|yes| k3["act · fix checks"]
-    a3 -->|checks not failing| a4{"4 Checks running"}
-    a4 -->|yes| k4["hold · wait for checks"]
-    a4 --> a5{"5 Changes requested,<br/>all answered"}
-    a5 -->|yes| k5["act · dismiss the request<br/>for changes, ask again"]
-    a5 --> a6{"6 Changes requested"}
-    a6 -->|yes| k6["act · answer comments"]
-    a6 --> a7{"7 Comments wait on you"}
-    a7 -->|yes| k7["act · answer comments"]
-    a7 -->|no comments wait on you| a8{"8 Replies not<br/>handed back"}
-    a8 -->|yes| k8["act · ask them to look again"]
-    a8 --> a9{"9 Replies wait<br/>on reviewers"}
-    a9 -->|yes| k9["idle"]
-    a9 --> a10{"10 Approved, stacked"}
-    a10 -->|yes| k10["finish · wait for the ones below"]
-    a10 --> a11{"11 Ready to merge"}
-    a11 -->|yes| k11["finish · merge"]
-    a11 -->|not approved yet| a12{"12 No reviewer"}
-    a12 -->|yes| k12["act · ask for a review"]
-    a12 --> a13{"13 Nudged"}
-    a13 -->|yes| k13["idle"]
-    a13 --> a14{"14 Time to nudge"}
-    a14 -->|yes| k14["idle · reminder: nudge the reviewers"]
-    a14 --> k15["15 idle · waiting for review"]
+    a3 -->|yes| ak3["act · fix checks"]
+    a3 -->|checks not failing| a4{"4 Checks stuck"}
+    a4 -->|yes| ak4["act · fix checks, not a task"]
+    a4 --> a5{"5 Checks running"}
+    a5 -->|yes| ak5["hold · checks running"]
+    a5 --> a6{"6 Changes requested, all answered"}
+    a6 -->|yes| ak6["act · request review"]
+    a6 --> a7{"7 All answered, cannot dismiss"}
+    a7 -->|yes| ak7["act · request review"]
+    a7 --> a8{"8 Handed back, cannot dismiss"}
+    a8 -->|yes| ak8["idle"]
+    a8 --> a9{"9 Changes requested"}
+    a9 -->|yes| ak9["act · address comments"]
+    a9 --> a10{"10 Comments wait on you"}
+    a10 -->|yes| ak10["act · address comments"]
+    a10 -->|no comments wait on you| a11{"11 Reviews wait on you"}
+    a11 -->|yes| ak11["act · address comments"]
+    a11 -->|no reviews wait on you| a12{"12 Replies not handed back"}
+    a12 -->|yes| ak12["act · request review"]
+    a12 --> a13{"13 Replies wait on reviewers"}
+    a13 -->|yes| ak13["idle"]
+    a13 --> a14{"14 Approved, stacked"}
+    a14 -->|yes| ak14["finish · approved, stacked"]
+    a14 --> a15{"15 Ready to merge"}
+    a15 -->|yes| ak15["finish · merge"]
+    a15 -->|not ready to merge| a16{"16 Blocked from merging"}
+    a16 -->|yes| ak16["act · unblock"]
+    a16 --> a17{"17 No reviewer"}
+    a17 -->|yes| ak17["act · request review"]
+    a17 --> a18{"18 Nudged"}
+    a18 -->|yes| ak18["idle"]
+    a18 --> a19{"19 Time to nudge"}
+    a19 -->|yes| ak19["idle · remind"]
+    a19 --> ak20
+    ak20["20 idle"]
     classDef act fill:#fde2c8,stroke:#d9822b
     classDef hold fill:#dbe8f7,stroke:#4a7ab8
     classDef finish fill:#d8f0d8,stroke:#3b8a3b
     classDef idle fill:#eeeeee,stroke:#9e9e9e
-    class k2,k3,k5,k6,k7,k8,k12 act
-    class k1,k4 hold
-    class k10,k11 finish
-    class k9,k13,k14,k15 idle
+    class ak2,ak3,ak4,ak6,ak7,ak9,ak10,ak11,ak12,ak16,ak17 act
+    class ak1,ak5 hold
+    class ak14,ak15 finish
+    class ak8,ak13,ak18,ak19,ak20 idle
 ```
 
 | # | Rule | When | Kind | Action | Reason |
 |---|---|---|---|---|---|
-| 1 | Draft | `pr.draft` | hold | | Draft |
+| 1 | Draft | `pr.draft` | hold |  | Draft |
 | 2 | Conflicts | `pr.conflicting` | act | `resolve_conflicts` | Conflicts with the base branch |
 | 3 | Checks failing | `pr.checks` is `failing` | act | `fix_checks` | {size(pr.failing_checks)} required checks failing |
-| 4 | Checks running | `pr.checks` is `pending` | hold | | Waiting for checks |
-| 5 | Changes requested, all answered | `pr.blocked_by` is not empty and `me.threads_on_me` = 0 | act | `request_review` to `pr.blocked_by` | Every comment is answered; dismiss {pr.blocked_by}'s request for changes, saying what changed, and ask again |
-| 6 | Changes requested | `pr.blocked_by` is not empty and `me.threads_on_me` > 0 | act | `address_comments` | {pr.blocked_by} requested changes; {me.threads_on_me} comments wait on you |
-| 7 | Comments wait on you | `me.threads_on_me` > 0 | act | `address_comments` | {me.threads_on_me} comments wait on you |
-| 8 | Replies not handed back | `pr.threads_on_reviewers` > 0 and not `pr.awaited_rerequested` | act | `request_review` to `pr.awaited_reviewers` | {pr.threads_on_reviewers} of your replies wait on {pr.awaited_reviewers}; finish what you promised, then ask them to look again |
-| 9 | Replies wait on reviewers | `pr.threads_on_reviewers` > 0 | idle | | {pr.threads_on_reviewers} replies wait for the reviewers |
-| 10 | Approved, stacked | `pr.approvals` ≥ `pr.required_approvals`, `pr.blocked_by` is empty, and `chain.open_below` > 0 | finish | | Approved; {chain.open_below} pull requests below it must merge first |
-| 11 | Ready to merge | `pr.approvals` ≥ `pr.required_approvals` and `pr.blocked_by` is empty | finish | `merge` | Approved and passing; ready to merge |
-| 12 | No reviewer | `pr.requested` is empty | act | `request_review` | Nobody is asked to review |
-| 13 | Nudged | `pr.hours_requested` ≥ 24 and `me.hours_since_nudge` < 48 | idle | | Nudged; waiting for review |
-| 14 | Time to nudge | `pr.hours_requested` ≥ 24 | idle, remind | | No review since the request; remind the reviewers |
-| 15 | Waiting for review | always | idle | | Waiting for review |
+| 4 | Checks stuck | `pr.checks` is `pending` and `pr.hours_checks_pending` ≥ 2 | act | `fix_checks`, not a task | Required checks have been running for {pr.hours_checks_pending} hours |
+| 5 | Checks running | `pr.checks` is `pending` | hold |  | Waiting for checks |
+| 6 | Changes requested, all answered | `pr.blocked_by` is not empty, `me.threads_on_me` = 0, `pr.unanswered_reviews` = 0, and `pr.author_can_dismiss` | act | `request_review` to `pr.blocked_by` | Every comment is answered; dismiss {pr.blocked_by}'s request for changes, saying what changed, and ask again |
+| 7 | All answered, cannot dismiss | `pr.blocked_by` is not empty, `me.threads_on_me` = 0, `pr.unanswered_reviews` = 0, and not `pr.blockers_rerequested` | act | `request_review` to `pr.blocked_by` | Every comment is answered; you cannot dismiss {pr.blocked_by}'s request for changes, so ask them to review again |
+| 8 | Handed back, cannot dismiss | `pr.blocked_by` is not empty, `me.threads_on_me` = 0, and `pr.unanswered_reviews` = 0 | idle |  | Asked {pr.blocked_by} to review again |
+| 9 | Changes requested | `pr.blocked_by` is not empty | act | `address_comments` | {pr.blocked_by} requested changes; {me.threads_on_me + pr.unanswered_reviews} items wait on you |
+| 10 | Comments wait on you | `me.threads_on_me` > 0 | act | `address_comments` | {me.threads_on_me} comments wait on you |
+| 11 | Reviews wait on you | `pr.unanswered_reviews` > 0 | act | `address_comments` | {pr.unanswered_reviews} reviews wait for your answer |
+| 12 | Replies not handed back | `pr.threads_on_reviewers` > 0 and not `pr.awaited_rerequested` | act | `request_review` to `pr.awaited_reviewers` | {pr.threads_on_reviewers} of your replies wait on {pr.awaited_reviewers}; finish what you promised, then ask them to look again |
+| 13 | Replies wait on reviewers | `pr.threads_on_reviewers` > 0 | idle |  | {pr.threads_on_reviewers} replies wait for the reviewers |
+| 14 | Approved, stacked | `pr.approvals` ≥ `pr.required_approvals`, `pr.blocked_by` is empty, and `chain.open_below` > 0 | finish |  | Approved; {chain.open_below} pull requests below it must merge first |
+| 15 | Ready to merge | `pr.approvals` ≥ `pr.required_approvals`, `pr.blocked_by` is empty, and `pr.mergeable_now` | finish | `merge` | Approved and passing; ready to merge |
+| 16 | Blocked from merging | `pr.approvals` ≥ `pr.required_approvals`, `pr.blocked_by` is empty, and `pr.code_owners_pending` is empty | act | `unblock` | Approved, but the forge still blocks merging: {pr.merge_blocked_by} |
+| 17 | No reviewer | `pr.requested` is empty | act | `request_review` | Nobody is asked to review |
+| 18 | Nudged | `pr.hours_requested` ≥ 24 and `me.hours_since_nudge` < 48 | idle |  | Nudged; waiting for review |
+| 19 | Time to nudge | `pr.hours_requested` ≥ 24 | idle, remind |  | No review since the request; remind the reviewers |
+| 20 | Waiting for review | always | idle |  | Waiting for review |
 
-Passed-over labels: 1 "not a draft", 2 "no conflicts", 3 "checks not failing", 7 "no comments wait on you", 11 "not approved yet".
+Passed-over labels: 1 "not a draft", 2 "no conflicts", 3 "checks not failing", 10 "no comments wait on you", 11 "no reviews wait on you", 15 "not ready to merge".
 
 ### Reviewer
 
 ```mermaid
 flowchart TD
     s(["reviewer"]) --> r1{"1 Draft"}
-    r1 -->|yes| q1["idle · the author's draft"]
-    r1 -->|not a draft| r2{"2 Approved without you"}
-    r2 -->|yes| q2["idle · your review is optional"]
-    r2 --> r3{"3 Team request"}
-    r3 -->|yes| q3["act, low · review"]
-    r3 --> r4{"4 First review,<br/>deep in a chain"}
-    r4 -->|yes| q4["act, low · first review"]
-    r4 --> r5{"5 First review"}
-    r5 -->|yes| q5["act · first review"]
-    r5 -->|reviewed before| r6{"6 Your block is stale"}
-    r6 -->|yes| q6["idle · approve to lift it"]
-    r6 --> r7{"7 Nudged about<br/>your block"}
-    r7 -->|yes| q7["idle"]
-    r7 --> r8{"8 Time to nudge<br/>about your block"}
-    r8 -->|yes| q8["idle · reminder: nudge the author"]
-    r8 --> r9{"9 Changes requested"}
-    r9 -->|yes| q9["idle · the author dismisses<br/>your review when ready"]
-    r9 -->|no request for changes| r10{"10 Asked again,<br/>new commits for you"}
-    r10 -->|"yes (model)"| q10["act · review; the new commits<br/>respond to your comments"]
-    r10 --> r11{"11 Asked again"}
-    r11 -->|yes| q11["act · review again"]
-    r11 -->|not asked again| r12{"12 Approved,<br/>others block"}
-    r12 -->|yes| q12["idle"]
-    r12 --> r13{"13 Approved,<br/>more needed"}
-    r13 -->|yes| q13["idle · another reviewer's turn"]
-    r13 --> r14{"14 Approved"}
-    r14 -->|yes| q14["idle"]
-    r14 -->|not approved| r15{"15 Nudged"}
-    r15 -->|yes| q15["idle"]
-    r15 --> r16{"16 Time to nudge"}
-    r16 -->|"yes (model)"| q16["idle · reminder: nudge the author"]
-    r16 --> q17["17 idle · the author has the ball"]
+    r1 -->|yes| rk1["idle"]
+    r1 -->|not a draft| r2{"2 Checks running"}
+    r2 -->|yes| rk2["idle"]
+    r2 -->|checks not running| r3{"3 Approved without you"}
+    r3 -->|yes| rk3["idle"]
+    r3 --> r4{"4 Team request"}
+    r4 -->|yes| rk4["act · review · low"]
+    r4 --> r5{"5 First review, deep in a chain"}
+    r5 -->|yes| rk5["act · review · low"]
+    r5 --> r6{"6 First review"}
+    r6 -->|yes| rk6["act · review"]
+    r6 -->|reviewed before| r7{"7 Asked again, the author cannot dismiss"}
+    r7 -->|yes| rk7["act · review"]
+    r7 --> r8{"8 Your block is stale"}
+    r8 -->|yes| rk8["idle"]
+    r8 --> r9{"9 Nudged about your block"}
+    r9 -->|yes| rk9["idle"]
+    r9 --> r10{"10 Time to nudge about your block"}
+    r10 -->|yes| rk10["idle · remind"]
+    r10 --> r11{"11 Changes requested"}
+    r11 -->|yes| rk11["idle"]
+    r11 -->|no request for changes| r12{"12 Asked again, new commits for you"}
+    r12 -->|"yes (model)"| rk12["act · review"]
+    r12 --> r13{"13 Asked again"}
+    r13 -->|yes| rk13["act · review"]
+    r13 -->|not asked again| r14{"14 Approved, others block"}
+    r14 -->|yes| rk14["idle"]
+    r14 --> r15{"15 Approved, more needed"}
+    r15 -->|yes| rk15["idle"]
+    r15 --> r16{"16 Approved"}
+    r16 -->|yes| rk16["idle"]
+    r16 -->|not approved| r17{"17 Nudged"}
+    r17 -->|yes| rk17["idle"]
+    r17 --> r18{"18 Time to nudge"}
+    r18 -->|"yes (model)"| rk18["idle · remind"]
+    r18 --> rk19
+    rk19["19 idle"]
     classDef act fill:#fde2c8,stroke:#d9822b
     classDef idle fill:#eeeeee,stroke:#9e9e9e
-    class q3,q4,q5,q10,q11 act
-    class q1,q2,q6,q7,q8,q9,q12,q13,q14,q15,q16,q17 idle
+    class rk4,rk5,rk6,rk7,rk12,rk13 act
+    class rk1,rk2,rk3,rk8,rk9,rk10,rk11,rk14,rk15,rk16,rk17,rk18,rk19 idle
 ```
 
 | # | Rule | When | Kind | Action | Reason |
 |---|---|---|---|---|---|
-| 1 | Draft | `pr.draft` | idle | | Draft |
-| 2 | Approved without you | not `me.reviewed` and `pr.approvals` ≥ `pr.required_approvals` | idle | | Already has the approvals it needs; your review is optional |
-| 3 | Team request | not `me.reviewed` and not `me.requested` | act, low | `review` | Requested from your team |
-| 4 | First review, deep in a chain | not `me.reviewed` and `chain.position` ≥ 3 | act, low | `review` | First review; {chain.position} of {chain.length} in its chain, not urgent |
-| 5 | First review | not `me.reviewed` | act | `review` | First review |
-| 6 | Your block is stale | `me.decision` is `changes_requested`, `me.reviewed_since_decision`, and `me.threads_open` = 0 | idle | | You reviewed again, but your request for changes still stands; approve to lift it, or wait for the author to dismiss it |
-| 7 | Nudged about your block | `me.decision` is `changes_requested`, not `me.new_commits`, `me.hours_since_review` ≥ 24, and `me.hours_since_nudge` < 48 | idle | | Nudged; the author has the ball |
-| 8 | Time to nudge about your block | `me.decision` is `changes_requested`, not `me.new_commits`, and `me.hours_since_review` ≥ 24 | idle, remind | | Nothing new since you requested changes; remind the author |
-| 9 | Changes requested | `me.decision` is `changes_requested` | idle | | You requested changes; the author dismisses your review when it is ready for another look |
-| 10 | Asked again, new commits for you | `me.requested`, `me.new_commits`, `me.threads_open` > 0, and `judgement.commits_address_my_comments` is `yes` | act | `review` | Asked again; the new commits respond to your comments |
-| 11 | Asked again | `me.reviewed` and `me.requested` | act | `review` | The author asked you to review again |
-| 12 | Approved, others block | `me.decision` is `approved` and `pr.blocked_by` is not empty | idle | | You approved; {pr.blocked_by} still request changes |
-| 13 | Approved, more needed | `me.decision` is `approved` and `pr.approvals` < `pr.required_approvals` | idle | | You approved; it needs another approval |
-| 14 | Approved | `me.decision` is `approved` | idle | | You approved |
-| 15 | Nudged | `me.hours_since_review` ≥ 24 and `me.hours_since_nudge` < 48 | idle | | Nudged; the author has the ball |
-| 16 | Time to nudge | `me.hours_since_review` ≥ 24 and `judgement.comments_blocking` is `yes` | idle, remind | | No progress since your review, and your comments block it; remind the author |
-| 17 | Waiting for the author | always | idle | | The author has the ball; {me.threads_open} of your comments are open |
+| 1 | Draft | `pr.draft` | idle |  | Draft |
+| 2 | Checks running | `pr.checks` is `pending` | idle |  | Checks are still running |
+| 3 | Approved without you | not `me.reviewed`, not `me.code_owner`, and `pr.approvals` ≥ `pr.required_approvals` | idle |  | Already has the approvals it needs; your review is optional |
+| 4 | Team request | not `me.reviewed` and not `me.requested` | act, low | `review` | Requested from your team |
+| 5 | First review, deep in a chain | not `me.reviewed` and `chain.position` ≥ 3 | act, low | `review` | First review; {chain.position} of {chain.length} in its chain, not urgent |
+| 6 | First review | not `me.reviewed` | act | `review` | First review |
+| 7 | Asked again, the author cannot dismiss | `me.decision` is `changes_requested`, `me.requested`, and not `pr.author_can_dismiss` | act | `review` | The author cannot dismiss your request for changes and asked you to review again; lift it if you are satisfied |
+| 8 | Your block is stale | `me.decision` is `changes_requested`, `me.reviewed_since_decision`, and `me.threads_open` = 0 | idle |  | You reviewed again, but your request for changes still stands; approve to lift it, or wait for the author to dismiss it |
+| 9 | Nudged about your block | `me.decision` is `changes_requested`, not `me.new_commits`, `me.hours_since_review` ≥ 24, and `me.hours_since_nudge` < 48 | idle |  | Nudged; the author has the ball |
+| 10 | Time to nudge about your block | `me.decision` is `changes_requested`, not `me.new_commits`, and `me.hours_since_review` ≥ 24 | idle, remind |  | Nothing new since you requested changes; remind the author |
+| 11 | Changes requested | `me.decision` is `changes_requested` | idle |  | You requested changes; the author hands it back when it is ready for another look |
+| 12 | Asked again, new commits for you | `me.requested`, `me.new_commits`, `me.threads_open` > 0, and `judgement.commits_address_my_comments` is `yes` | act | `review` | Asked again; the new commits respond to your comments |
+| 13 | Asked again | `me.reviewed` and `me.requested` | act | `review` | The author asked you to review again |
+| 14 | Approved, others block | `me.decision` is `approved` and `pr.blocked_by` is not empty | idle |  | You approved; {pr.blocked_by} still request changes |
+| 15 | Approved, more needed | `me.decision` is `approved` and `pr.approvals` < `pr.required_approvals` | idle |  | You approved; it needs another approval |
+| 16 | Approved | `me.decision` is `approved` | idle |  | You approved |
+| 17 | Nudged | `me.hours_since_review` ≥ 24 and `me.hours_since_nudge` < 48 | idle |  | Nudged; the author has the ball |
+| 18 | Time to nudge | `me.hours_since_review` ≥ 24 and `judgement.comments_blocking` is `yes` | idle, remind |  | No progress since your review, and your comments block it; remind the author |
+| 19 | Waiting for the author | always | idle |  | The author has the ball; {me.threads_open} of your comments are open |
 
-Passed-over labels: 1 "not a draft", 5 "reviewed before", 9 "no request for changes", 11 "not asked again", 14 "not approved".
+Passed-over labels: 1 "not a draft", 2 "checks not running", 6 "reviewed before", 11 "no request for changes", 13 "not asked again", 16 "not approved".
 
 ### How to read them
 
-- **Each row is one person's part, not the ball.** The author's list says what the author has to do on a pull request; the reviewer's list, what one reviewer has to do. The ball is then placed once for the whole unit ([Verdicts](04-verdicts.md#placing-the-ball)): the author side first, the reviewers next, the author's last step after that. So no row can put the ball in two places.
-- **Handing the ball back is explicit.** While a reviewer's request for changes stands, the author has work on the pull request — with every comment answered, and even after asking again (author 5). The author hands it back by dismissing the review, saying what changed, and asking again. With nothing to dismiss — the reviewer only commented — asking again hands it back (author 8, reviewer 11). A reply, including one that disagrees and leaves the thread open, never hands the ball back by itself, and neither do new commits.
-- **An approval ends a reviewer's turn.** A reviewer who approved holds nothing, even while another approval is still needed (reviewer 13); only the author asking again brings them back (reviewer 11). Their open threads no longer wait on anyone, and do not keep the author from merging.
-- **Mechanical work comes first for authors.** Conflicts and failing checks come before comments: answering comments on a pull request that conflicts or fails means coming back after fixing it.
-- **Chain position matters only where it must.** An approved pull request waits for the ones below it (author 10), and a first review deep in a chain can wait (reviewer 4). Answering comments, fixing checks, and resolving conflicts can happen anywhere in a chain, in parallel. Position 2 is not downgraded: it is usually next.
-- **Reminders are not moves.** A nudge (author 14, reviewers 8 and 16) is offered to the person waiting, and never moves the ball.
-- **Judgements never move the ball.** Reviewer 10 only sharpens the reason of a reviewer who is already asked again, and reviewer 16 only decides whether to offer a reminder. Without a model, the ball is in the same place in every state; the reasons are plainer, and a reviewer who only commented is never offered a reminder.
-- **The fallback is never needed.** For one author and up to two reviewers, with one or two approvals required, in every combination of review, thread, new commits, review request, elapsed time, and nudge, some rule gives someone the ball — and never to a reviewer whose approval or request for changes stands, unless the author asked them again.
+- **Each row is one person's part, not the ball.** The author's list says what the author has to do on a pull request; the reviewer's list, what one reviewer has to do. The ball is then placed once for the whole unit ([Verdicts](04-verdicts.md#placing-the-ball)): author work first, then reviewer work, then an author who is only waiting on checks or a draft, then the author's last step. So no row can put the ball in two places.
+- **Handing the ball back is explicit.** While a reviewer's request for changes stands, the author has work on the pull request — with every comment answered, and even after asking again (author 6). The author hands it back by dismissing the review, saying what changed, and asking again. An author who is not allowed to dismiss hands it back by asking again (author 7), and the reviewer then holds it (reviewer 7). With nothing to dismiss — the reviewer only commented — asking again hands it back (author 12, reviewer 13). A reply, including one that disagrees and leaves the thread open, never hands the ball back by itself, and neither do new commits.
+- **A review's written body is something to answer.** A review that requests changes or comments in its body, with no inline thread, waits on the author like a thread does (author 9, 11), until the author comments on the pull request or pushes after it. "Every comment is answered" is never true while such a review is unanswered.
+- **An approval ends a reviewer's turn.** A reviewer who approved holds nothing, even while another approval is still needed (reviewer 15); only the author asking again brings them back (reviewer 13). Threads where the author replied last no longer wait on an approver; a thread where the approver spoke last still waits on the author (author 10), who answers it before merging.
+- **Merging needs the forge's go-ahead.** Ready to merge takes the team's minimum approvals — at least one, even where the forge requires none — and the forge's own verdict that it can merge (author 15). Whatever else the forge still requires comes back to the author (author 16), and a code owner whose approval is required is never optional (reviewer 3).
+- **Mechanical work comes first for authors.** Conflicts and failing checks come before comments: answering comments on a pull request that conflicts or fails means coming back after fixing it. Checks that stay pending for two hours stop being a wait and become the author's to look at (author 4) — not a task, since running them again does not change the head.
+- **Waiting never blocks others.** A reviewer waits for green checks on the pull request they review (reviewer 2), but an author who is only waiting — on running checks, or on their own draft — never holds back the reviews of the other pull requests in the group.
+- **Chain position matters only where it must.** An approved pull request waits for the ones below it (author 14), and a first review deep in a chain can wait (reviewer 5). Answering comments, fixing checks, and resolving conflicts can happen anywhere in a chain, in parallel. Position 2 is not downgraded: it is usually next.
+- **Reminders are not moves.** A nudge (author 19, reviewers 10 and 18) is offered to the person waiting, and never moves the ball.
+- **Judgements never move the ball.** Reviewer 12 only sharpens the reason of a reviewer who is already asked again, and reviewer 18 only decides whether to offer a reminder. Without a model, every part has the same kind; the reasons are plainer, and a reviewer who only commented is never offered a reminder.
+- **The fallback is never needed.** For one author and up to two reviewers, with one or two approvals required, in every combination of review, thread, new commits, review request, elapsed time, and nudge, some rule gives someone the ball — and never to a reviewer whose approval or request for changes stands, unless the author asked them again. The review's regression cases add groups, drafts, running and stuck checks, code owners, review bodies, team requests, and authors who cannot dismiss.
 
 ## Editing and publishing
 

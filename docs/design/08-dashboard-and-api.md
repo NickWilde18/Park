@@ -22,7 +22,7 @@ Groups with their pull requests, nested by chain, each pull request marked with 
 
 ### Unit
 
-A group, or a pull request in no group. Where its ball is and who holds it, and every person's part with its path — `author → not a draft → no conflicts → checks not failing → Changes requested, all answered` — the judgements used, and the rule set version. For each pull request: its facts — checks, reviews, and threads — and the timeline of its fact events. Its tasks, with their history.
+A group, or a pull request in no group, showing only the pull requests the viewer can read ([Identity](07-identity.md#visibility)). Where its ball is and who holds it, and every person's part with its path — `author → not a draft → no conflicts → checks not failing → Changes requested, all answered` — the judgements used, and the rule set version. For each pull request: its facts — checks, reviews, and threads — and the timeline of its fact events. Its tasks, with their history.
 
 ### Tasks
 
@@ -49,6 +49,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 - **Identifiers**: Park's own IDs in paths. Where noted, machines may name pull requests by repository name and number, and Park resolves them.
 - **Links**: responses may include links to the forge, built when the response is rendered and never stored.
 - **Idempotency**: reports and assertions are idempotent by design; claims accept an `Idempotency-Key` header.
+- **Leases**: every task call after the claim carries the lease ID it was given; a call from a lease that is no longer current is refused ([Tasks](06-tasks.md#the-api)).
 - **Compatibility**: within `v1`, changes only add.
 
 ## Endpoints
@@ -64,7 +65,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 | Rules | `GET /fields` · `GET /questions` · `GET /rulesets` · `GET /rulesets/{version}` · `POST /rulesets/drafts` · `PUT /rulesets/drafts/{id}` · `POST /rulesets/drafts/{id}/preview` · `POST /rulesets/drafts/{id}/publish` · `POST /examples` · `DELETE /examples/{id}` |
 | Tasks | `GET /tasks` · `GET /tasks/{id}` · `POST /tasks/claim` · `POST /tasks/{id}/heartbeat` · `POST /tasks/{id}/report` · `POST /tasks/{id}/release` · `POST /tasks/{id}/retry` · `POST /tasks/{id}/dismiss` |
 | My settings | `GET /me/automation` · `PUT /me/automation` · `GET /me/identities` · `DELETE /me/identities/{id}` · `GET /me/tokens` · `POST /me/tokens` · `DELETE /me/tokens/{id}` |
-| Administration | `/admin/installations` · `/admin/repos` · `/admin/members` · `/admin/invites` · `/admin/providers` · `/admin/grouping` · `/admin/model` |
+| Administration | `/admin/forges` · `/admin/installations` · `/admin/repos` · `/admin/members` · `/admin/invites` · `/admin/providers` · `/admin/bridges` · `/admin/grouping` · `/admin/model` |
 | Events | `GET /events` |
 
 Outside `/api/v1`: `POST /hooks/{installation_id}` for forge deliveries, and `GET /healthz` and `GET /readyz` for health checks. `{provider}` is the ID an admin gave a configured sign-in provider, not a vendor's name.
@@ -74,7 +75,7 @@ Outside `/api/v1`: `POST /hooks/{installation_id}` for forge deliveries, and `GE
 - **A1. One contract.** The OpenAPI document is the source; server stubs and the client are generated from it, and CI fails when they drift.
 - **A2. Same origin.** The frontend calls relative paths (`/api/...`) and contains no hostnames — nothing about where or how Park is deployed.
 - **A3. No stored links.** Forge links are rendered per response from stable IDs.
-- **A4. Filtered by visibility** ([I7](07-identity.md#rules)): every list, every read, and every event.
+- **A4. Filtered by visibility** ([I7](07-identity.md#rules)), pull request by pull request: every list, every read, every event, and every write.
 - **A5. Every write is authorized** by permission and recorded with its actor.
 - **A6. Errors carry codes, not internals.**
 - **A7. Changes within a version only add.**

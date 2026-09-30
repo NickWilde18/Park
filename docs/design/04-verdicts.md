@@ -39,18 +39,18 @@ A role is a function of (person, pull request), computed from facts — not a co
 | Role | The person holds it when |
 |---|---|
 | Author | Their account opened the pull request |
-| Reviewer | They are not the author, and a review is requested from them — directly or through a team they belong to — or they have submitted a review |
+| Reviewer | They are not the author, and a review is requested from them — directly, or through a team they belong to — or they have submitted a review |
 
-A person holds at most one role on a pull request. People with neither role have no part in it.
+A person holds at most one role on a pull request. People with neither role have no part in it. A request to a team counts only if the team has at least one member other than the author; a team whose members Park cannot resolve, or whose only member is the author, is as good as no request. A request through a team asks for a first review; handing a pull request back to a reviewer takes a request to them directly.
 
 ## Parts
 
-For each pull request of a unit, Park evaluates the author list for its author, and the reviewer list for each of its reviewers ([Rules](05-rules.md)). Each evaluation gives that person's **part** on that pull request: a kind, and with it an action, targets, priority, reason, and possibly a reminder.
+Only open pull requests take part: a merged or closed pull request stays in its group, but has no parts. For each open pull request of a unit, Park evaluates the author list for its author, and the reviewer list for each of its reviewers ([Rules](05-rules.md)). Each evaluation gives that person's **part** on that pull request: a kind, and with it an action, targets, priority, reason, and possibly a reminder.
 
 | Kind | Means |
 |---|---|
 | `act` | This person has something to do |
-| `hold` | The ball is this person's, but they wait on something that is not a person: their own draft, running checks. Authors only |
+| `hold` | The ball is this person's, but they wait on something that is not a person: their own draft, running checks. Authors only. It never outranks someone else's work |
 | `finish` | Only the last step is left: merging, or waiting for the pull requests below to merge. Authors only |
 | `idle` | Nothing for this person now |
 
@@ -60,34 +60,40 @@ A part says what one person has to do. It never says who else must act: that fol
 
 Once per unit, from every part in it:
 
-1. **The author side**, if any author has an `act` or `hold` part. The work is the author's until it is handed back as a whole.
+1. **The author side**, if any author has an `act` part. The work is the author's until it is handed back as a whole.
 2. Otherwise, **the reviewer side**, if any reviewer has an `act` part.
-3. Otherwise, **the author side**, if any author has a `finish` part: only merging, or waiting for the pull requests below, is left.
-4. Otherwise, **the fallback**: the author side, with the verdict flagged, because the rules found nothing for anyone to do. The default rule set never needs it.
+3. Otherwise, **the author side**, if any author has a `hold` part: the author only waits, on running checks or on their own draft.
+4. Otherwise, **the author side**, if any author has a `finish` part: only merging, or waiting for the pull requests below, is left.
+5. Otherwise, **the fallback**: the author side, held by the authors of the unit's open pull requests, with the verdict flagged, because the rules found nothing for anyone to do. The default rule set never needs it.
 
 ```mermaid
 flowchart TD
-    U(["A unit: a group, or a pull request in no group"]) --> P["Evaluate every person's part,<br/>every judgement unknown"]
-    P --> Q1{"Does any author have<br/>an act or hold part?"}
+    U(["A unit: a group, or a pull request in no group"]) --> P["Evaluate every open pull request's parts,<br/>every judgement unknown"]
+    P --> Q1{"Does any author have<br/>an act part?"}
     Q1 -->|yes| AS["Author side<br/>held by those authors"]
     Q1 -->|no| Q2{"Does any reviewer<br/>have an act part?"}
     Q2 -->|yes| RS["Reviewer side<br/>held by those reviewers only"]
-    Q2 -->|no| Q3{"Does any author<br/>have a finish part?"}
-    Q3 -->|yes| MS["Author side<br/>merge, or wait for the ones below"]
-    Q3 -->|no| FB["Fallback: author side,<br/>verdict flagged"]
-    AS --> REF["Refine with judgements: holders' reasons,<br/>waiting people's reminders. Kinds never change"]
+    Q2 -->|no| Q3{"Does any author<br/>have a hold part?"}
+    Q3 -->|yes| HS["Author side<br/>waiting on checks or a draft"]
+    Q3 -->|no| Q4{"Does any author<br/>have a finish part?"}
+    Q4 -->|yes| MS["Author side<br/>merge, or wait for the ones below"]
+    Q4 -->|no| FB["Fallback: author side,<br/>verdict flagged"]
+    AS --> REF["Refine with judgements: holders' reasons,<br/>waiting people's reminders. Nothing else changes"]
     RS --> REF
+    HS --> REF
     MS --> REF
     FB --> REF
 ```
 
-The **holders** are the people on that side whose parts placed the ball, and their parts are their actions, pull request by pull request. Being on the holding side is not holding the ball: a reviewer who has approved, or has nothing to do, holds nothing, even while the ball is on the reviewer side. Parts on the other side are recorded, but hold nothing either: a reviewer's first review of `web#7` waits while the author still has work on `api#12`.
+The **holders** are the people on that side whose parts placed the ball, and their parts are their actions, pull request by pull request. Being on the holding side is not holding the ball: a reviewer who has approved, or has nothing to do, holds nothing, even while the ball is on the reviewer side. Parts on the other side are recorded, but hold nothing either: a reviewer's first review of `web#7` waits while the author still has work on `api#12`. Waiting is different: an author who only waits — on running checks, or on a draft kept back until another pull request merges — does not hold back anyone's review.
 
 Placement treats every judgement as unknown, so it never waits on the model, and no model answer can move a ball.
 
 | State of a unit | Its ball |
 |---|---|
 | Ana fixes failing checks on `api#12`; `web#7` waits for Ben's first review | Author side: Ana |
+| `api#12` waits for Ben's first review; `web#7` stays a draft until `api#12` merges | Reviewer side: Ben |
+| Ana's `api#12` waits for Ben's first review; Carol's `web#7` has checks running | Reviewer side: Ben |
 | `api#12` asks Ben and Carol for a first review | Reviewer side: Ben and Carol |
 | Two approvals required: Ben approved; Carol has not reviewed yet | Reviewer side: Carol only. Ben's approval is his last word; he waits too |
 | Ben approved, and Ana asks him to review again | Reviewer side: Ben, because the author asked him |
@@ -115,9 +121,10 @@ Placement treats every judgement as unknown, so it never waits on the model, and
 |---|---|---|---|
 | `resolve_conflicts` | Author | Make the pull request mergeable again | Yes |
 | `fix_checks` | Author | Make the failing required checks pass | Yes |
-| `address_comments` | Author | Answer or resolve the review threads that wait on you | Yes |
-| `request_review` | Author | Hand the pull request back — dismiss a standing request for changes, saying what changed, and ask again — or ask for a first review | Yes |
+| `address_comments` | Author | Answer or resolve the review threads, and answer the written reviews, that wait on you | Yes |
+| `request_review` | Author | Hand the pull request back — dismiss a standing request for changes, saying what changed, and ask again; or, when you may not dismiss, just ask again — or ask for a first review | Yes |
 | `review` | Reviewer | Review the pull request, for the first time or again | Yes |
+| `unblock` | Author | Do what the forge still requires before merging: bring the branch up to date, resolve conversations, and the like | No |
 | `merge` | Author | Everything is in place; merge it | No — only people merge |
 
 What makes each task-capable action done is defined in [Tasks](06-tasks.md).
@@ -128,7 +135,9 @@ A **reminder** is not an action. A part can offer one to a person who is waiting
 
 Runs when, for this unit: the facts of any of its pull requests change; its membership changes; a judgement about it is recorded; a member acts on it, such as marking it nudged; a new rule set is published; or an account link or team membership changes someone's role. An hourly pass also re-evaluates every open unit, because rules can read elapsed time. When a pull request moves between groups, both units are evaluated.
 
-1. **Load** the unit's pull requests with their facts and chains, and fix the evaluation time.
+Evaluations of one unit are serialized: each takes the unit's lock, so two pull requests of a group changing at once cannot evaluate the unit side by side.
+
+1. **Load** the unit's open pull requests with their facts and chains, and fix the evaluation time.
 2. **Find each pull request's people** and their roles.
 3. **Build each person's input**: the fields of the [field catalog](05-rules.md#the-field-catalog), computed from the facts for that person.
 4. **Evaluate each person's list** with every judgement unknown. For each rule:
@@ -136,9 +145,9 @@ Runs when, for this unit: the facts of any of its pull requests change; its memb
    2. A condition that depends on a judgement does not match now; the path records it as "unknown judgement".
    3. A condition that fails at run time, or exceeds its cost limit, does not match. The error is recorded in the path, and the rule is flagged on the dashboard.
 5. **Place the ball** (above).
-6. **Refine.** For each holder, and for each waiting person whose path passed over a reminder rule on an unknown judgement, get those judgements (next flow) and evaluate that person's list again. A refined part is kept only if its kind is unchanged. Otherwise the part from step 4 stands, and the rule is flagged.
+6. **Refine.** For each holder, and for each waiting person whose path passed over a reminder rule on an unknown judgement, get those judgements (next flow) and evaluate that person's list again. A refined part is kept only if nothing but its reason or reminder changed. Otherwise the part from step 4 stands, and the rule is flagged.
 7. **Compare** with the unit's current verdict. If the side, the holders with their actions and reasons, and the reminders are all unchanged, store nothing.
-8. **Otherwise store** a new verdict and make it current, and queue work for tasks and the dashboard.
+8. **Otherwise store** a new verdict and make it current, and queue work for tasks and the dashboard. A verdict records the highest fact sequence number it read, and never replaces one computed from newer facts.
 
 When every pull request of a unit is merged or closed, its verdict is closed out, with the reason "Merged" or "Closed".
 
@@ -165,13 +174,13 @@ A question's **fingerprint** is a hash of the question and its version, the pers
 4. **If the same fingerprint is already being asked**, wait for that call, within the timeout.
 5. **Ask.** Take a slot under the concurrency limit, fetch the texts the question reads from the forge, send the question, and wait up to the timeout. Time spent waiting for a slot counts toward it.
 6. **Validate** the answer against the question's schema. An invalid answer counts as an error.
-7. **Record** the judgement, and continue the refinement with it.
+7. **Record** the judgement, and continue the refinement with it. A question and fingerprint have one judgement: if two servers ask at once, the first answer recorded stands, and the other is discarded.
 8. **Below the question's confidence threshold**, the recorded answer counts as unknown. The path shows it — "asked again · model unsure (0.55)" — so a reader can tell the reason came from the rules, not from the model.
 9. **On a timeout**, the refinement continues with the judgement unknown. The call runs on in the background; when its answer arrives, it is recorded and the unit is evaluated again. **On an error**, the judgement is unknown, and the question is retried after a backoff.
 
 ### What this gives
 
-- **The model never moves a ball.** Placement ignores judgements, and a refinement cannot change a part's kind. With no provider, every ball is exactly where it would be with one; reasons are plainer, and no reminder depends on a judgement.
+- **No judgement moves a ball.** Placement ignores judgements, and a refinement changes nothing but a reason or a reminder. With no provider, every part has the same kind and action it would have with one; reasons are plainer, and no reminder depends on a judgement. Model grouping is another matter: a pull request the model places in a group changes the unit it belongs to ([Grouping](03-grouping.md)).
 - **No flicker.** A verdict is stored with its refinements done; the dashboard does not show one reason and then switch to another, except when a call timed out.
 - **Reproducible.** Replaying a verdict reads the recorded judgements and never calls the model again. Rule logic is tested with recorded judgements, without network mocks.
 - **Bounded cost.** Questions are asked only for holders and possible reminders, once per distinct input.
@@ -187,9 +196,9 @@ Before a model provider is enabled, the settings page lists each question and wh
 
 - **V1. Verdicts are pure functions** of their inputs, rule set version, and recorded judgements. Replaying one gives the same conclusion.
 - **V2. One ball per unit**, on exactly one side, with at least one holder. There is no other record of whose turn it is.
-- **V3. Precedence places the ball**: author work, then reviewer work, then the author's last step, then the fallback.
-- **V4. Parts are per person per pull request**, from at most one role; the author role takes precedence. No role, no part.
-- **V5. The model never moves a ball.** Placement treats every judgement as unknown; a refinement may change a part's action, reason, priority, or reminder, never its kind.
+- **V3. Precedence places the ball**: author work, then reviewer work, then an author who only waits, then the author's last step, then the fallback.
+- **V4. Parts are per person per open pull request**, from at most one role; the author role takes precedence. No role, no part; a merged or closed pull request has no parts.
+- **V5. No judgement moves a ball.** Placement treats every judgement as unknown; a refinement may change a part's reason or reminder, and nothing else.
 - **V6. Unknown never matches.** A condition that depends on an unknown judgement — no provider, a timeout, an error, or low confidence — does not match.
 - **V7. Tasks are not an input.** Verdicts read facts only. While an executor works, the ball stays where the facts put it, and the task's state is shown beside it.
 - **V8. Verdicts are immutable.** A new one is stored only when something a person sees changes.

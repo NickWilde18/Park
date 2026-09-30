@@ -41,7 +41,7 @@ Inside `park serve`:
 
 ## How stages hand off
 
-Work moves through a queue table in Postgres. Each entry names a kind and a key — refresh pull request N of repository R, resolve pull request P, evaluate pull request P, verify task T — and the earliest time it may run. Entries with the same kind and key coalesce into one. Workers take entries with `FOR UPDATE SKIP LOCKED`, and `LISTEN/NOTIFY` wakes them without polling.
+Work moves through a queue table in Postgres. Each entry names a kind and a key — refresh pull request N of repository R, resolve the component of pull request P, evaluate unit U, verify task T — and the earliest time it may run. Entries with the same kind and key coalesce while they wait. An entry that is already running is not joined: it is marked dirty, and runs again when it finishes, so work that arrives mid-run is never lost. Workers take entries with `FOR UPDATE SKIP LOCKED`, and `LISTEN/NOTIFY` wakes them without polling. Evaluation is keyed by unit, not by pull request, so two changes in one group evaluate it once, and never side by side.
 
 A stage writes its output and the entries for the stages after it in the same transaction, so a change is never recorded without its follow-up work, or the other way round.
 
@@ -54,7 +54,7 @@ Park/
   cmd/park/            entry point: serve, migrate, version
   api/openapi.yaml     the contract
   internal/
-    facts/             refresh, webhook intake, polling, fact events
+    facts/             refresh, webhook intake, polling, fact events, and the collector interface it calls
     forges/github/     the GitHub collector: fetching, and normalizing into neutral facts
     grouping/          chains, assertions, resolution, suggestions
     verdicts/          roles, parts, placing the ball, queues
@@ -71,11 +71,11 @@ Park/
 
 ## Neutral vocabulary
 
-Domain terms are forge-neutral — `forge`, `repo`, `pull_request`, `review`, `account` — in tables, columns, API paths, and configuration keys. A forge's kind is a value (`github`), never part of a name; the only place a vendor's name appears in code is its own collector's package. GitHub is the only forge at first, and adding another means adding a collector, not changing the schema. There is no adapter layer between collectors and the fact layer until a second forge actually exists.
+Domain terms are forge-neutral — `forge`, `repo`, `pull_request`, `review`, `account` — in tables, columns, API paths, and configuration keys. A forge's kind is a value (`github`), never part of a name; the only place a vendor's name appears in code is its own collector's package. GitHub is the only forge at first, and adding another means adding a collector, not changing the schema. The fact layer calls its collector through a thin interface, shaped by what the fact layer needs — fetch a pull request's state, list open pull requests, read a delivery — so it never imports a vendor's package. There is no broader adapter layer, designed around forges Park does not support, until a second forge actually exists.
 
 ## Configuration
 
-A file plus environment variables; the environment wins. Keys are neutral: `http.addr`, `database.url`, `secret_key`, `identity.oidc`, `model.provider`. Installations, sign-in and model providers, and grouping settings are edited on the dashboard and stored in the database. Secrets — forge credentials, webhook secrets, provider keys — are stored encrypted with the server's secret key, or read from the environment or from files.
+A file plus environment variables; the environment wins. Keys are neutral: `http.addr`, `database.url`, `secret_key`, `identity.oidc`, `model.provider`. Forges and installations, sign-in and model providers, bridges, and grouping settings are edited on the dashboard and stored in the database. Their addresses — a forge's base address, an OIDC issuer, a bridge's link template — are configuration, kept in one place and used to build links and check tokens; no fact, identity, or assertion stores a URL. Secrets — forge credentials, webhook secrets, provider keys — are stored encrypted with the server's secret key, or read from the environment or from files.
 
 ## Deployment
 

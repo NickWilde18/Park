@@ -86,7 +86,7 @@ Park is a long-running server with background workers, queues, and streams, and 
 
 ### D18. No forge adapter layer until a second forge exists
 
-The schema and vocabulary are forge-neutral from the start, which is cheap; an abstraction layer designed around one implementation would be guesswork. It is introduced when a second forge arrives.
+The schema and vocabulary are forge-neutral from the start, which is cheap; an abstraction layer designed around one implementation would be guesswork. It is introduced when a second forge arrives. This does not mean the fact layer imports the vendor's package: it calls its collector through a thin interface shaped by its own needs, which is not guesswork, and keeps the vendor's name out of the core.
 
 ### D35. A standing request for changes keeps the ball with the author
 
@@ -96,7 +96,7 @@ Until the author dismisses a reviewer's request for changes, the author is not r
 
 The ported rules computed "whose turn is it" once per person, from that person's point of view: the predecessor served one person, so its "waiting on others" never had to agree with anyone else's. With several people each deriving it, they disagreed. Evaluating one author and one reviewer over every state found 24 classes of state where the two waited on each other or nobody held the ball; once the lists were aligned to fix that, 31 classes remained where both held it.
 
-So the ball exists once per unit — a group, or a pull request in no group — on exactly one side, held by the people on that side who must act. Each person's rules describe only their own part, and the ball is placed from the parts by precedence: author work first, so the author finishes the whole group before handing it back; then reviewer work; then the author's last step, merging. Disagreement between people cannot be expressed. The same evaluation, extended to two reviewers and to one or two required approvals, finds no state that needs the fallback, and none where a reviewer whose approval stands holds the ball unless the author asked them again.
+So the ball exists once per unit — a group, or a pull request in no group — on exactly one side, held by the people on that side who must act. Each person's rules describe only their own part, and the ball is placed from the parts by precedence: author work first, so the author finishes the whole group before handing it back; then reviewer work; then the author's last step, merging. D41 places an author who only waits — on checks, or on a draft — after reviewer work. Disagreement between people cannot be expressed. The same evaluation, extended to two reviewers and to one or two required approvals, finds no state that needs the fallback, and none where a reviewer whose approval stands holds the ball unless the author asked them again.
 
 Set aside: one ball per group held by exactly one person, which has to pick arbitrarily when several people have work — two reviewers, two authors — and hides the others' work; and one ball per pull request, which lets a group carry several balls at once, so a reviewer could start on one half of a feature while its author still changes the other.
 
@@ -136,9 +136,9 @@ A title saying "redo #57" meant a closed pull request in the same repository; an
 
 Instead of each judgement rule carrying its own fallback branch, a judgement is an unknown value in a CEL condition: the engine evaluates without it, asks only if the outcome depends on it, and a condition that depends on an unknown judgement does not match, so the next rule decides. This is how the predecessor's tree already worked — "new commits · model unsure" was a branch of its own — and it guarantees the model is never asked a question whose answer would not change anything.
 
-### D27. Only a report, a release, or an expiry ends a lease
+### D27. Facts never end a lease
 
-Facts can look done while the executor is still finishing — it has answered every thread, but not yet pushed the change it promised — and ending the lease early would let another task start on the same code. The dashboard shows the verdict and the task's state side by side instead.
+Facts can look done while the executor is still finishing — it has answered every thread, but not yet pushed the change it promised — and ending the lease early would let another task start on the same code. A lease ends only by a report, a release, or its own end — it expires, its token is revoked, its member is disabled — or by a person dismissing the task. When facts say the work is no longer needed, the task is marked to cancel after the attempt, which is then verified: a review task whose review landed is done, not cancelled. Every lease has its own ID, carried by every call after the claim, so a late report from an earlier lease is never taken for the current one. The dashboard shows the verdict and the task's state side by side.
 
 ### D28. Every report is verified, whatever its outcome
 
@@ -146,7 +146,7 @@ An executor's "failed" is as much a claim as its "done", and both are checked ag
 
 ### D29. A task bundles every action a member's unit needs
 
-One task per member per unit holds items of different actions — answer these threads, fix those checks — so a single session sees the whole feature. An executor names the actions it can do, and only claims tasks made of those.
+One task per member per unit holds items of different actions — answer these threads, fix those checks — so a single session sees the whole feature. An executor names the actions it can do, and a claim takes the items it can do, leaving the rest queued; a task nobody claims for too long goes to a person, so work no executor can do is never left waiting unseen.
 
 ### D30. Asking for review is a task; a nudge is a reminder; rules can read elapsed time
 
@@ -154,26 +154,62 @@ The predecessor's tree re-requested reviews and suggested nudges after a day wit
 
 ### D31. Group names follow the authority order
 
-A manual rename outranks an external title, as manual outranks external everywhere else in grouping.
+A manual rename outranks an external title, as manual outranks external everywhere else in grouping. Groups formed by an issue or by references take the issue's title, or the oldest pull request's.
 
 ### D32. Visibility follows the forge
 
-Park shows a repository's pull requests only to members whose linked forge accounts can read it, so that watching a private repository never exposes it to everyone in Park.
+Park shows a repository's pull requests only to members whose linked forge accounts can read it, so that watching a private repository never exposes it to everyone in Park. Because one group can span a public and a private repository, visibility is decided pull request by pull request, and nothing derived from a hidden pull request — its checks, reasons, holders, or a name taken from it — is shown. Writes are checked the same way, and a pull request the caller cannot see is refused exactly like one that does not exist.
 
 ### D33. Comment text is fetched when needed, not stored
 
-Facts keep comment IDs, authors, and times; the few questions that need text fetch it from the forge when asked, and fingerprint comments by ID and edit time. Park holds less of other people's words, and nothing is lost: judgements are recorded, and never asked twice.
+Facts keep comment IDs, authors, and times, and for a review only whether it has a written body; the few questions that need text fetch it from the forge when asked, and fingerprint comments by ID and edit time, checking that the text fetched matches the edit time fingerprinted. Park holds less of other people's words, and nothing is lost: judgements are recorded, and never asked twice.
 
 ### D34. The first administrator needs a one-time setup code
 
-Without it, whoever reaches a fresh server first becomes its administrator. The code is printed to the server's log, which only its operator can read.
+Without it, whoever reaches a fresh server first becomes its administrator. The code is printed to the server's log, or taken from the environment where logs are shared more widely, and it expires after an hour.
 
 ### D36. Handing the ball back is explicit
 
-Beyond D35: with nothing to dismiss — the reviewer only commented — asking again hands the pull request back, and until then the author has work on it. Neither a reply, nor new commits, hands the ball back by themselves. An approval settles the approver's own threads, so they never keep the author from merging.
+Beyond D35: with nothing to dismiss — the reviewer only commented — asking again hands the pull request back, and until then the author has work on it. Neither a reply, nor new commits, hands the ball back by themselves. An approval settles the approver's own threads where the author replied last, so they never keep the author from merging; a thread where the approver spoke last still waits on the author, who answers it first.
 
 Set aside: letting whoever spoke last hold the ball, which ignores the dismissal practice and turns every "will do" into the reviewer's work; and letting new commits bring a reviewer back, as the predecessor did, which pulls reviewers in before the author is done.
 
-### D38. The model never moves a ball
+### D38. No judgement moves a ball
 
-Placement treats every judgement as unknown, and a refinement cannot change a part's kind, so a ball is in the same place with or without a model; judgements only sharpen what a holder is told, or decide whether someone waiting is offered a reminder. Explicit hand-offs made two of the predecessor's uses redundant: asking whether the author was waiting for the reviewer's view, and whether new commits should bring the reviewer back — asking again answers both. The first question was dropped; the second now only sharpens the reason of a reviewer who is asked again.
+Placement treats every judgement as unknown, and a refinement changes nothing but a reason or a reminder, so every part has the same kind and action with or without a model; judgements only sharpen what a holder is told, or decide whether someone waiting is offered a reminder. The guarantee is about judgements: a model that places a pull request in a group does change the unit it belongs to. Explicit hand-offs made two of the predecessor's uses redundant: asking whether the author was waiting for the reviewer's view, and whether new commits should bring the reviewer back — asking again answers both. The first question was dropped; the second now only sharpens the reason of a reviewer who is asked again.
+
+### D39. Merging takes the forge's go-ahead and the team's minimum
+
+Counting approvals against the forge's requirement had two gaps. Where the forge requires no approval, a requested reviewer was told their review was optional, and the author to merge at once; where it requires code owners, or rulesets apply to some branches only, the count said "ready" while the forge refused. Park now reads the forge's own merge verdict — whether it can merge, and what blocks it — as a fact, and keeps its own minimum of approvals, one by default, as team policy. A code owner whose approval is required is never optional.
+
+Set aside: re-implementing branch protection, rulesets, and code ownership inside Park, which would drift from the forge.
+
+### D40. A review's written body is something to answer
+
+Only inline threads counted, so a request for changes written only in a review's body read as "every comment answered" at once — and, with automation on, an executor would have dismissed a review nobody had answered. Park now keeps, for each review, whether it has a written body, and such a review waits on the author until the author comments on the pull request or pushes after it. Comments in the pull request's conversation are left out for now ([Open questions](11-open-questions.md)).
+
+### D41. Waiting never outranks work
+
+An author's `hold` — a draft, running checks — used to rank with `act`, ahead of reviewer work. A group whose backend waited for review, while its frontend stayed a draft until the backend merged, then waited on itself; and every push that restarted checks flipped a group's ball between the sides. Now reviewer work comes before an author who only waits. A reviewer still waits for green checks on the pull request they review, by a reviewer rule, and checks that stay pending for hours become the author's to look at.
+
+### D42. Every external ID is qualified by its forge
+
+A forge kind and a numeric account ID do not identify an account once Park talks to two forges of one kind — github.com and a company's own server — whose IDs overlap: the same pair would sign a stranger in as a member. Park keeps a record for each forge, and every external ID — of accounts, repositories, and teams alike — is keyed by it. Sign-in identities are keyed by their provider the same way, and OIDC identities store only their `sub`, with the issuer kept in the provider's settings rather than on every row.
+
+### D43. Grouping resolves a component at once, in a canonical order
+
+Resolving one pull request at a time, with a new anchor joining whichever group held most of its pull requests at that moment, made the outcome depend on the order events arrived in, and could chain two unrelated claims into one group through a pull request they shared. Now each component is resolved as one batch: every pull request's winning claim first, then each anchor, from the pull requests that chose it, in a canonical order.
+
+### D44. Authors who may not dismiss hand back by asking again
+
+A forge lets only people with write access — and, on a protected branch, only those allowed — dismiss reviews, so a contributor from a fork could never hand a pull request back under D35. Park reads whether the author may dismiss; if not, asking the reviewer again hands it back, and the reviewer then holds it, to review again and lift their request.
+
+### D45. A team request asks for a first review
+
+Whether a request to a team counted as a pending request for each of its members was undefined, and one reading sent the ball to a teammate who had never reviewed, or to nobody at all. Now a team request asks its members for a first review; handing back takes a request to the reviewer directly; and a team with no member other than the author counts as no request.
+
+### D46. Chains skip forks and long-lived branches
+
+Matching base branch names against head branch names alone made a release pull request from `develop` the parent of every pull request based on `develop`, and a contributor's fork, pushed from its own `main`, the parent of everything based on `main`. Chain edges now stay within one repository, never start from a fork's branch, and never hang from the default branch, a protected branch, or a configured long-lived name.
+
+Set aside: treating any branch that several pull requests are based on as long-lived, which would break legitimate stacked trees.
