@@ -1,0 +1,115 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: park
+          POSTGRES_PASSWORD: park
+          POSTGRES_DB: park
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U park"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      PARK_TEST_DATABASE_URL: postgres://park:park@localhost:5432/park?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Generated code matches the contract
+        run: |
+          go generate ./...
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+      - run: go vet ./...
+      - run: go test -race ./...
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Generated types match the contract
+        run: |
+          pnpm run gen
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+      - run: pnpm run lint
+      - run: pnpm run build
+
+  smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: park
+          POSTGRES_PASSWORD: park
+          POSTGRES_DB: park
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U park"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: make build
+      - name: Serve the binary and call it
+        env:
+          PARK_DATABASE_URL: postgres://park:park@localhost:5432/park?sslmode=disable
+          PARK_HTTP_ADDR: 127.0.0.1:8080
+        run: |
+          export PARK_SECRET_KEY="$(openssl rand -base64 32)"
+          bin/park version
+          bin/park serve > "$RUNNER_TEMP/serve.log" 2>&1 &
+          pid=$!
+          trap 'cat "$RUNNER_TEMP/serve.log"' EXIT
+          for _ in $(seq 30); do curl -fsS http://127.0.0.1:8080/readyz && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8080/readyz
+          test "$(curl -fsS http://127.0.0.1:8080/api/v1/auth/providers)" = '{"providers":[]}'
+          curl -fsS http://127.0.0.1:8080/ | grep -q '<div id="root">'
+          kill -TERM "$pid"
+          wait "$pid"
