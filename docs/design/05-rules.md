@@ -55,7 +55,7 @@ pr.checks == 'failing' && pr.failing_checks.all(c, c.startsWith('e2e-'))
 
 ## The field catalog
 
-Everything a condition can read. Fields are computed for one person on one pull request. A reviewer's **decisive review** is their latest review that approves or requests changes; reviews that only comment do not change it.
+Everything a condition can read. Fields are computed for one person on one pull request. Numbers are whole numbers, and hours whole hours ([D52](10-design-log.md#d52-numbers-are-whole-and-hours-whole-hours)); an account is its login, and a team its organisation/team slug. A reviewer's **decisive review** is their latest review that approves or requests changes; reviews that only comment do not change it.
 
 **Pull request**
 
@@ -131,7 +131,7 @@ No field exposes where a fact came from, a task's state, another person's part, 
 | Action | Required for `act`, and `merge` for a `finish` that can merge: an action allowed for the role ([Verdicts](04-verdicts.md#actions)) |
 | Targets | For `request_review`: an account-list field naming the reviewers to hand the pull request back to, such as `pr.blocked_by`. Without one, anyone will do |
 | Priority | `normal` (the default) or `low` |
-| Reason | A template, with expressions in braces: `{me.threads_on_me} comments wait on you` |
+| Reason | A template, with expressions in braces: `{me.threads_on_me} comments wait on you`. A list reads "ben and carol"; `{{` and `}}` are braces |
 | Remind | Only for `idle`: remind the people who hold the ball — a nudge. A reminder never moves the ball |
 | May become a task | Only for actions that can be tasks. Whether a task is actually created also depends on the member's automation settings ([Tasks](06-tasks.md)) |
 
@@ -139,7 +139,7 @@ A conclusion says nothing about who else must act: that follows from placing the
 
 ## The default rule set
 
-Park ships with the rule set below, ported from its predecessor's decision tree, where it ran on a real team's pull requests, and reshaped so that each row states one person's part. Every rule whose action can be a task is marked as able to become one, unless its action says otherwise. The numbers in it — 2 hours, 24 hours, 48 hours, position 3 — are ordinary values, edited like anything else.
+Park ships with the rule set below, ported from its predecessor's decision tree, where it ran on a real team's pull requests, and reshaped so that each row states one person's part. It ships as a rule-set file, [`internal/rules/default.json`](../../internal/rules/default.json), which the [design checks](checks/README.md) hold to the tables below, and Park publishes it as the first version when it first starts. Every rule whose action can be a task is marked as able to become one, unless its action says otherwise. The numbers in it — 2 hours, 24 hours, 48 hours, position 3 — are ordinary values, edited like anything else.
 
 In the trees below, each diamond is a rule, tried from the top. An edge labelled with a passed-over label shows what the path says when the rule does not match. Conclusions are coloured by kind: orange `act`, blue `hold`, green `finish`, grey `idle`.
 
@@ -328,7 +328,7 @@ A draft can be published only when:
 - every pinned example is confirmed;
 - the draft was started from the version that is published now. A draft started from an older version must be brought up to date first, so that publishing never silently undoes someone else's change.
 
-In the first release there is no editor ([Phases](README.md#phases)): a draft is imported from a rule-set file — kept, and reviewed, in git — through the same publish API, and every check above runs on it.
+In the first release there is no editor ([Phases](README.md#phases)): a draft is imported from a rule-set file — kept, and reviewed, in git — through the same publish API, and every check above runs on it. The file is the JSON document the API takes ([D53](10-design-log.md#d53-a-rule-set-is-one-json-document)): each role's list, and each rule's name, passed-over label, condition, and conclusion.
 
 ## Rules
 

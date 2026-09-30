@@ -54,44 +54,54 @@ def with_judgements(pr, answer):
     return pr
 
 
-start = time.time()
-states = bad = 0
-seen = {}
-R = list(reviewer_states())
-for ben, carol, required, draft, checks, can_dismiss, new_commits, hours, nudge in itertools.product(
-        R, R, (0, 1, 2), (False, True), ("passing", "pending", "failing"), (True, False), (False, True), (1, 30),
-        (None, 5)):
-    unit = build(ben, carol, required, draft, checks, can_dismiss, new_commits, hours, nudge)
-    states += 1
-    side, holders, parts = place(unit)
-    problems = []
-    if side == "fallback":
-        problems.append("the ball needs the fallback")
-    for h in holders:
-        if h["role"] != "reviewer":
-            continue
-        s = ben if h["person"] == "ben" else carol
-        if s["decision"] == "approved" and not s["requested"]:
-            problems.append("a reviewer who approved holds the ball without being asked again")
-        if s["decision"] == "changes_requested" and (can_dismiss or not s["requested"]):
-            problems.append("a reviewer who requested changes holds the ball")
-        if h["kind"] != "act":
-            problems.append("a reviewer holds the ball with a part that is not act")
-    base = {p["person"]: (p["kind"], p["action"]) for p in parts}
-    for answer in ("yes", "no"):
-        for person, (role, fields) in people(with_judgements(unit["pr"], answer)).items():
-            rule = evaluate(AUTHOR if role == "author" else REVIEWER, fields)
-            if (rule["kind"], rule["action"]) != base[person]:
-                problems.append(f"a model answer '{answer}' changes the {role}'s part")
-    author = next(p for p in parts if p["role"] == "author")
-    if (author["name"] in ("Changes requested, all answered", "All answered, cannot dismiss")
-            and people(unit["pr"])["ana"][1]["pr.unanswered_reviews"]):
-        problems.append("'all answered' while a written review is unanswered")
-    for p in problems:
-        seen.setdefault(p, (ben, carol, required, draft, checks, can_dismiss, new_commits, hours, nudge, parts))
-        bad += 1
-print(f"states: {states}; failing: {bad}; kinds of failure: {len(seen)}; {time.time() - start:.0f}s")
-for p, (ben, carol, *rest, parts) in seen.items():
-    print(f"  {p}: ben={ben} carol={carol} rest={rest}\n    "
-          + "; ".join(f"{x['person']} #{x['n']} {x['name']} → {x['kind']}" for x in parts))
-sys.exit(1 if bad else 0)
+def states():
+    """Every state of the sweep: its parameters — ben, carol, required, draft, checks, can_dismiss, new_commits,
+    hours, nudge — and its unit."""
+    r = list(reviewer_states())
+    for params in itertools.product(r, r, (0, 1, 2), (False, True), ("passing", "pending", "failing"), (True, False),
+                                    (False, True), (1, 30), (None, 5)):
+        yield params, build(*params)
+
+
+def main():
+    start = time.time()
+    count = bad = 0
+    seen = {}
+    for (ben, carol, required, draft, checks, can_dismiss, new_commits, hours, nudge), unit in states():
+        count += 1
+        side, holders, parts = place(unit)
+        problems = []
+        if side == "fallback":
+            problems.append("the ball needs the fallback")
+        for h in holders:
+            if h["role"] != "reviewer":
+                continue
+            s = ben if h["person"] == "ben" else carol
+            if s["decision"] == "approved" and not s["requested"]:
+                problems.append("a reviewer who approved holds the ball without being asked again")
+            if s["decision"] == "changes_requested" and (can_dismiss or not s["requested"]):
+                problems.append("a reviewer who requested changes holds the ball")
+            if h["kind"] != "act":
+                problems.append("a reviewer holds the ball with a part that is not act")
+        base = {p["person"]: (p["kind"], p["action"]) for p in parts}
+        for answer in ("yes", "no"):
+            for person, (role, fields) in people(with_judgements(unit["pr"], answer)).items():
+                rule = evaluate(AUTHOR if role == "author" else REVIEWER, fields)
+                if (rule["kind"], rule["action"]) != base[person]:
+                    problems.append(f"a model answer '{answer}' changes the {role}'s part")
+        author = next(p for p in parts if p["role"] == "author")
+        if (author["name"] in ("Changes requested, all answered", "All answered, cannot dismiss")
+                and people(unit["pr"])["ana"][1]["pr.unanswered_reviews"]):
+            problems.append("'all answered' while a written review is unanswered")
+        for p in problems:
+            seen.setdefault(p, (ben, carol, required, draft, checks, can_dismiss, new_commits, hours, nudge, parts))
+            bad += 1
+    print(f"states: {count}; failing: {bad}; kinds of failure: {len(seen)}; {time.time() - start:.0f}s")
+    for p, (ben, carol, *rest, parts) in seen.items():
+        print(f"  {p}: ben={ben} carol={carol} rest={rest}\n    "
+              + "; ".join(f"{x['person']} #{x['n']} {x['name']} → {x['kind']}" for x in parts))
+    sys.exit(1 if bad else 0)
+
+
+if __name__ == "__main__":
+    main()

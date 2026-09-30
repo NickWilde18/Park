@@ -31,6 +31,7 @@ import (
 	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/httpapi"
 	"github.com/NickWilde18/Park/internal/identity"
+	"github.com/NickWilde18/Park/internal/rules"
 	"github.com/NickWilde18/Park/internal/secret"
 	"github.com/NickWilde18/Park/internal/store"
 	"github.com/NickWilde18/Park/internal/work"
@@ -106,6 +107,10 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	if err != nil {
 		return err
 	}
+	ruleSets := rules.New(pool, log)
+	if _, err := ruleSets.Bootstrap(ctx); err != nil {
+		return fmt.Errorf("publish the default rule set: %w", err)
+	}
 	collected := facts.New(pool, box, log)
 	groups := grouping.New(pool, log)
 	collected.Follow(groups.FactsFollower())
@@ -156,6 +161,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		Identity: ids,
 		Facts:    collected,
 		Grouping: groups,
+		Rules:    ruleSets,
 		Pool:     pool,
 	})
 	if err != nil {

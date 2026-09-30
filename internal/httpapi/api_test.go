@@ -19,6 +19,7 @@ import (
 	_ "github.com/NickWilde18/Park/internal/forges/github"
 	"github.com/NickWilde18/Park/internal/forges/github/githubtest"
 	"github.com/NickWilde18/Park/internal/identity"
+	"github.com/NickWilde18/Park/internal/rules"
 	"github.com/NickWilde18/Park/internal/secret"
 	"github.com/NickWilde18/Park/internal/store/storetest"
 )
@@ -47,6 +48,7 @@ func (b *syncBuffer) String() string {
 type harness struct {
 	h     http.Handler
 	ids   *identity.Service
+	rules *rules.Service
 	pool  *pgxpool.Pool
 	logs  *syncBuffer
 	forge *githubtest.Fake
@@ -65,11 +67,12 @@ func newAPI(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := New(Options{Ready: ready, UI: built, Logger: log, Identity: ids, Pool: pool})
+	ruleSets := rules.New(pool, log)
+	h, err := New(Options{Ready: ready, UI: built, Logger: log, Identity: ids, Rules: ruleSets, Pool: pool})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &harness{h: h, ids: ids, pool: pool, logs: logs, forge: githubtest.New(t, "client-secret")}
+	return &harness{h: h, ids: ids, rules: ruleSets, pool: pool, logs: logs, forge: githubtest.New(t, "client-secret")}
 }
 
 // browser is one client of the API: its cookies, and its CSRF token once it has one.

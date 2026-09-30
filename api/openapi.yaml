@@ -950,6 +950,132 @@ paths:
                 $ref: "#/components/schemas/Bridge"
         default:
           $ref: "#/components/responses/Error"
+  /fields:
+    get:
+      operationId: listFields
+      summary: The field catalog, every field a condition or a reason can read
+      tags: [rules]
+      responses:
+        "200":
+          description: The fields, judgements last.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Fields"
+        default:
+          $ref: "#/components/responses/Error"
+  /questions:
+    get:
+      operationId: listQuestions
+      summary: The questions judgements answer
+      tags: [rules]
+      responses:
+        "200":
+          description: The questions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Questions"
+        default:
+          $ref: "#/components/responses/Error"
+  /rulesets:
+    get:
+      operationId: listRuleSets
+      summary: The published rule set versions, newest first; the first is in force
+      tags: [rules]
+      responses:
+        "200":
+          description: The versions, without their rules.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleSetVersions"
+        default:
+          $ref: "#/components/responses/Error"
+  /rulesets/{version}:
+    get:
+      operationId: getRuleSet
+      summary: A published rule set version
+      tags: [rules]
+      parameters:
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The version, with its rules.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleSetVersion"
+        default:
+          $ref: "#/components/responses/Error"
+  /rulesets/drafts:
+    post:
+      operationId: createRuleSetDraft
+      summary: Start a draft of the next version, from the published one or from an imported rule-set file
+      description: >-
+        Needs the rules permission. A draft with problems is saved, and lists them; it cannot be published until it has
+        none.
+      tags: [rules]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftRequest"
+      responses:
+        "201":
+          description: The draft, with its problems.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleSetDraft"
+        default:
+          $ref: "#/components/responses/Error"
+  /rulesets/drafts/{id}:
+    put:
+      operationId: updateRuleSetDraft
+      summary: Replace a draft's rules, and with base_version, bring it up to date
+      tags: [rules]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftUpdate"
+      responses:
+        "200":
+          description: The draft, with its problems.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleSetDraft"
+        default:
+          $ref: "#/components/responses/Error"
+  /rulesets/drafts/{id}/publish:
+    post:
+      operationId: publishRuleSetDraft
+      summary: Publish a draft as the next version
+      description: >-
+        Refused with stale_draft when another version was published since the draft's base, and with
+        draft_has_problems while it has any.
+      tags: [rules]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "201":
+          description: The new version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleSetVersion"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     session:
@@ -1974,6 +2100,246 @@ components:
           description: The member who owns it; the caller by default.
         link_template:
           type: string
+    Field:
+      type: object
+      required: [name, type, meaning]
+      properties:
+        name:
+          type: string
+          description: Such as pr.checks.
+        type:
+          type: string
+          enum: [boolean, number, optional number, choice, text, account, list of text, list of accounts,
+            list of accounts and teams, list of choices, judgement]
+          description: Numbers are whole numbers, and hours whole hours; accounts are logins.
+        meaning:
+          type: string
+        choices:
+          type: array
+          items:
+            type: string
+          description: The values of a choice, a list of choices, or a judgement.
+    Fields:
+      type: object
+      required: [fields]
+      properties:
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/Field"
+    Question:
+      type: object
+      required: [name, role, asks, answers]
+      properties:
+        name:
+          type: string
+          description: A condition reads its answer as judgement.<name>.
+        role:
+          type: string
+          enum: [author, reviewer]
+          description: The role it is asked for.
+        asks:
+          type: string
+        answers:
+          type: array
+          items:
+            type: string
+    Questions:
+      type: object
+      required: [questions]
+      properties:
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+    RuleSet:
+      type: object
+      required: [author, reviewer]
+      description: Each role's ordered list of rules. The first rule whose condition matches decides a person's part.
+      properties:
+        author:
+          type: array
+          items:
+            $ref: "#/components/schemas/Rule"
+        reviewer:
+          type: array
+          items:
+            $ref: "#/components/schemas/Rule"
+    RuleSetDocument:
+      type: object
+      additionalProperties: true
+      description: >-
+        A rule set as RuleSet describes it, such as an imported rule-set file. It is read strictly: a key RuleSet does
+        not have is refused, rather than dropped.
+    Rule:
+      type: object
+      required: [name, when, then]
+      properties:
+        name:
+          type: string
+        passed_over:
+          type: string
+          description: Shown in a path when the rule does not match.
+        when:
+          $ref: "#/components/schemas/Condition"
+        then:
+          $ref: "#/components/schemas/Conclusion"
+    Condition:
+      type: object
+      description: >-
+        Exactly one of: always, the catch-all; all or any of conditions; expr, a CEL expression, only as a whole
+        condition; or a term, a field and an op, with a value when the op takes one.
+      properties:
+        always:
+          type: boolean
+        all:
+          type: array
+          items:
+            $ref: "#/components/schemas/Condition"
+        any:
+          type: array
+          items:
+            $ref: "#/components/schemas/Condition"
+        expr:
+          type: string
+        field:
+          type: string
+        op:
+          type: string
+          description: >-
+            is_true, is_false; eq, ne, lt, le, gt, ge; is, is_not, is_one_of; starts_with, contains; is_empty,
+            is_not_empty; is_set, is_not_set.
+        value:
+          description: >-
+            A whole number, a text, a list of texts for is_one_of, or {"field": name} for another number field.
+    Conclusion:
+      type: object
+      required: [kind, reason]
+      properties:
+        kind:
+          type: string
+          description: act, hold, finish, or idle; a reviewer's part is act or idle.
+        action:
+          type: string
+          description: Required for act; merge, or none, for finish.
+        targets:
+          type: string
+          description: For request_review, a list-of-accounts field, such as pr.blocked_by.
+        priority:
+          type: string
+          description: normal, the default, or low.
+        reason:
+          type: string
+          description: Text, with expressions in braces; {{ and }} are literal braces.
+        remind:
+          type: boolean
+          description: Only for idle.
+        task:
+          type: boolean
+          description: The part may become a task; only for actions that can be tasks.
+    Problem:
+      type: object
+      required: [part, code, message]
+      properties:
+        role:
+          type: string
+          enum: [author, reviewer]
+        rule:
+          type: integer
+          description: The rule's number in its list, from 1; absent for a problem of a list or of the draft.
+        part:
+          type: string
+          enum: [list, name, when, then, reason, base]
+        code:
+          type: string
+        message:
+          type: string
+    RuleSetVersionSummary:
+      type: object
+      required: [version, published_at]
+      properties:
+        version:
+          type: integer
+        based_on:
+          type: integer
+          description: The version its draft started from; absent for the first.
+        published_by:
+          type: integer
+          format: int64
+          description: The member who published it; absent for the default rule set, published by Park.
+        published_at:
+          type: string
+          format: date-time
+    RuleSetVersions:
+      type: object
+      required: [versions]
+      properties:
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleSetVersionSummary"
+    RuleSetVersion:
+      type: object
+      required: [version, published_at, rules]
+      properties:
+        version:
+          type: integer
+        based_on:
+          type: integer
+        published_by:
+          type: integer
+          format: int64
+        published_at:
+          type: string
+          format: date-time
+        rules:
+          $ref: "#/components/schemas/RuleSet"
+    RuleSetDraft:
+      type: object
+      required: [id, rules, problems, created_by, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        base_version:
+          type: integer
+          description: The version it started from; absent before the first.
+        rules:
+          $ref: "#/components/schemas/RuleSet"
+        problems:
+          type: array
+          items:
+            $ref: "#/components/schemas/Problem"
+          description: What keeps it from being published now; empty when nothing does.
+        created_by:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        published_version:
+          type: integer
+          description: The version it became, once published.
+    DraftRequest:
+      type: object
+      properties:
+        base_version:
+          type: integer
+          description: The version it starts from; the one published now by default.
+        rules:
+          $ref: "#/components/schemas/RuleSetDocument"
+    DraftUpdate:
+      type: object
+      required: [rules]
+      properties:
+        rules:
+          $ref: "#/components/schemas/RuleSetDocument"
+        base_version:
+          type: integer
+          description: Moves the draft's base, to bring it up to date with the version published now.
     Error:
       type: object
       required: [error]

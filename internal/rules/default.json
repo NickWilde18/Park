@@ -1,0 +1,302 @@
+{
+  "author": [
+    {
+      "name": "Draft",
+      "passed_over": "not a draft",
+      "when": {"field": "pr.draft", "op": "is_true"},
+      "then": {"kind": "hold", "reason": "Draft"}
+    },
+    {
+      "name": "Conflicts",
+      "passed_over": "no conflicts",
+      "when": {"field": "pr.conflicting", "op": "is_true"},
+      "then": {"kind": "act", "action": "resolve_conflicts", "task": true, "reason": "Conflicts with the base branch"}
+    },
+    {
+      "name": "Checks failing",
+      "passed_over": "checks not failing",
+      "when": {"field": "pr.checks", "op": "is", "value": "failing"},
+      "then": {"kind": "act", "action": "fix_checks", "task": true, "reason": "{size(pr.failing_checks)} required checks failing"}
+    },
+    {
+      "name": "Checks stuck",
+      "when": {"all": [
+        {"field": "pr.checks", "op": "is", "value": "pending"},
+        {"field": "pr.hours_checks_pending", "op": "ge", "value": 2}
+      ]},
+      "then": {"kind": "act", "action": "fix_checks", "reason": "Required checks have been running for {pr.hours_checks_pending} hours"}
+    },
+    {
+      "name": "Checks running",
+      "when": {"field": "pr.checks", "op": "is", "value": "pending"},
+      "then": {"kind": "hold", "reason": "Waiting for checks"}
+    },
+    {
+      "name": "Changes requested, all answered",
+      "when": {"all": [
+        {"field": "pr.blocked_by", "op": "is_not_empty"},
+        {"field": "me.threads_on_me", "op": "eq", "value": 0},
+        {"field": "pr.unanswered_reviews", "op": "eq", "value": 0},
+        {"field": "pr.author_can_dismiss", "op": "is_true"}
+      ]},
+      "then": {"kind": "act", "action": "request_review", "targets": "pr.blocked_by", "task": true,
+        "reason": "Every comment is answered; dismiss {pr.blocked_by}'s request for changes, saying what changed, and ask again"}
+    },
+    {
+      "name": "All answered, cannot dismiss",
+      "when": {"all": [
+        {"field": "pr.blocked_by", "op": "is_not_empty"},
+        {"field": "me.threads_on_me", "op": "eq", "value": 0},
+        {"field": "pr.unanswered_reviews", "op": "eq", "value": 0},
+        {"field": "pr.blockers_rerequested", "op": "is_false"}
+      ]},
+      "then": {"kind": "act", "action": "request_review", "targets": "pr.blocked_by", "task": true,
+        "reason": "Every comment is answered; you cannot dismiss {pr.blocked_by}'s request for changes, so ask them to review again"}
+    },
+    {
+      "name": "Handed back, cannot dismiss",
+      "when": {"all": [
+        {"field": "pr.blocked_by", "op": "is_not_empty"},
+        {"field": "me.threads_on_me", "op": "eq", "value": 0},
+        {"field": "pr.unanswered_reviews", "op": "eq", "value": 0}
+      ]},
+      "then": {"kind": "idle", "reason": "Asked {pr.blocked_by} to review again"}
+    },
+    {
+      "name": "Changes requested",
+      "when": {"field": "pr.blocked_by", "op": "is_not_empty"},
+      "then": {"kind": "act", "action": "address_comments", "task": true,
+        "reason": "{pr.blocked_by} requested changes; {me.threads_on_me + pr.unanswered_reviews} items wait on you"}
+    },
+    {
+      "name": "Comments wait on you",
+      "passed_over": "no comments wait on you",
+      "when": {"field": "me.threads_on_me", "op": "gt", "value": 0},
+      "then": {"kind": "act", "action": "address_comments", "task": true, "reason": "{me.threads_on_me} comments wait on you"}
+    },
+    {
+      "name": "Reviews wait on you",
+      "passed_over": "no reviews wait on you",
+      "when": {"field": "pr.unanswered_reviews", "op": "gt", "value": 0},
+      "then": {"kind": "act", "action": "address_comments", "task": true, "reason": "{pr.unanswered_reviews} reviews wait for your answer"}
+    },
+    {
+      "name": "Replies not handed back",
+      "when": {"all": [
+        {"field": "pr.threads_on_reviewers", "op": "gt", "value": 0},
+        {"field": "pr.awaited_rerequested", "op": "is_false"}
+      ]},
+      "then": {"kind": "act", "action": "request_review", "targets": "pr.awaited_reviewers", "task": true,
+        "reason": "{pr.threads_on_reviewers} of your replies wait on {pr.awaited_reviewers}; finish what you promised, then ask them to look again"}
+    },
+    {
+      "name": "Replies wait on reviewers",
+      "when": {"field": "pr.threads_on_reviewers", "op": "gt", "value": 0},
+      "then": {"kind": "idle", "reason": "{pr.threads_on_reviewers} replies wait for the reviewers"}
+    },
+    {
+      "name": "Approved, stacked",
+      "when": {"all": [
+        {"field": "pr.approvals", "op": "ge", "value": {"field": "pr.required_approvals"}},
+        {"field": "pr.blocked_by", "op": "is_empty"},
+        {"field": "chain.open_below", "op": "gt", "value": 0}
+      ]},
+      "then": {"kind": "finish", "reason": "Approved; {chain.open_below} pull requests below it must merge first"}
+    },
+    {
+      "name": "Ready to merge",
+      "passed_over": "not ready to merge",
+      "when": {"all": [
+        {"field": "pr.approvals", "op": "ge", "value": {"field": "pr.required_approvals"}},
+        {"field": "pr.blocked_by", "op": "is_empty"},
+        {"field": "pr.mergeable_now", "op": "is_true"}
+      ]},
+      "then": {"kind": "finish", "action": "merge", "reason": "Approved and passing; ready to merge"}
+    },
+    {
+      "name": "Blocked from merging",
+      "when": {"all": [
+        {"field": "pr.approvals", "op": "ge", "value": {"field": "pr.required_approvals"}},
+        {"field": "pr.blocked_by", "op": "is_empty"},
+        {"field": "pr.code_owners_pending", "op": "is_empty"}
+      ]},
+      "then": {"kind": "act", "action": "unblock", "reason": "Approved, but the forge still blocks merging: {pr.merge_blocked_by}"}
+    },
+    {
+      "name": "No reviewer",
+      "when": {"field": "pr.requested", "op": "is_empty"},
+      "then": {"kind": "act", "action": "request_review", "task": true, "reason": "Nobody is asked to review"}
+    },
+    {
+      "name": "Nudged",
+      "when": {"all": [
+        {"field": "pr.hours_requested", "op": "ge", "value": 24},
+        {"field": "me.hours_since_nudge", "op": "lt", "value": 48}
+      ]},
+      "then": {"kind": "idle", "reason": "Nudged; waiting for review"}
+    },
+    {
+      "name": "Time to nudge",
+      "when": {"field": "pr.hours_requested", "op": "ge", "value": 24},
+      "then": {"kind": "idle", "remind": true, "reason": "No review since the request; remind the reviewers"}
+    },
+    {
+      "name": "Waiting for review",
+      "when": {"always": true},
+      "then": {"kind": "idle", "reason": "Waiting for review"}
+    }
+  ],
+  "reviewer": [
+    {
+      "name": "Draft",
+      "passed_over": "not a draft",
+      "when": {"field": "pr.draft", "op": "is_true"},
+      "then": {"kind": "idle", "reason": "Draft"}
+    },
+    {
+      "name": "Checks running",
+      "passed_over": "checks not running",
+      "when": {"field": "pr.checks", "op": "is", "value": "pending"},
+      "then": {"kind": "idle", "reason": "Checks are still running"}
+    },
+    {
+      "name": "Approved without you",
+      "when": {"all": [
+        {"field": "me.reviewed", "op": "is_false"},
+        {"field": "me.code_owner", "op": "is_false"},
+        {"field": "pr.approvals", "op": "ge", "value": {"field": "pr.required_approvals"}}
+      ]},
+      "then": {"kind": "idle", "reason": "Already has the approvals it needs; your review is optional"}
+    },
+    {
+      "name": "Team request",
+      "when": {"all": [
+        {"field": "me.reviewed", "op": "is_false"},
+        {"field": "me.requested", "op": "is_false"}
+      ]},
+      "then": {"kind": "act", "action": "review", "priority": "low", "task": true, "reason": "Requested from your team"}
+    },
+    {
+      "name": "First review, deep in a chain",
+      "when": {"all": [
+        {"field": "me.reviewed", "op": "is_false"},
+        {"field": "chain.position", "op": "ge", "value": 3}
+      ]},
+      "then": {"kind": "act", "action": "review", "priority": "low", "task": true,
+        "reason": "First review; {chain.position} of {chain.length} in its chain, not urgent"}
+    },
+    {
+      "name": "First review",
+      "passed_over": "reviewed before",
+      "when": {"field": "me.reviewed", "op": "is_false"},
+      "then": {"kind": "act", "action": "review", "task": true, "reason": "First review"}
+    },
+    {
+      "name": "Asked again, the author cannot dismiss",
+      "when": {"all": [
+        {"field": "me.decision", "op": "is", "value": "changes_requested"},
+        {"field": "me.requested", "op": "is_true"},
+        {"field": "pr.author_can_dismiss", "op": "is_false"}
+      ]},
+      "then": {"kind": "act", "action": "review", "task": true,
+        "reason": "The author cannot dismiss your request for changes and asked you to review again; lift it if you are satisfied"}
+    },
+    {
+      "name": "Your block is stale",
+      "when": {"all": [
+        {"field": "me.decision", "op": "is", "value": "changes_requested"},
+        {"field": "me.reviewed_since_decision", "op": "is_true"},
+        {"field": "me.threads_open", "op": "eq", "value": 0}
+      ]},
+      "then": {"kind": "idle",
+        "reason": "You reviewed again, but your request for changes still stands; approve to lift it, or wait for the author to dismiss it"}
+    },
+    {
+      "name": "Nudged about your block",
+      "when": {"all": [
+        {"field": "me.decision", "op": "is", "value": "changes_requested"},
+        {"field": "me.new_commits", "op": "is_false"},
+        {"field": "me.hours_since_review", "op": "ge", "value": 24},
+        {"field": "me.hours_since_nudge", "op": "lt", "value": 48}
+      ]},
+      "then": {"kind": "idle", "reason": "Nudged; the author has the ball"}
+    },
+    {
+      "name": "Time to nudge about your block",
+      "when": {"all": [
+        {"field": "me.decision", "op": "is", "value": "changes_requested"},
+        {"field": "me.new_commits", "op": "is_false"},
+        {"field": "me.hours_since_review", "op": "ge", "value": 24}
+      ]},
+      "then": {"kind": "idle", "remind": true, "reason": "Nothing new since you requested changes; remind the author"}
+    },
+    {
+      "name": "Changes requested",
+      "passed_over": "no request for changes",
+      "when": {"field": "me.decision", "op": "is", "value": "changes_requested"},
+      "then": {"kind": "idle", "reason": "You requested changes; the author hands it back when it is ready for another look"}
+    },
+    {
+      "name": "Asked again, new commits for you",
+      "when": {"all": [
+        {"field": "me.requested", "op": "is_true"},
+        {"field": "me.new_commits", "op": "is_true"},
+        {"field": "me.threads_open", "op": "gt", "value": 0},
+        {"field": "judgement.commits_address_my_comments", "op": "is", "value": "yes"}
+      ]},
+      "then": {"kind": "act", "action": "review", "task": true, "reason": "Asked again; the new commits respond to your comments"}
+    },
+    {
+      "name": "Asked again",
+      "passed_over": "not asked again",
+      "when": {"all": [
+        {"field": "me.reviewed", "op": "is_true"},
+        {"field": "me.requested", "op": "is_true"}
+      ]},
+      "then": {"kind": "act", "action": "review", "task": true, "reason": "The author asked you to review again"}
+    },
+    {
+      "name": "Approved, others block",
+      "when": {"all": [
+        {"field": "me.decision", "op": "is", "value": "approved"},
+        {"field": "pr.blocked_by", "op": "is_not_empty"}
+      ]},
+      "then": {"kind": "idle", "reason": "You approved; {pr.blocked_by} still request changes"}
+    },
+    {
+      "name": "Approved, more needed",
+      "when": {"all": [
+        {"field": "me.decision", "op": "is", "value": "approved"},
+        {"field": "pr.approvals", "op": "lt", "value": {"field": "pr.required_approvals"}}
+      ]},
+      "then": {"kind": "idle", "reason": "You approved; it needs another approval"}
+    },
+    {
+      "name": "Approved",
+      "passed_over": "not approved",
+      "when": {"field": "me.decision", "op": "is", "value": "approved"},
+      "then": {"kind": "idle", "reason": "You approved"}
+    },
+    {
+      "name": "Nudged",
+      "when": {"all": [
+        {"field": "me.hours_since_review", "op": "ge", "value": 24},
+        {"field": "me.hours_since_nudge", "op": "lt", "value": 48}
+      ]},
+      "then": {"kind": "idle", "reason": "Nudged; the author has the ball"}
+    },
+    {
+      "name": "Time to nudge",
+      "when": {"all": [
+        {"field": "me.hours_since_review", "op": "ge", "value": 24},
+        {"field": "judgement.comments_blocking", "op": "is", "value": "yes"}
+      ]},
+      "then": {"kind": "idle", "remind": true, "reason": "No progress since your review, and your comments block it; remind the author"}
+    },
+    {
+      "name": "Waiting for the author",
+      "when": {"always": true},
+      "then": {"kind": "idle", "reason": "The author has the ball; {me.threads_open} of your comments are open"}
+    }
+  ]
+}
