@@ -126,16 +126,16 @@ A queued task that its member's executors have left unclaimed for too long — w
 
 1. The executor calls `POST /tasks/{id}/report` with its lease ID, an outcome, `done` or `failed`, and for each item what it did: commits pushed, threads and reviews answered, a note. Reports are idempotent per lease.
 2. The task moves to `verifying`, whatever the outcome says: a report is a claim, not a fact.
-3. Park refreshes every pull request the task touches at once, and then polls them on a short period until every item has settled, without waiting for webhooks.
+3. Park refreshes every pull request the task touches at once, and then polls them on a short period until every item has settled, without waiting for webhooks. Only facts fetched after the attempt ended count ([D56](10-design-log.md#d56-verification-counts-only-facts-fetched-after-the-attempt)).
 4. When every item is satisfied, the task is `done`.
-5. When an item is not satisfied once its facts have settled, or the deadline passes, the attempt fails. Park records why, item by item — "3 of 27 threads have no answer: T4, T9, T12". A task marked to cancel is then `cancelled`. Otherwise the attempt counts against the budget for its member, unit, and action: with attempts remaining, the task is queued again after a backoff; with none, it moves to `needs_person`. A task that returns to the queue while a follow-up waits there on the same unit takes over the follow-up's items, and the follow-up is cancelled, so there is still one queued task per member per unit.
+5. When an item is not satisfied once its facts have settled, or the deadline passes, the attempt fails. Park records why, item by item — "3 of 27 threads have no answer: T4, T9, T12". A task marked to cancel is then `cancelled`. Otherwise the attempt counts against the budget for its member, unit, and action — once for each action that failed ([D57](10-design-log.md#d57-every-failing-action-spends-an-attempt)): with attempts remaining for all of them, the task is queued again after a backoff; with none for any, it moves to `needs_person`. A task that returns to the queue while a follow-up waits there on the same unit takes over the follow-up's items, and the follow-up is cancelled, so there is still one queued task per member per unit.
 6. Items whose pull request merged or closed meanwhile are dropped.
 
 The deadline pauses while the facts of the task's pull requests are stale, so a forge outage or a rate limit does not use up attempts. A lease that ends without a report — it expired, its token was revoked, or its member was disabled — is verified in the same way, as if the executor had reported: it may have finished the work and died before reporting.
 
 ## Flow: a person takes over
 
-The dashboard lists tasks that need a person, with every attempt's verification failures. A person can retry the task, which queues it again with the attempt budget reset, or dismiss it with a reason. A person can also dismiss a queued or leased task at any time. A task waiting for a person also leaves on its own: it is done when the facts satisfy every item — someone fixed it by hand — and cancelled when its pull requests merge or close, or its member is disabled.
+The dashboard lists tasks that need a person, with every attempt's verification failures. A person can retry the task, which queues it again with the attempt budget reset, or dismiss it with a reason ([D58](10-design-log.md#d58-dismissing-a-task-closes-it-not-its-work)). A person can also dismiss a queued or leased task at any time. A task waiting for a person also leaves on its own: it is done when the facts satisfy every item — someone fixed it by hand — and cancelled when its pull requests merge or close, or its member is disabled.
 
 ## The API
 
@@ -146,7 +146,7 @@ The dashboard lists tasks that need a person, with every attempt's verification 
 | `POST /tasks/{id}/report` | Report the outcome of this attempt; moves the task to verifying |
 | `POST /tasks/{id}/release` | Give the task back without a result; the attempt is not counted |
 
-Executors authenticate with API tokens scoped to `tasks:work` ([Identity](07-identity.md)), and every lease is recorded against the token that holds it. Every call after the claim carries the lease ID; a call whose lease is no longer current is refused, with the task's current state. A claim retried with the same `Idempotency-Key` returns the same lease instead of a second task.
+Executors authenticate with API tokens scoped to `tasks:work` ([Identity](07-identity.md)), and every lease is recorded against the token that holds it. Every call after the claim carries the lease ID; a call whose lease is no longer current is refused, with the task's current state. A claim retried with the same `Idempotency-Key`, from the same token, returns the same lease instead of a second task.
 
 A claim:
 
