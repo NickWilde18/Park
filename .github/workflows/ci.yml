@@ -32,6 +32,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: go.mod and go.sum match the code, on every platform
+        run: go mod tidy -diff
       - name: Generated code matches the contract
         run: |
           go generate ./...
