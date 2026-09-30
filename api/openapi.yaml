@@ -1,0 +1,69 @@
+openapi: 3.0.3
+info:
+  title: Park
+  version: v1
+  description: >-
+    Park's API: the one contract that the dashboard, executors, and bridges use. Server code and client types are
+    generated from this document. Within v1, changes only add.
+  license:
+    name: MIT
+servers:
+  - url: /api/v1
+paths:
+  /auth/providers:
+    get:
+      operationId: listAuthProviders
+      summary: The ways to sign in
+      description: >-
+        The sign-in providers an admin has configured, for the sign-in page. Needs no session.
+      tags: [session]
+      responses:
+        "200":
+          description: The configured sign-in providers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthProviders"
+        default:
+          $ref: "#/components/responses/Error"
+components:
+  schemas:
+    AuthProviders:
+      type: object
+      required: [providers]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuthProvider"
+    AuthProvider:
+      type: object
+      required: [id, kind]
+      properties:
+        id:
+          type: string
+          description: The stable ID an admin gave the provider, the `{provider}` in `/auth/{provider}/start`.
+        kind:
+          type: string
+          enum: [forge, oidc]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: A stable code, such as `not_found`.
+            message:
+              type: string
+              description: For people; never internal details.
+  responses:
+    Error:
+      description: An error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -34,6 +34,18 @@ Park is built from its design: [the design](docs/design/README.md) says what to 
 - Comments say what code is for, what it assumes, and how it fails. How it came to be, and what was set aside, belong in the pull request or the design log.
 - Every exported identifier has a doc comment.
 
+## Commands
+
+| Command | Does |
+|---|---|
+| `make db` | Starts a Postgres in Docker for development and tests |
+| `make gen` | Regenerates the server code in `internal/httpapi` and the client types in `web/src/api` from `api/openapi.yaml` |
+| `make test` | Runs the Go tests with the race detector, against `make db`'s Postgres |
+| `make lint` | Runs golangci-lint, oxlint, and the TypeScript type check |
+| `make build` | Builds the frontend and `bin/park`, with the frontend embedded |
+
+A test that needs a database gets an empty one of its own from `internal/store/storetest`. Without `PARK_TEST_DATABASE_URL`, such tests are skipped — except in CI, where they fail; `make test` sets it for `make db`'s Postgres.
+
 ## Tests
 
 - **A bug fix starts with a failing test.** Write a test for the wrong behaviour, run it against the unfixed code, and keep the failing output. A test that passes before the fix does not pin the bug: rewrite it. Then fix, run the test again, and keep the passing output. Both outputs go in the pull request.

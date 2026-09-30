@@ -75,7 +75,7 @@ Domain terms are forge-neutral — `forge`, `repo`, `pull_request`, `review`, `a
 
 ## Configuration
 
-A file plus environment variables; the environment wins. Keys are neutral: `http.addr`, `database.url`, `secret_key`, `identity.oidc`, `model.provider`. Forges and installations, sign-in and model providers, bridges, and grouping settings are edited on the dashboard and stored in the database. Their addresses — a forge's base address, an OIDC issuer, a bridge's link template — are configuration, kept in one place and used to build links and check tokens; no fact, identity, or assertion stores a URL. Secrets — forge credentials, webhook secrets, provider keys — are stored encrypted with the server's secret key, or read from the environment or from files.
+A YAML file, named by `-config` or `PARK_CONFIG`, plus environment variables; the environment wins. Each key has a variable: `PARK_`, then the key in upper case with dots as underscores — `database.url` is `PARK_DATABASE_URL`. A key the file misspells stops startup, and so does a required key that is missing. Keys are neutral: `http.addr` (`:8080` by default), `database.url`, `secret_key` (at least 32 bytes), `identity.oidc`, `model.provider`. Forges and installations, sign-in and model providers, bridges, and grouping settings are edited on the dashboard and stored in the database. Their addresses — a forge's base address, an OIDC issuer, a bridge's link template — are configuration, kept in one place and used to build links and check tokens; no fact, identity, or assertion stores a URL. Secrets — forge credentials, webhook secrets, provider keys — are stored encrypted with the server's secret key, or read from the environment or from files.
 
 ## Deployment
 
@@ -89,5 +89,5 @@ A file plus environment variables; the environment wins. Keys are neutral: `http
 - **Observability**: structured logs with trace IDs; OpenTelemetry traces and metrics for webhook deliveries (accepted, rejected, duplicate), refresh latency and failures, the lag from fact to verdict, model calls (latency, timeouts, errors), and task states and verification failures.
 - **Growth**: fact events and judgements are small and kept for good. A verdict's inputs take a few KB; at a few hundred pull requests and a few hundred verdicts a day, verdicts stay well under 1 GB a year. Event-stream notices are kept for an hour, delivery IDs for a week, and finished work-queue entries are deleted.
 - **Backups** are Postgres backups; nothing else holds state.
-- **Upgrades** apply forward-only migrations, and never rewrite facts.
+- **Upgrades** apply forward-only migrations, and never rewrite facts. A binary refuses a database that has a migration it does not know: that database was migrated by a newer Park, and an older binary does not run against it.
 - **Tests**: rules — the default rule set included — run against recorded inputs and recorded judgements, with no network. The forge collector runs against recorded forge responses. CI checks that generated code matches the contract.

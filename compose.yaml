@@ -1,0 +1,21 @@
+# A Postgres for development and tests: make db.
+name: park
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: park
+      POSTGRES_PASSWORD: park
+      POSTGRES_DB: park
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "park"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  db: {}
