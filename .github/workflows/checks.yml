@@ -46,4 +46,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
+      # The runner's AppArmor forbids the unprivileged user namespaces that the browser's sandbox needs.
+      - name: Allow the browser's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: sh docs/design/checks/charts.sh
