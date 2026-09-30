@@ -25,14 +25,11 @@ func groupOut(g grouping.GroupView) Group {
 	return out
 }
 
-// member requires a member acting in a browser session: tokens do not change groups.
-func requireSession(ctx context.Context) (int64, error) {
+// requireMember returns the calling member's ID. Only a session gets here: tokenMay lets no token change groups.
+func requireMember(ctx context.Context) (int64, error) {
 	c, err := requireCaller(ctx)
 	if err != nil {
 		return 0, err
-	}
-	if c.TokenID != "" {
-		return 0, fail.New(fail.Forbidden, "session_required", "Change groups from a browser session.")
 	}
 	return c.Member.ID, nil
 }
@@ -72,7 +69,7 @@ func (s *server) GetGroup(ctx context.Context, req GetGroupRequestObject) (GetGr
 }
 
 func (s *server) CreateGroup(ctx context.Context, req CreateGroupRequestObject) (CreateGroupResponseObject, error) {
-	actor, err := requireSession(ctx)
+	actor, err := requireMember(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +85,7 @@ func (s *server) CreateGroup(ctx context.Context, req CreateGroupRequestObject) 
 }
 
 func (s *server) RenameGroup(ctx context.Context, req RenameGroupRequestObject) (RenameGroupResponseObject, error) {
-	if _, err := requireSession(ctx); err != nil {
+	if _, err := requireCaller(ctx); err != nil {
 		return nil, err
 	}
 	if err := s.grouping.Rename(ctx, req.Id, req.Body.Name); err != nil {
@@ -102,7 +99,7 @@ func (s *server) RenameGroup(ctx context.Context, req RenameGroupRequestObject) 
 }
 
 func (s *server) MoveIntoGroup(ctx context.Context, req MoveIntoGroupRequestObject) (MoveIntoGroupResponseObject, error) {
-	actor, err := requireSession(ctx)
+	actor, err := requireMember(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +114,7 @@ func (s *server) MoveIntoGroup(ctx context.Context, req MoveIntoGroupRequestObje
 }
 
 func (s *server) TakeOutOfGroup(ctx context.Context, req TakeOutOfGroupRequestObject) (TakeOutOfGroupResponseObject, error) {
-	actor, err := requireSession(ctx)
+	actor, err := requireMember(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +125,7 @@ func (s *server) TakeOutOfGroup(ctx context.Context, req TakeOutOfGroupRequestOb
 }
 
 func (s *server) MergeGroups(ctx context.Context, req MergeGroupsRequestObject) (MergeGroupsResponseObject, error) {
-	actor, err := requireSession(ctx)
+	actor, err := requireMember(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +140,7 @@ func (s *server) MergeGroups(ctx context.Context, req MergeGroupsRequestObject) 
 }
 
 func (s *server) SplitGroup(ctx context.Context, req SplitGroupRequestObject) (SplitGroupResponseObject, error) {
-	actor, err := requireSession(ctx)
+	actor, err := requireMember(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +171,7 @@ func (s *server) ListSuggestions(ctx context.Context, _ ListSuggestionsRequestOb
 }
 
 func (s *server) AcceptSuggestion(ctx context.Context, req AcceptSuggestionRequestObject) (AcceptSuggestionResponseObject, error) {
-	actor, err := requireSession(ctx)
+	actor, err := requireMember(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +182,7 @@ func (s *server) AcceptSuggestion(ctx context.Context, req AcceptSuggestionReque
 }
 
 func (s *server) DismissSuggestion(ctx context.Context, req DismissSuggestionRequestObject) (DismissSuggestionResponseObject, error) {
-	actor, err := requireSession(ctx)
+	actor, err := requireMember(ctx)
 	if err != nil {
 		return nil, err
 	}

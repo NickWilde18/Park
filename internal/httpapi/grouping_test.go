@@ -18,7 +18,7 @@ import (
 
 // A whole round of grouping: two repositories' pull requests from one author's branch are grouped by the queue as
 // they are collected; a bridge's thread takes the group over and names it; tokens and sessions may do only their own
-// part; members rename and take out through their session.
+// part, and no token changes a group; members rename and take out through their session.
 func TestGroupingOverHTTP(t *testing.T) {
 	pool := storetest.MigratedPool(t)
 	logs := &syncBuffer{}
@@ -91,6 +91,10 @@ func TestGroupingOverHTTP(t *testing.T) {
 	reader.bearer = rt.Token
 	wantStatus(t, reader.call(t, "POST", "/api/v1/assertions", post, nil), http.StatusForbidden, "insufficient_scope")
 	wantStatus(t, admin.call(t, "POST", "/api/v1/assertions", post, nil), http.StatusForbidden, "bridge_only")
+	for _, token := range []*browser{reader, bridgeClient} {
+		wantStatus(t, token.call(t, "PATCH", "/api/v1/groups/"+strconv.FormatInt(g.Id, 10), map[string]string{"name": "x"}, nil),
+			http.StatusForbidden, "insufficient_scope")
+	}
 	wantStatus(t, bridgeClient.call(t, "POST", "/api/v1/assertions", map[string]any{"anchor": "t2", "pull_requests": []map[string]any{
 		{"repo": "acme/api", "number": 12}, {"repo": "acme/private", "number": 3}}}, nil), http.StatusBadRequest, "unknown_repo")
 
@@ -110,7 +114,6 @@ func TestGroupingOverHTTP(t *testing.T) {
 	if len(got.Members) != 1 {
 		t.Fatalf("after taking one out: %+v", got)
 	}
-	reader.call(t, "GET", "/api/v1/suggestions", nil, nil)
 	var sugs Suggestions
 	wantStatus(t, reader.call(t, "GET", "/api/v1/suggestions", nil, &sugs), http.StatusOK, "")
 	wantStatus(t, bridgeClient.call(t, "DELETE", "/api/v1/assertions?anchor=thread-1", nil, nil), http.StatusNoContent, "")
