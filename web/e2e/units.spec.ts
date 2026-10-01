@@ -48,8 +48,13 @@ test('a bridge\'s proposals are dismissed or accepted on the groups page', async
   await signIn(page, 'ana')
   await page.getByRole('link', { name: 'Groups' }).click()
   const proposed = page.getByRole('region', { name: 'Proposed' })
+  const current = page.getByRole('region', { name: 'Current groups' })
   await expect(proposed.getByRole('link', { name: 'Exports and statement emails' })).toHaveAttribute('href',
     'https://chat.example.test/thread/thread-exports')
+  await expect(proposed.locator('article.group')).toHaveCount(0)
+  await expect(current.locator('article.proposal')).toHaveCount(0)
+  await expect(current.locator('article.group').first()).toBeVisible()
+  await expect(proposed.locator('article.proposal').first()).toHaveCSS('border-top-style', 'dashed')
   await expect(proposed.getByRole('link', { name: 'Invoice follow-ups' })).toBeVisible()
   await expect(page.getByLabel('Name of group 1 proposed in Invoice follow-ups')).toHaveAttribute('placeholder',
     'Named after its oldest pull request')
@@ -77,7 +82,7 @@ test('a bridge\'s proposals are dismissed or accepted on the groups page', async
   await page.getByLabel('Name of group 1 proposed in Exports and statement emails').fill('Exports')
   await page.getByRole('button', { name: 'Accept Exports and statement emails' }).click()
   await expect(page.getByRole('region', { name: 'Proposed' })).toHaveCount(0)
-  const made = page.locator('article.group', { has: page.getByRole('heading', { name: 'Exports', exact: true }) })
+  const made = current.locator('article.group', { has: page.getByRole('heading', { name: 'Exports', exact: true }) })
   await expect(made.getByText('api#15 Export formats')).toBeVisible()
   await expect(made.getByText('api#16 Statement emails')).toBeVisible()
 })
