@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # The database tests run against the Postgres that `make db` starts.
 export PARK_TEST_DATABASE_URL ?= postgres://park:park@localhost:5432/park?sslmode=disable
 
-.PHONY: help gen web build test lint db
+.PHONY: help gen web build test lint e2e db
 
 help: ## List the commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z]+:.*## / {printf "  make %-6s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -26,6 +26,9 @@ test: ## Run the Go tests, then the whole sweep without the race detector; the d
 lint: ## Lint the Go code and the frontend
 	golangci-lint run
 	cd web && pnpm run lint && pnpm run typecheck
+
+e2e: build ## Run the dashboard's end-to-end tests; PARK_DATABASE_URL names an empty database
+	sh scripts/e2e.sh
 
 db: ## Start a Postgres for development and tests
 	docker compose up -d --wait db

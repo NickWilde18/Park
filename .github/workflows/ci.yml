@@ -117,3 +117,52 @@ jobs:
           curl -fsS http://127.0.0.1:8080/ | grep -q '<div id="root">'
           kill -TERM "$pid"
           wait "$pid"
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: park
+          POSTGRES_PASSWORD: park
+          POSTGRES_DB: park
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U park"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      # The runner's AppArmor forbids the unprivileged user namespaces that the browser's sandbox needs.
+      - name: Allow the browser's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: make build
+      - name: Install the browser
+        working-directory: web
+        run: pnpm exec playwright install --with-deps chromium
+      - name: The dashboard, end to end, against a seeded database
+        env:
+          PARK_DATABASE_URL: postgres://park:park@localhost:5432/park?sslmode=disable
+        run: sh scripts/e2e.sh
+      # A failed test keeps its trace: pnpm exec playwright show-trace on the downloaded zip replays it.
+      - name: Keep the traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-traces
+          path: web/test-results/
+          if-no-files-found: ignore
