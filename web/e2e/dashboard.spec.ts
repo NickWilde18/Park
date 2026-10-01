@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signIn } from './session.ts'
+import { call, signIn } from './session.ts'
 
 // Ana's queue: the Billing group, where her failing check and Ben's request for changes wait on her, on the two pull
 // requests of its chain, with its task; her draft; and, collapsed, the pull request waiting for Ben's first review.
@@ -85,4 +85,61 @@ test('a page fetches again when its stream opens', async ({ page, browser }) => 
   await bens.close()
   open()
   await expect(page.getByRole('heading', { name: 'Ledger', exact: true })).toBeVisible()
+})
+
+// Ana's first stream ends at once, and the browser's own attempt to resume it is answered 502, as a proxy answers
+// while Park restarts: the browser then gives the stream up. The page opens it again, and follows Ben's rename.
+test('a page opens its stream again when the browser gives it up', async ({ page, browser }) => {
+  let streams = 0
+  await page.route('**/api/v1/events', async (route) => {
+    streams++
+    if (streams === 1) await route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'retry: 100\n\n' })
+    else if (streams === 2) await route.fulfill({ status: 502, body: '' })
+    else await route.continue()
+  })
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Groups' }).click()
+  await expect(page.locator('article.group h2')).toBeVisible()
+  await expect.poll(() => streams).toBeGreaterThanOrEqual(2)
+  const bens = await browser.newContext()
+  const ben = await bens.newPage()
+  await signIn(ben, 'ben')
+  await call(ben, 'PATCH', '/groups/1', { name: 'Accounts' })
+  await bens.close()
+  await expect(page.getByRole('heading', { name: 'Accounts', exact: true })).toBeVisible({ timeout: 10_000 })
+})
+
+// Ana's first fetch of who she is fails, as when Park cannot be reached: the page tries again, and shows the sign-in.
+test('a page fetches again when a fetch fails', async ({ page }) => {
+  let asked = 0
+  await page.route('**/api/v1/me', async (route) => {
+    if (asked++ === 0) await route.abort('connectionrefused')
+    else await route.continue()
+  })
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 10_000 })
+})
+
+// Ben renames the group again and again while each of Ana's fetches of the groups takes longer than the notices take
+// to come: her page still shows a newer name within a few seconds, rather than only once the renames stop.
+test('a page keeps up with changes that come faster than it fetches', async ({ page, browser }) => {
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Groups' }).click()
+  await expect(page.locator('article.group h2')).toBeVisible()
+  await page.route('**/api/v1/groups', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await route.continue()
+  })
+  const bens = await browser.newContext()
+  const ben = await bens.newPage()
+  await signIn(ben, 'ben')
+  const renaming = (async () => {
+    for (let i = 1; i <= 20; i++) {
+      await call(ben, 'PATCH', '/groups/1', { name: `Accounts ${i}` })
+      await new Promise((resolve) => setTimeout(resolve, 400))
+    }
+  })()
+  await expect(page.getByRole('heading', { name: /^Accounts \d+$/ })).toBeVisible({ timeout: 5_000 })
+  await renaming
+  await bens.close()
 })

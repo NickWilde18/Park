@@ -16,7 +16,9 @@ import (
 )
 
 // Seeding an empty database stores each pull request as a refresh would have: its fact events, numbered from 1 up to
-// its sequence number, replay to its stored state (F1). Seeding the database again is refused.
+// its sequence number, replay to its stored state (F1). The merged pull request's verdict is closed out. Ben's task
+// was tried three times, failed verification each time, and needs a person; his other one is dismissed. Seeding the
+// database again is refused.
 func TestSeed(t *testing.T) {
 	ctx := context.Background()
 	url := storetest.Database(t)
@@ -47,8 +49,8 @@ func TestSeed(t *testing.T) {
 		}
 		ids = append(ids, id)
 	}
-	if len(ids) != 5 {
-		t.Fatalf("%d pull requests seeded, want 5", len(ids))
+	if len(ids) != 6 {
+		t.Fatalf("%d pull requests seeded, want 6", len(ids))
 	}
 	for _, id := range ids {
 		stored, err := collected.PR(ctx, id)
@@ -78,6 +80,22 @@ func TestSeed(t *testing.T) {
 		if !bytes.Equal(got, want) {
 			t.Fatalf("pull request %d replays to\n%s\nnot\n%s", id, got, want)
 		}
+	}
+	var closed string
+	if err := pool.QueryRow(ctx, `SELECT v.closed FROM verdict v JOIN pr_fact p ON v.unit = 'pr:' || p.id
+		WHERE p.number = 11 AND v.current`).Scan(&closed); err != nil || closed != "merged" {
+		t.Fatalf("the merged pull request's verdict: %q, %v", closed, err)
+	}
+	var states, failures string
+	if err := pool.QueryRow(ctx, `SELECT string_agg(state || ' ' || attempt, ', ' ORDER BY id) FROM task t
+		WHERE member_id = (SELECT member_id FROM local_credential WHERE username = 'ben')`).Scan(&states); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT count(*)::text FROM task_event WHERE kind = 'verification_failed'").Scan(&failures); err != nil {
+		t.Fatal(err)
+	}
+	if states != "needs_person 3, dismissed 0" || failures != "3" {
+		t.Fatalf("Ben's tasks: %s, with %s failed verifications", states, failures)
 	}
 	if err := seed(ctx, getenv, io.Discard); err == nil {
 		t.Fatal("a second seed was not refused")
