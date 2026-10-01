@@ -1,22 +1,24 @@
 import { useState, type FormEvent } from 'react'
-import { api, problem } from '../api/client'
+import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
 import { prName, unitPath, type PRs } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
 
+type Answer = Promise<{ error?: unknown }>
+
 // Groups with their pull requests, nested by chain and marked with the source that placed each, and the open pull
-// requests in none; and the manual actions: create, move in, take out, merge, and split. A group is renamed on its
-// own page.
+// requests in none; bridges' open proposals above them; and the manual actions: create, move in, take out, merge, and
+// split. A group is renamed on its own page.
 export default function Groups() {
   const [error, setError] = useState('')
   const { data, refresh } = useFetch(async () => {
-    const [g, p] = await Promise.all([api.GET('/groups'), api.GET('/prs')])
+    const [g, p, o] = await Promise.all([api.GET('/groups'), api.GET('/prs'), api.GET('/proposals')])
     const prs: PRs = new Map((p.data?.pull_requests ?? []).map((x) => [x.id, x]))
-    return { groups: g.data?.groups, problem: g.error ? problem(g.error) : '', prs }
+    return { groups: g.data?.groups, problem: g.error ? problem(g.error) : '', prs, proposals: o.data?.proposals ?? [] }
   })
-  useLive(['group', 'pr'], refresh)
-  const done = async (answer: Promise<{ error?: unknown }>) => {
+  useLive(['group', 'pr', 'proposal'], refresh)
+  const done = async (answer: Answer) => {
     const { error } = await answer
     if (error) setError(problem(error))
     else {
@@ -25,7 +27,7 @@ export default function Groups() {
     }
   }
   if (!data) return <p className="quiet">Loading…</p>
-  const { groups, prs } = data
+  const { groups, prs, proposals } = data
   if (!groups) return <p className="error">{data.problem}</p>
   const grouped = new Set(groups.flatMap((g) => g.members.map((m) => m.pull_request)))
   const loose = [...prs.values()].filter((p) => !grouped.has(p.id) && (p.state === 'open' || p.state === 'draft'))
@@ -38,6 +40,7 @@ export default function Groups() {
     <section>
       <h1>Groups</h1>
       {error && <p className="error">{error}</p>}
+      {proposals.length > 0 && <Proposed proposals={proposals} prs={prs} done={done} />}
       {groups.map((g) => (
         <article key={g.id} className="group">
           <h2>
@@ -127,6 +130,73 @@ export default function Groups() {
         <input name="name" placeholder="Name" aria-label="New group's name" required />
         <button type="submit">Create</button>
       </form>
+    </section>
+  )
+}
+
+// Proposed lists bridges' open proposals, each to accept — as proposed, or with its groups' names and pull requests
+// edited — or to dismiss. Accepting unchanged lets Park name an unnamed group after its oldest pull request; an
+// edited group left without a name takes the title of its first pull request still checked.
+function Proposed({ proposals, prs, done }: { proposals: Schemas['Proposal'][]; prs: PRs; done: (answer: Answer) => Promise<void> }) {
+  const accept = (p: Schemas['Proposal'], form: FormData) => {
+    const groups = p.groups.map((_, i) => ({
+      name: String(form.get(`name-${i}`) ?? '').trim(),
+      pull_requests: form.getAll(`pr-${i}`).map(Number),
+    }))
+    const changed = groups.some((g, i) => g.name !== (p.groups[i].name ?? '') || g.pull_requests.length !== p.groups[i].pull_requests.length)
+    const body = changed
+      ? {
+          groups: groups
+            .filter((g) => g.pull_requests.length > 0)
+            .map((g) => ({ ...g, name: g.name || prs.get(g.pull_requests[0])?.title || prName(prs, g.pull_requests[0]) })),
+        }
+      : {}
+    return done(api.POST('/proposals/{id}/accept', { params: { path: { id: p.id } }, body }))
+  }
+  return (
+    <section aria-label="Proposed">
+      <h2>Proposed</h2>
+      {proposals.map((p) => {
+        const title = p.title ?? `A thread from ${p.bridge}`
+        return (
+          <article key={p.id} className="proposal">
+            <h3>{p.link ? <a href={p.link}>{title}</a> : title}</h3>
+            <p className="quiet">Proposed by {p.bridge}; nothing changes until it is accepted.</p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                void accept(p, new FormData(e.currentTarget))
+              }}
+            >
+              {p.groups.map((g, i) => (
+                <fieldset key={i}>
+                  <input
+                    name={`name-${i}`}
+                    defaultValue={g.name ?? ''}
+                    placeholder="Named after its oldest pull request"
+                    aria-label={`Name of group ${i + 1} proposed in ${title}`}
+                  />
+                  {g.pull_requests.map((pr) => (
+                    <label key={pr}>
+                      <input type="checkbox" name={`pr-${i}`} value={pr} defaultChecked /> {prName(prs, pr)} {prs.get(pr)?.title}
+                    </label>
+                  ))}
+                </fieldset>
+              ))}
+              <button type="submit" aria-label={`Accept ${title}`}>
+                Accept
+              </button>{' '}
+              <button
+                type="button"
+                aria-label={`Dismiss ${title}`}
+                onClick={() => void done(api.POST('/proposals/{id}/dismiss', { params: { path: { id: p.id } } }))}
+              >
+                Dismiss
+              </button>
+            </form>
+          </article>
+        )
+      })}
     </section>
   )
 }

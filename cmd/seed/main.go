@@ -3,7 +3,8 @@
 //
 // It makes two members, Ana, an admin, and Ben, both with the password in [Password]; their accounts and Carol's on a
 // forge named Hub; and six pull requests in acme/api, with the fact events a refresh would have written. Two of them,
-// one stacked on the other, are in a group named Billing, and one has merged. It publishes the default rule set,
+// one stacked on the other, are in a group named Billing, and one has merged; a bridge, Review threads, has proposed
+// two more groups of the others, one named and one not, which wait for a member. It publishes the default rule set,
 // turns on Ana's automation and Ben's, and evaluates every unit, which gives Ana her task and Ben his two. Ben's
 // executor then tries one of his three times, and verification fails each time, so it needs a person: claims,
 // reports, and verification are Park's own, with the facts marked as fetched after each report, as a refresh would
@@ -151,6 +152,9 @@ func seed(ctx context.Context, getenv func(string) string, out io.Writer) error 
 	if err != nil {
 		return err
 	}
+	if err := propose(ctx, groups, ana.ID); err != nil {
+		return err
+	}
 	ruleSets := rules.New(pool, log)
 	if _, err := ruleSets.Bootstrap(ctx); err != nil {
 		return err
@@ -183,6 +187,27 @@ func seed(ctx context.Context, getenv func(string) string, out io.Writer) error 
 	}
 	_, err = fmt.Fprintf(out, "Seeded Park: sign in as ana, an admin, or ben, with the password %q.\n", Password)
 	return err
+}
+
+// propose registers Ana's bridge, Review threads, whose threads link at a host where nothing answers, and posts its
+// two proposals as its token would: a thread's named group of the export and statement pull requests, and another
+// thread's unnamed group of the invoice and statement ones.
+func propose(ctx context.Context, groups *grouping.Service, owner int64) error {
+	threads, err := groups.CreateBridge(ctx, owner, "Review threads", "https://chat.example.test/thread/{id}")
+	if err != nil {
+		return err
+	}
+	for _, p := range []grouping.Proposal{
+		{Anchor: "thread-exports", Title: "Exports and statement emails", Groups: []grouping.ProposedGroup{{Name: "Exports and statements",
+			PRs: []grouping.PRRef{{Repo: "acme/api", Number: 15}, {Repo: "acme/api", Number: 16}}}}},
+		{Anchor: "thread-invoices", Title: "Invoice follow-ups", Groups: []grouping.ProposedGroup{{
+			PRs: []grouping.PRRef{{Repo: "acme/api", Number: 13}, {Repo: "acme/api", Number: 16}}}}},
+	} {
+		if _, err := groups.Propose(ctx, threads.ID, "", p); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // failAttempts has Ben dismiss his newer task, and his executor try the older one until it needs a person: each

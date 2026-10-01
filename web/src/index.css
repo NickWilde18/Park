@@ -162,7 +162,8 @@ label.nested {
 }
 
 article.pr,
-article.group {
+article.group,
+article.proposal {
   margin-bottom: 1rem;
   padding: 0.6rem 0.9rem;
   border: 1px solid #dde1e6;

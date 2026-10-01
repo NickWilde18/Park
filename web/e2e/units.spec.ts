@@ -39,3 +39,45 @@ test('a unit\'s page shows nothing of the unit before it', async ({ page }) => {
   await expect(page.getByLabel('Group name')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'api#14', exact: true })).toBeVisible({ timeout: 10_000 })
 })
+
+// Ana's groups page lists the bridge's two proposals, each linked to its thread, and one the bridge posts while the
+// page is open, from its notice. She dismisses two, and they go. She leaves a pull request out of the third, whose
+// group then has too few to group, and Park says so; with it back and the group renamed, accepting makes the group
+// under her name, and the proposal goes too.
+test('a bridge\'s proposals are dismissed or accepted on the groups page', async ({ page }) => {
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Groups' }).click()
+  const proposed = page.getByRole('region', { name: 'Proposed' })
+  await expect(proposed.getByRole('link', { name: 'Exports and statement emails' })).toHaveAttribute('href',
+    'https://chat.example.test/thread/thread-exports')
+  await expect(proposed.getByRole('link', { name: 'Invoice follow-ups' })).toBeVisible()
+  await expect(page.getByLabel('Name of group 1 proposed in Invoice follow-ups')).toHaveAttribute('placeholder',
+    'Named after its oldest pull request')
+
+  const bridges = (await call(page, 'GET', '/admin/bridges')).body as { bridges: { id: number }[] }
+  const token = (await call(page, 'POST', '/me/tokens', { name: 'threads', scopes: ['assertions:write'], bridge_id: bridges.bridges[0].id }))
+    .body as { token: string }
+  const posted = await page.request.post('/api/v1/proposals', {
+    headers: { Authorization: `Bearer ${token.token}` },
+    data: { anchor: 'thread-late', title: 'A late thread', groups: [{ pull_requests: [{ repo: 'acme/api', number: 14 }, { repo: 'acme/api', number: 15 }] }] },
+  })
+  expect(posted.status()).toBe(201)
+  await expect(proposed.getByRole('link', { name: 'A late thread' })).toBeVisible({ timeout: 10_000 })
+
+  await page.getByRole('button', { name: 'Dismiss A late thread' }).click()
+  await page.getByRole('button', { name: 'Dismiss Invoice follow-ups' }).click()
+  await expect(proposed.getByRole('link', { name: 'Invoice follow-ups' })).toHaveCount(0)
+  await expect(proposed.getByRole('link', { name: 'A late thread' })).toHaveCount(0)
+
+  const exports = proposed.locator('article', { has: page.getByRole('link', { name: 'Exports and statement emails' }) })
+  await exports.getByLabel(/api#16/).uncheck()
+  await page.getByRole('button', { name: 'Accept Exports and statement emails' }).click()
+  await expect(page.getByText('No group of the proposal has two open pull requests.')).toBeVisible()
+  await exports.getByLabel(/api#16/).check()
+  await page.getByLabel('Name of group 1 proposed in Exports and statement emails').fill('Exports')
+  await page.getByRole('button', { name: 'Accept Exports and statement emails' }).click()
+  await expect(page.getByRole('region', { name: 'Proposed' })).toHaveCount(0)
+  const made = page.locator('article.group', { has: page.getByRole('heading', { name: 'Exports', exact: true }) })
+  await expect(made.getByText('api#15 Export formats')).toBeVisible()
+  await expect(made.getByText('api#16 Statement emails')).toBeVisible()
+})
