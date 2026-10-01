@@ -999,7 +999,7 @@ export interface paths {
         put?: never;
         /**
          * Extend a lease, with an optional progress note
-         * @description Sent before the lease expires, and before each write to the forge; when the lease is no longer current, stop.
+         * @description Sent before the lease expires, and often while the work goes on; when the lease is no longer current, stop the work at once.
          */
         post: operations["heartbeatTask"];
         delete?: never;

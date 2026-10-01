@@ -25,7 +25,9 @@ curl -c cookies -H 'Content-Type: application/json' http://localhost:8080/api/v1
 
 To collect pull requests, an admin adds a forge, an installation — a token, or a GitHub App's credentials — and the repositories to watch, through `/api/v1/admin/forges`, `/api/v1/admin/installations`, and `/api/v1/admin/repos`. The forge sends deliveries to `/hooks/{installation}`; without them, polling keeps Park correct, only slower.
 
-Executors work a member's tasks with an API token scoped to `tasks:work`: `POST /api/v1/tasks/claim`, then heartbeats and a report under the lease; the member chooses which actions become tasks, and where, in the dashboard's settings or at `PUT /api/v1/me/automation`.
+Executors work a member's tasks with an API token scoped to `tasks:work`: `POST /api/v1/tasks/claim`, then heartbeats and a report under the lease; the member chooses which actions become tasks, and where, in the dashboard's settings or at `PUT /api/v1/me/automation`. [park-executor](https://github.com/NickWilde18/park-executor) is one, which runs each task as a Claude Code session on the member's machine.
+
+Bridges post assertions that pull requests belong together, from where the team discusses them, such as a chat's review threads: an admin registers each at `/api/v1/admin/bridges`, and its owner makes its token, scoped to `assertions:write`, with its `bridge_id`.
 
 Each member's queue — the units whose ball they hold — and waiting list are the dashboard's first page, and `GET /api/v1/queue`, once an admin links their forge account, `POST /api/v1/admin/members/{id}/identities`, or they sign in through the forge.
 
