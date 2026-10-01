@@ -18,7 +18,7 @@ Each member's held units and oldest hold, and every group with where its ball is
 
 ### Groups
 
-Groups with their pull requests, nested by chain, each pull request marked with the source that placed it; the suggestions inbox; and the manual actions: move, take out, create, merge, split, rename. The grouping pipeline is drawn as its boxes — sources, then resolution, then groups — each configurable, none rewirable.
+Groups with their pull requests, nested by chain, each pull request marked with the source that placed it; the suggestions inbox; bridges' open proposals, each with its groups, to accept as proposed or edited, or to dismiss ([Grouping](03-grouping.md#flow-bridge-proposals)); and the manual actions: move, take out, create, merge, split, rename. The grouping pipeline is drawn as its boxes — sources, then resolution, then groups — each configurable, none rewirable.
 
 ### Unit
 
@@ -38,7 +38,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 
 ## Live updates
 
-`GET /events` streams Server-Sent Events: small notices — `verdict` (a unit's ball or parts changed), `task`, `group`, `pr` — naming what changed. The client fetches what it needs again, and fetches what it shows each time its stream opens. Notices are filtered by visibility, numbered, and can be resumed with `Last-Event-ID` for an hour; a client that falls further behind reloads. A stream ends when the credential it was opened with stops working — a token revoked, a session ended, a member disabled — and when Park shuts down; the dashboard opens it again, or signs in. A comment line every 30 seconds keeps proxies from closing the stream.
+`GET /events` streams Server-Sent Events: small notices — `verdict` (a unit's ball or parts changed), `task`, `group`, `pr`, `proposal` — naming what changed. The client fetches what it needs again, and fetches what it shows each time its stream opens. Notices are filtered by visibility, numbered, and can be resumed with `Last-Event-ID` for an hour; a client that falls further behind reloads. A stream ends when the credential it was opened with stops working — a token revoked, a session ended, a member disabled — and when Park shuts down; the dashboard opens it again, or signs in. A comment line every 30 seconds keeps proxies from closing the stream.
 
 ## Conventions
 
@@ -48,7 +48,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 - **Pagination**: cursors — `?cursor=…&limit=…`, and a `next_cursor` in the response.
 - **Identifiers**: Park's own IDs in paths. Where noted, machines may name pull requests by repository name and number, and Park resolves them.
 - **Links**: responses may include links to the forge, built when the response is rendered and never stored.
-- **Idempotency**: reports and assertions are idempotent by design; claims accept an `Idempotency-Key` header.
+- **Idempotency**: reports, assertions, and proposals are idempotent by design; claims accept an `Idempotency-Key` header.
 - **Leases**: every task call after the claim carries the lease ID it was given; a call from a lease that is no longer current is refused ([Tasks](06-tasks.md#the-api)).
 - **Compatibility**: within `v1`, changes only add.
 
@@ -62,6 +62,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 | Groups | `GET /groups` · `GET /groups/{id}` · `POST /groups` · `PATCH /groups/{id}` · `POST /groups/{id}/members` · `DELETE /groups/{id}/members/{pr}` · `POST /groups/{id}/merge` · `POST /groups/{id}/split` |
 | Suggestions | `GET /suggestions` · `POST /suggestions/{id}/accept` · `POST /suggestions/{id}/dismiss` |
 | Assertions | `POST /assertions` · `DELETE /assertions?anchor=…` |
+| Proposals | `POST /proposals` · `DELETE /proposals?anchor=…` · `GET /proposals` · `POST /proposals/{id}/accept` · `POST /proposals/{id}/dismiss` |
 | Rules | `GET /fields` · `GET /questions` · `GET /rulesets` · `GET /rulesets/{version}` · `POST /rulesets/drafts` · `PUT /rulesets/drafts/{id}` · `POST /rulesets/drafts/{id}/preview` · `POST /rulesets/drafts/{id}/publish` · `POST /examples` · `DELETE /examples/{id}` |
 | Tasks | `GET /tasks` · `GET /tasks/{id}` · `POST /tasks/claim` · `POST /tasks/{id}/heartbeat` · `POST /tasks/{id}/report` · `POST /tasks/{id}/release` · `POST /tasks/{id}/retry` · `POST /tasks/{id}/dismiss` |
 | My settings | `GET /me/automation` · `PUT /me/automation` · `GET /me/identities` · `DELETE /me/identities/{id}` · `GET /me/tokens` · `POST /me/tokens` · `DELETE /me/tokens/{id}` |

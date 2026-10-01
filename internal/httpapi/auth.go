@@ -148,6 +148,8 @@ func (s *server) authenticate(next http.Handler) http.Handler {
 var tokenWrites = []struct{ pattern, scope string }{
 	{"POST /api/v1/assertions", identity.ScopeAssertionsWrite},
 	{"DELETE /api/v1/assertions", identity.ScopeAssertionsWrite},
+	{"POST /api/v1/proposals", identity.ScopeAssertionsWrite},
+	{"DELETE /api/v1/proposals", identity.ScopeAssertionsWrite},
 	{"POST /api/v1/tasks/claim", identity.ScopeTasksWork},
 	{"POST /api/v1/tasks/*/heartbeat", identity.ScopeTasksWork},
 	{"POST /api/v1/tasks/*/report", identity.ScopeTasksWork},

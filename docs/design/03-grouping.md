@@ -14,11 +14,11 @@ A group is a judgment: "these belong together" can come from several places with
  forge facts  ─▶ structural ─┐
  dashboard    ─▶ manual     ─┼─▶ assertions ─▶ resolve ─▶ groups (stable IDs)
  bridges      ─▶ external   ─┘         ▲                   + chains (git graph)
-                                       │ a member accepts        │
+ bridges      ─▶ proposals ────────────┤ a member accepts        │
  unplaced PRs ─▶ model ─▶ suggestions ─┘        verdicts · task units · dashboard
 ```
 
-The grouping stage takes **assertions** and produces **groups**. It gathers nothing itself: forge facts arrive through collection ([Facts](02-facts.md)), and outside signals arrive from bridges through the assertion API. The model does not assert: it suggests, and a suggestion becomes a member's placement only when a member accepts it.
+The grouping stage takes **assertions** and produces **groups**. It gathers nothing itself: forge facts arrive through collection ([Facts](02-facts.md)), and outside signals arrive from bridges through the assertion and proposal APIs. The model does not assert: it suggests, and a suggestion becomes a member's placement only when a member accepts it. So does a bridge's proposal.
 
 The dashboard draws this picture and lets each box be configured — which sources are on, whether the model suggests, its confidence threshold — but the boxes cannot be rewired.
 
@@ -27,7 +27,7 @@ The dashboard draws this picture and lets each box be configured — which sourc
 Sources, from highest authority to lowest:
 
 1. **Manual** — a member moves, splits, merges, creates, or renames groups on the dashboard, or accepts a suggestion.
-2. **External** — programs outside Park post assertions through the API: a bridge that reads review threads from a chat tool, or epics from an issue tracker. Park ships no such integration; it only accepts assertions.
+2. **External** — programs outside Park post assertions through the API: a bridge that reads review threads from a chat tool, or epics from an issue tracker. Park ships no such integration; it only accepts assertions. A bridge that cannot tell how a thread's pull requests divide into units — one thread that announces several features, or one large feature — proposes groups instead, and a member accepts them ([bridge proposals](#flow-bridge-proposals)).
 3. **Structural** — built in, derived from forge facts (below).
 
 The model, optional and off unless a model provider is configured, is not a source: it only suggests a group for a pull request that nothing else explains, and nothing changes until a member accepts.
@@ -64,6 +64,8 @@ External and structural sources do not know Park's group IDs; they can only say 
 | `bridge` | A registered bridge: ID, name, the member who owns it, and the link template used to render its anchors and evidence. Its tokens are its credentials; the bridge, not a token, is the source of its assertions |
 | `membership` | Pull request, group, the assertion that placed it, since when |
 | `suggestion` | Pull request, proposed group — or, from the model, a proposed new group's name — reason, source (structural or model); for the model, the fingerprint and confidence; state (open, accepted, dismissed) |
+| `proposal` | A bridge's proposed groups under an anchor: source, anchor, an optional title, evidence as IDs, a fingerprint of the groups, state (open, accepted, dismissed), who decided and when; creation and retraction times. One proposal per anchor is live |
+| `proposal_group` | One proposed group: its position in the proposal, an optional name, and its pull requests as repository and number |
 
 Chains are derived on read from `pr_fact` and are not stored.
 
@@ -119,6 +121,8 @@ A pull request is asked again only when its own inputs change. A change in the s
 | Rename G | The new name, with its source recorded as manual |
 | Accept a suggestion | A manual placement of the suggested pull request in the suggested group |
 | Dismiss a suggestion | The dismissal; the same suggestion is not opened again |
+| Accept a proposal | For each proposed group, as proposed or as the member edited it, that still has two or more open pull requests: a new group under its name, and placements of its open pull requests in it |
+| Dismiss a proposal | The dismissal; a repost of the same groups does not open it again |
 
 ## Flow: bridge assertions
 
@@ -131,9 +135,21 @@ A pull request is asked again only when its own inputs change. A change in the s
 
 `DELETE /assertions?anchor=…` retracts the live assertion under that anchor, for example when the thread is deleted. Links to a bridge's threads or issues are rendered from its link template when a page is shown, never stored.
 
+## Flow: bridge proposals
+
+A thread that links many pull requests may be one large unit of work, or several announced together, and its size does not say which. A bridge that works it out — by asking a model, say, which it does on its own, so that the thread's text stays in the bridge — proposes the groups it found, and a member decides ([D61](10-design-log.md#d61-a-bridge-proposes-the-groups-it-is-unsure-of)).
+
+1. A bridge sends `POST /proposals` with an anchor, optionally a title and evidence, and one or more groups, each with an optional name and two or more pull requests given as repository name and number. A pull request is in one proposed group at most.
+2. The source, the repository names, and pull requests Park has not collected yet are handled as for assertions.
+3. If the live proposal under the same source and anchor proposes the same groups, nothing changes, whatever its state: a dismissed proposal stays dismissed, and an accepted one is not accepted again. Otherwise the live proposal is retracted, and the new one opens.
+4. A proposal changes no group. The groups page lists the open proposals that have a group with two or more open pull requests.
+5. A member accepts a proposal, as proposed or after editing its groups' names and pull requests, or dismisses it ([manual actions](#flow-manual-actions)). Accepting records manual placements, which win over the bridge's own assertions and everything below them.
+
+`DELETE /proposals?anchor=…` retracts the live proposal under that anchor; groups a member made by accepting it stay.
+
 ## Group names
 
-A group takes its name from the highest source that offers one: a manual rename, then an external assertion's title, then the title of the issue behind an issue anchor — for now, the title of the oldest pull request that closes it ([D51](10-design-log.md#d51-an-issue-anchor-is-named-after-its-oldest-pull-request)) — then the branch name of a branch anchor, then the title of the oldest pull request behind a reference anchor, then — for a group created by accepting the model's suggestion — the name the model proposed. The name changes when a higher source offers one, or when the source it came from changes it — a thread is retitled.
+A group takes its name from the highest source that offers one: a manual rename, then an external assertion's title, then the title of the issue behind an issue anchor — for now, the title of the oldest pull request that closes it ([D51](10-design-log.md#d51-an-issue-anchor-is-named-after-its-oldest-pull-request)) — then the branch name of a branch anchor, then the title of the oldest pull request behind a reference anchor, then — for a group created by accepting the model's suggestion — the name the model proposed. A group made by accepting a bridge's proposal is named as a member names one: by the proposed name, or, when the proposal named none, by its oldest pull request's title. The name changes when a higher source offers one, or when the source it came from changes it — a thread is retitled.
 
 ## A worked example
 
@@ -169,6 +185,7 @@ The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), 
 - **G13.** Assertions are append-only. Reposting under the same source and anchor retracts the previous one.
 - **G14.** Resolution does not depend on the order in which events arrive: each component is resolved as one batch, winning claims first and anchors after, in a canonical order.
 - **G15.** Chain edges stay within one repository, never start from a fork's branch, and never hang from a long-lived branch.
+- **G16.** A bridge's proposal changes nothing until a member accepts it, and accepting records manual placements. Reposting the same groups under an anchor neither reopens a proposal nor repeats a decision.
 
 ## Defaults
 

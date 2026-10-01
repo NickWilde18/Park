@@ -347,6 +347,27 @@ func (e ProblemRole) Valid() bool {
 	}
 }
 
+// Defines values for ProposalResultState.
+const (
+	ProposalResultStateAccepted  ProposalResultState = "accepted"
+	ProposalResultStateDismissed ProposalResultState = "dismissed"
+	ProposalResultStateOpen      ProposalResultState = "open"
+)
+
+// Valid indicates whether the value is a known member of the ProposalResultState enum.
+func (e ProposalResultState) Valid() bool {
+	switch e {
+	case ProposalResultStateAccepted:
+		return true
+	case ProposalResultStateDismissed:
+		return true
+	case ProposalResultStateOpen:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProviderKind.
 const (
 	ProviderKindForge ProviderKind = "forge"
@@ -821,6 +842,18 @@ func (e ListPullRequestsParamsState) Valid() bool {
 	}
 }
 
+// AcceptProposalRequest defines model for AcceptProposalRequest.
+type AcceptProposalRequest struct {
+	// Groups The groups as the member edited them; without them, the groups as proposed.
+	Groups *[]EditedGroup `json:"groups,omitempty"`
+}
+
+// AcceptedProposal defines model for AcceptedProposal.
+type AcceptedProposal struct {
+	// Groups The IDs of the groups made.
+	Groups []int64 `json:"groups"`
+}
+
 // Account defines model for Account.
 type Account struct {
 	Id    int64  `json:"id"`
@@ -1012,6 +1045,12 @@ type DraftUpdate struct {
 
 	// Rules A rule set as RuleSet describes it, such as an imported rule-set file. It is read strictly: a key RuleSet does not have is refused, rather than dropped.
 	Rules RuleSetDocument `json:"rules"`
+}
+
+// EditedGroup defines model for EditedGroup.
+type EditedGroup struct {
+	Name         string  `json:"name"`
+	PullRequests []int64 `json:"pull_requests"`
 }
 
 // Error defines model for Error.
@@ -1441,6 +1480,65 @@ type ProblemPart string
 
 // ProblemRole defines model for Problem.Role.
 type ProblemRole string
+
+// Proposal defines model for Proposal.
+type Proposal struct {
+	// Bridge The name of the bridge that proposed it.
+	Bridge    string          `json:"bridge"`
+	CreatedAt time.Time       `json:"created_at"`
+	Groups    []ProposedGroup `json:"groups"`
+	Id        int64           `json:"id"`
+
+	// Link The bridge's thread, from its link template; absent when it has none.
+	Link  *string `json:"link,omitempty"`
+	Title *string `json:"title,omitempty"`
+}
+
+// ProposalRequest defines model for ProposalRequest.
+type ProposalRequest struct {
+	// Anchor An ID in the bridge's own system, never a link.
+	Anchor string `json:"anchor"`
+
+	// Evidence IDs in the bridge's own system, never links.
+	Evidence *[]string `json:"evidence,omitempty"`
+
+	// Groups One or more; a pull request is in one of them at most.
+	Groups []ProposedGroupRequest `json:"groups"`
+
+	// Title What the bridge's thread is called, shown with the proposal.
+	Title *string `json:"title,omitempty"`
+}
+
+// ProposalResult defines model for ProposalResult.
+type ProposalResult struct {
+	Id    int64               `json:"id"`
+	State ProposalResultState `json:"state"`
+}
+
+// ProposalResultState defines model for ProposalResult.State.
+type ProposalResultState string
+
+// Proposals defines model for Proposals.
+type Proposals struct {
+	Proposals []Proposal `json:"proposals"`
+}
+
+// ProposedGroup defines model for ProposedGroup.
+type ProposedGroup struct {
+	Name *string `json:"name,omitempty"`
+
+	// PullRequests Its open pull requests, two or more; one Park has not collected yet is left out until it is.
+	PullRequests []int64 `json:"pull_requests"`
+}
+
+// ProposedGroupRequest defines model for ProposedGroupRequest.
+type ProposedGroupRequest struct {
+	// Name Without one, an accepted group is named after its oldest pull request.
+	Name *string `json:"name,omitempty"`
+
+	// PullRequests Two or more.
+	PullRequests []PRName `json:"pull_requests"`
+}
 
 // Provider defines model for Provider.
 type Provider struct {
@@ -1995,6 +2093,11 @@ type StartSignInParams struct {
 // StartSignInParamsMode defines parameters for StartSignIn.
 type StartSignInParamsMode string
 
+// RetractProposalParams defines parameters for RetractProposal.
+type RetractProposalParams struct {
+	Anchor string `form:"anchor" json:"anchor"`
+}
+
 // ListPullRequestsParams defines parameters for ListPullRequests.
 type ListPullRequestsParams struct {
 	// Repo Only this repository's.
@@ -2087,6 +2190,12 @@ type SetAutomationJSONRequestBody = Automation
 
 // CreateMyTokenJSONRequestBody defines body for CreateMyToken for application/json ContentType.
 type CreateMyTokenJSONRequestBody = TokenRequest
+
+// PostProposalJSONRequestBody defines body for PostProposal for application/json ContentType.
+type PostProposalJSONRequestBody = ProposalRequest
+
+// AcceptProposalJSONRequestBody defines body for AcceptProposal for application/json ContentType.
+type AcceptProposalJSONRequestBody = AcceptProposalRequest
 
 // CreateRuleSetDraftJSONRequestBody defines body for CreateRuleSetDraft for application/json ContentType.
 type CreateRuleSetDraftJSONRequestBody = DraftRequest
@@ -2252,6 +2361,21 @@ type ServerInterface interface {
 	// RevokeMyToken Revoke one of my API tokens, at once
 	// (DELETE /me/tokens/{token})
 	RevokeMyToken(w http.ResponseWriter, r *http.Request, token string)
+	// RetractProposal Retract, as a bridge, the live proposal under an anchor
+	// (DELETE /proposals)
+	RetractProposal(w http.ResponseWriter, r *http.Request, params RetractProposalParams)
+	// ListProposals Open proposals from bridges
+	// (GET /proposals)
+	ListProposals(w http.ResponseWriter, r *http.Request)
+	// PostProposal Propose groups, as a bridge, for a member to accept
+	// (POST /proposals)
+	PostProposal(w http.ResponseWriter, r *http.Request)
+	// AcceptProposal Accept a proposal, as proposed or edited, making its groups
+	// (POST /proposals/{id}/accept)
+	AcceptProposal(w http.ResponseWriter, r *http.Request, id ID)
+	// DismissProposal Dismiss a proposal; a repost of the same groups does not open it again
+	// (POST /proposals/{id}/dismiss)
+	DismissProposal(w http.ResponseWriter, r *http.Request, id ID)
 	// ListPullRequests Pull requests Park collects
 	// (GET /prs)
 	ListPullRequests(w http.ResponseWriter, r *http.Request, params ListPullRequestsParams)
@@ -3303,6 +3427,119 @@ func (siw *ServerInterfaceWrapper) RevokeMyToken(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// RetractProposal operation middleware
+func (siw *ServerInterfaceWrapper) RetractProposal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RetractProposalParams
+
+	// ------------- Required query parameter "anchor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "anchor", r.URL.Query(), &params.Anchor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "anchor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "anchor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RetractProposal(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListProposals operation middleware
+func (siw *ServerInterfaceWrapper) ListProposals(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProposals(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostProposal operation middleware
+func (siw *ServerInterfaceWrapper) PostProposal(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProposal(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AcceptProposal operation middleware
+func (siw *ServerInterfaceWrapper) AcceptProposal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AcceptProposal(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DismissProposal operation middleware
+func (siw *ServerInterfaceWrapper) DismissProposal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DismissProposal(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListPullRequests operation middleware
 func (siw *ServerInterfaceWrapper) ListPullRequests(w http.ResponseWriter, r *http.Request) {
 
@@ -4140,6 +4377,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/suggestions/{id}/dismiss", wrapper.DismissSuggestion)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/assertions", wrapper.RetractAssertion)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/assertions", wrapper.PostAssertion)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/proposals", wrapper.RetractProposal)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/proposals", wrapper.ListProposals)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/proposals", wrapper.PostProposal)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/proposals/{id}/accept", wrapper.AcceptProposal)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/proposals/{id}/dismiss", wrapper.DismissProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/bridges", wrapper.ListBridges)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/bridges", wrapper.CreateBridge)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/fields", wrapper.ListFields)
@@ -5907,6 +6149,189 @@ func (response RevokeMyTokendefaultJSONResponse) VisitRevokeMyTokenResponse(w ht
 	return err
 }
 
+type RetractProposalRequestObject struct {
+	Params RetractProposalParams
+}
+
+type RetractProposalResponseObject interface {
+	VisitRetractProposalResponse(w http.ResponseWriter) error
+}
+
+type RetractProposal204Response struct {
+}
+
+func (response RetractProposal204Response) VisitRetractProposalResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RetractProposaldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RetractProposaldefaultJSONResponse) VisitRetractProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProposalsRequestObject struct {
+}
+
+type ListProposalsResponseObject interface {
+	VisitListProposalsResponse(w http.ResponseWriter) error
+}
+
+type ListProposals200JSONResponse Proposals
+
+func (response ListProposals200JSONResponse) VisitListProposalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProposalsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListProposalsdefaultJSONResponse) VisitListProposalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProposalRequestObject struct {
+	Body *PostProposalJSONRequestBody
+}
+
+type PostProposalResponseObject interface {
+	VisitPostProposalResponse(w http.ResponseWriter) error
+}
+
+type PostProposal201JSONResponse ProposalResult
+
+func (response PostProposal201JSONResponse) VisitPostProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProposaldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostProposaldefaultJSONResponse) VisitPostProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptProposalRequestObject struct {
+	Id   ID `json:"id"`
+	Body *AcceptProposalJSONRequestBody
+}
+
+type AcceptProposalResponseObject interface {
+	VisitAcceptProposalResponse(w http.ResponseWriter) error
+}
+
+type AcceptProposal200JSONResponse AcceptedProposal
+
+func (response AcceptProposal200JSONResponse) VisitAcceptProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptProposaldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response AcceptProposaldefaultJSONResponse) VisitAcceptProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DismissProposalRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DismissProposalResponseObject interface {
+	VisitDismissProposalResponse(w http.ResponseWriter) error
+}
+
+type DismissProposal204Response struct {
+}
+
+func (response DismissProposal204Response) VisitDismissProposalResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DismissProposaldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DismissProposaldefaultJSONResponse) VisitDismissProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListPullRequestsRequestObject struct {
 	Params ListPullRequestsParams
 }
@@ -7085,6 +7510,21 @@ type StrictServerInterface interface {
 	// RevokeMyToken Revoke one of my API tokens, at once
 	// (DELETE /me/tokens/{token})
 	RevokeMyToken(ctx context.Context, request RevokeMyTokenRequestObject) (RevokeMyTokenResponseObject, error)
+	// RetractProposal Retract, as a bridge, the live proposal under an anchor
+	// (DELETE /proposals)
+	RetractProposal(ctx context.Context, request RetractProposalRequestObject) (RetractProposalResponseObject, error)
+	// ListProposals Open proposals from bridges
+	// (GET /proposals)
+	ListProposals(ctx context.Context, request ListProposalsRequestObject) (ListProposalsResponseObject, error)
+	// PostProposal Propose groups, as a bridge, for a member to accept
+	// (POST /proposals)
+	PostProposal(ctx context.Context, request PostProposalRequestObject) (PostProposalResponseObject, error)
+	// AcceptProposal Accept a proposal, as proposed or edited, making its groups
+	// (POST /proposals/{id}/accept)
+	AcceptProposal(ctx context.Context, request AcceptProposalRequestObject) (AcceptProposalResponseObject, error)
+	// DismissProposal Dismiss a proposal; a repost of the same groups does not open it again
+	// (POST /proposals/{id}/dismiss)
+	DismissProposal(ctx context.Context, request DismissProposalRequestObject) (DismissProposalResponseObject, error)
 	// ListPullRequests Pull requests Park collects
 	// (GET /prs)
 	ListPullRequests(ctx context.Context, request ListPullRequestsRequestObject) (ListPullRequestsResponseObject, error)
@@ -8499,6 +8939,146 @@ func (sh *strictHandler) RevokeMyToken(w http.ResponseWriter, r *http.Request, t
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RevokeMyTokenResponseObject); ok {
 		if err := validResponse.VisitRevokeMyTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RetractProposal operation middleware
+func (sh *strictHandler) RetractProposal(w http.ResponseWriter, r *http.Request, params RetractProposalParams) {
+	var request RetractProposalRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RetractProposal(ctx, request.(RetractProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RetractProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RetractProposalResponseObject); ok {
+		if err := validResponse.VisitRetractProposalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListProposals operation middleware
+func (sh *strictHandler) ListProposals(w http.ResponseWriter, r *http.Request) {
+	var request ListProposalsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProposals(ctx, request.(ListProposalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProposals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProposalsResponseObject); ok {
+		if err := validResponse.VisitListProposalsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostProposal operation middleware
+func (sh *strictHandler) PostProposal(w http.ResponseWriter, r *http.Request) {
+	var request PostProposalRequestObject
+
+	var body PostProposalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostProposal(ctx, request.(PostProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostProposalResponseObject); ok {
+		if err := validResponse.VisitPostProposalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AcceptProposal operation middleware
+func (sh *strictHandler) AcceptProposal(w http.ResponseWriter, r *http.Request, id ID) {
+	var request AcceptProposalRequestObject
+
+	request.Id = id
+
+	var body AcceptProposalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AcceptProposal(ctx, request.(AcceptProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AcceptProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AcceptProposalResponseObject); ok {
+		if err := validResponse.VisitAcceptProposalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DismissProposal operation middleware
+func (sh *strictHandler) DismissProposal(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DismissProposalRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DismissProposal(ctx, request.(DismissProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DismissProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DismissProposalResponseObject); ok {
+		if err := validResponse.VisitDismissProposalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

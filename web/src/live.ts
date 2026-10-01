@@ -60,8 +60,8 @@ function listen(kind: string) {
   hear(kind)
 }
 
-// useLive calls back whenever Park sends a notice of one of the kinds — verdict, task, group, or pr — so that a view
-// fetches what it shows again, and whenever the stream opens.
+// useLive calls back whenever Park sends a notice of one of the kinds — verdict, task, group, pr, or proposal — so
+// that a view fetches what it shows again, and whenever the stream opens.
 export function useLive(kinds: string[], onNotice: () => void) {
   const call = useRef(onNotice)
   useEffect(() => {
