@@ -170,7 +170,9 @@ func tokenMay(c *identity.Caller, r *http.Request) bool {
 }
 
 // guardJSON refuses a request under /api/ that sends a body that is not JSON. Browsers send forms and text/plain
-// across sites without asking first, so this keeps other sites from posting to the API.
+// across sites without asking first, so this keeps other sites from posting to the API. The one other body is a
+// group's description, as application/zip, which a browser sends across sites only after asking, and Park never
+// says yes.
 func guardJSON(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") && unsafeMethod(r.Method) {
@@ -179,7 +181,7 @@ func guardJSON(next http.Handler) http.Handler {
 				ct = "none"
 			}
 			if ct != "" {
-				if mt, _, err := mime.ParseMediaType(ct); err != nil || mt != "application/json" {
+				if mt, _, err := mime.ParseMediaType(ct); err != nil || (mt != "application/json" && (mt != "application/zip" || !zipBody(r))) {
 					writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Send request bodies as application/json.")
 					return
 				}
@@ -187,6 +189,12 @@ func guardJSON(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// zipBody reports whether a request uploads a group's description, whose body is a zip.
+func zipBody(r *http.Request) bool {
+	ok, _ := path.Match("/api/v1/groups/*/doc", r.URL.Path)
+	return ok && r.Method == http.MethodPut
 }
 
 // sessionCookieFor is the cookie that holds a session.

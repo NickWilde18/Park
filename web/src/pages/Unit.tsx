@@ -44,7 +44,8 @@ async function load(kind: Props['kind'], id: number) {
 // A unit: where its ball is and who holds it, or how it closed; every person's part with its path through the rules,
 // the rule set version, each pull request's facts, when Park last checked them, and the timeline of its fact events,
 // and its tasks with their histories. A group can be renamed, and its pull requests taken out. Its open pull requests
-// can be refreshed from the forge.
+// can be refreshed from the forge. A group's description shows beside it, in a sidebar, and those who wrote one of
+// its pull requests, and admins, may upload, replace, or remove it.
 export default function Unit({ kind, id }: Props) {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
@@ -83,11 +84,15 @@ export default function Unit({ kind, id }: Props) {
     setStatus(asked(open.length === 1 ? 'its pull request' : `its ${open.length} open pull requests`))
     setRechecks((n) => n + 1)
   }
+  const described = (failed: string) => {
+    setError(failed)
+    if (!failed) refresh()
+  }
 
   if (!data || 'moved' in data) return <p className="quiet">Loading…</p>
   const { verdict, prs, tasks, group, facts } = data
   const open = facts.filter((f) => f.summary.state === 'open' || f.summary.state === 'draft').map((f) => f.summary.id)
-  return (
+  const page = (
     <section>
       <h1>{group ? group.name : prName(prs, id)}</h1>
       {(error || data.problem) && <p className="error">{error || data.problem}</p>}
@@ -104,6 +109,16 @@ export default function Unit({ kind, id }: Props) {
             {status}
           </span>
         </p>
+      )}
+      {group && !group.doc && group.doc_editable && (
+        <section aria-label="Add a description">
+          <h2>Description</h2>
+          <p className="quiet">
+            A static site, as a zip with its index.html at its top. Park serves it at a link of its own, and anyone who has the
+            link can read it.
+          </p>
+          <DocForm id={group.id} label="Upload" done={described} />
+        </section>
       )}
       {!verdict ? (
         <p className="quiet">No verdict yet.</p>
@@ -211,6 +226,77 @@ export default function Unit({ kind, id }: Props) {
         </article>
       ))}
     </section>
+  )
+  if (!group?.doc) return page
+  return (
+    <div className="with-doc">
+      {page}
+      <Description group={group} done={described} />
+    </div>
+  )
+}
+
+// sandbox is the sandbox a description's frame runs in, the same as Park's policy for /docs: scripts run, in an origin of
+// their own, without the viewer's session.
+const sandbox = 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads'
+
+// uploadDoc sends a description's zip as it is, and answers Park's problem, or '' once it is stored.
+async function uploadDoc(id: number, file: File): Promise<string> {
+  const { error } = await api.PUT('/groups/{id}/doc', {
+    params: { path: { id } },
+    body: file as unknown as string,
+    bodySerializer: (body: unknown) => body as BodyInit,
+    headers: { 'Content-Type': 'application/zip' },
+  })
+  return error ? problem(error) : ''
+}
+
+// DocForm uploads a group's description from a zip the member chooses, replacing the one it has.
+function DocForm({ id, label, done }: { id: number; label: string; done: (failed: string) => void }) {
+  return (
+    <form
+      className="inline"
+      onSubmit={(e) => {
+        e.preventDefault()
+        const file = new FormData(e.currentTarget).get('zip')
+        if (!(file instanceof File) || file.size === 0) done('Choose a zip first.')
+        else void uploadDoc(id, file).then(done)
+      }}
+    >
+      <input type="file" name="zip" accept=".zip,application/zip" aria-label={`${label}: a zip of a static site`} />
+      <button type="submit">{label}</button>
+    </form>
+  )
+}
+
+// Description is a group's description in a sidebar, framed in its sandbox, with a link to open it on its own and,
+// for those who may, the controls to replace or remove it.
+function Description({ group, done }: { group: Schemas['Group']; done: (failed: string) => void }) {
+  const doc = group.doc
+  if (!doc) return null
+  const remove = async () => {
+    const { error } = await api.DELETE('/groups/{id}/doc', { params: { path: { id: group.id } } })
+    done(error ? problem(error) : '')
+  }
+  return (
+    <aside className="doc" aria-label="Description">
+      <header>
+        <strong>Description</strong>
+        <a href={doc.link} target="_blank" rel="noopener noreferrer">
+          Open in a new tab
+        </a>
+        <span className="quiet">
+          by {doc.uploaded_by}, {since(doc.uploaded_at)} ago
+        </span>
+        {group.doc_editable && (
+          <>
+            <DocForm id={group.id} label="Replace" done={done} />
+            <button onClick={() => void remove()}>Remove</button>
+          </>
+        )}
+      </header>
+      <iframe title={`Description of ${group.name}`} src={doc.link} sandbox={sandbox} />
+    </aside>
   )
 }
 

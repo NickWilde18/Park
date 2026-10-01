@@ -597,6 +597,30 @@ export interface paths {
         patch: operations["renameGroup"];
         trace?: never;
     };
+    "/groups/{id}/doc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload a group's description, replacing the one it has
+         * @description Takes a zip of a static site: at most 20 MB, unpacking to at most 100 MB and 500 files, with its index.html at its top or in the one folder at its top. Only a member who wrote one of the group's pull requests, or an admin, may. The description is served at its link, under a new token, and the old link stops working.
+         */
+        put: operations["putGroupDoc"];
+        post?: never;
+        /**
+         * Remove a group's description
+         * @description Only a member who wrote one of the group's pull requests, or an admin, may.
+         */
+        delete: operations["deleteGroupDoc"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/groups/{id}/members": {
         parameters: {
             query?: never;
@@ -1690,6 +1714,24 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             members: components["schemas"]["GroupMember"][];
+            doc?: components["schemas"]["GroupDoc"];
+            /** @description Whether the caller may change the group's description; given when one group is asked for. */
+            doc_editable?: boolean;
+        };
+        /** @description A group's description, a static site Park serves by its link, sandboxed. */
+        GroupDoc: {
+            /** @description The description's address on Park, built for this answer. Whoever has it can read the description. */
+            link: string;
+            files: number;
+            /**
+             * Format: int64
+             * @description The bytes its files unpack to.
+             */
+            size: number;
+            /** @description The display name of the member who uploaded it. */
+            uploaded_by: string;
+            /** Format: date-time */
+            uploaded_at: string;
         };
         Groups: {
             groups: components["schemas"]["Group"][];
@@ -2083,6 +2125,8 @@ export interface components {
             held_since?: string;
             holders: components["schemas"]["Account"][];
             task?: components["schemas"]["Task"];
+            /** @description The address of a group's description, if it has one. */
+            doc_link?: string;
             /** @description The unit's open pull requests. */
             pull_requests: components["schemas"]["BoardPullRequest"][];
         };
@@ -3265,6 +3309,54 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Group"];
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    putGroupDoc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/zip": string;
+            };
+        };
+        responses: {
+            /** @description The group's description. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDoc"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteGroupDoc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The description and its files are gone, and its link stops working. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };

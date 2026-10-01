@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -1043,6 +1044,9 @@ type BoardUnit struct {
 	// Ball yours when the caller holds the ball; others when someone else holds it and the caller has a part in the unit; none otherwise.
 	Ball BoardUnitBall `json:"ball"`
 
+	// DocLink The address of a group's description, if it has one.
+	DocLink *string `json:"doc_link,omitempty"`
+
 	// HeldSince Since when the caller has held the ball, or, when others hold it, the longest any of them has.
 	HeldSince *time.Time `json:"held_since,omitempty"`
 	Holders   []Account  `json:"holders"`
@@ -1290,12 +1294,18 @@ type Forges struct {
 
 // Group defines model for Group.
 type Group struct {
-	CreatedAt  time.Time       `json:"created_at"`
-	Id         int64           `json:"id"`
-	Members    []GroupMember   `json:"members"`
-	Name       string          `json:"name"`
-	NameSource GroupNameSource `json:"name_source"`
-	State      GroupState      `json:"state"`
+	CreatedAt time.Time `json:"created_at"`
+
+	// Doc A group's description, a static site Park serves by its link, sandboxed.
+	Doc *GroupDoc `json:"doc,omitempty"`
+
+	// DocEditable Whether the caller may change the group's description; given when one group is asked for.
+	DocEditable *bool           `json:"doc_editable,omitempty"`
+	Id          int64           `json:"id"`
+	Members     []GroupMember   `json:"members"`
+	Name        string          `json:"name"`
+	NameSource  GroupNameSource `json:"name_source"`
+	State       GroupState      `json:"state"`
 }
 
 // GroupNameSource defines model for Group.NameSource.
@@ -1303,6 +1313,21 @@ type GroupNameSource string
 
 // GroupState defines model for Group.State.
 type GroupState string
+
+// GroupDoc A group's description, a static site Park serves by its link, sandboxed.
+type GroupDoc struct {
+	Files int `json:"files"`
+
+	// Link The description's address on Park, built for this answer. Whoever has it can read the description.
+	Link string `json:"link"`
+
+	// Size The bytes its files unpack to.
+	Size       int64     `json:"size"`
+	UploadedAt time.Time `json:"uploaded_at"`
+
+	// UploadedBy The display name of the member who uploaded it.
+	UploadedBy string `json:"uploaded_by"`
+}
 
 // GroupMember defines model for GroupMember.
 type GroupMember struct {
@@ -2488,6 +2513,12 @@ type ServerInterface interface {
 	// RenameGroup Rename a group
 	// (PATCH /groups/{id})
 	RenameGroup(w http.ResponseWriter, r *http.Request, id ID)
+	// DeleteGroupDoc Remove a group's description
+	// (DELETE /groups/{id}/doc)
+	DeleteGroupDoc(w http.ResponseWriter, r *http.Request, id ID)
+	// PutGroupDoc Upload a group's description, replacing the one it has
+	// (PUT /groups/{id}/doc)
+	PutGroupDoc(w http.ResponseWriter, r *http.Request, id ID)
 	// MoveIntoGroup Move a pull request into a group
 	// (POST /groups/{id}/members)
 	MoveIntoGroup(w http.ResponseWriter, r *http.Request, id ID)
@@ -3349,6 +3380,58 @@ func (siw *ServerInterfaceWrapper) RenameGroup(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RenameGroup(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteGroupDoc operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGroupDoc(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteGroupDoc(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutGroupDoc operation middleware
+func (siw *ServerInterfaceWrapper) PutGroupDoc(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutGroupDoc(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4582,6 +4665,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/groups", wrapper.CreateGroup)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/groups/{id}", wrapper.GetGroup)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/groups/{id}", wrapper.RenameGroup)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/groups/{id}/doc", wrapper.DeleteGroupDoc)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/groups/{id}/doc", wrapper.PutGroupDoc)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/groups/{id}/members", wrapper.MoveIntoGroup)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/groups/{id}/members/{pr}", wrapper.TakeOutOfGroup)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/groups/{id}/merge", wrapper.MergeGroups)
@@ -5941,6 +6026,79 @@ type RenameGroupdefaultJSONResponse struct {
 }
 
 func (response RenameGroupdefaultJSONResponse) VisitRenameGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteGroupDocRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteGroupDocResponseObject interface {
+	VisitDeleteGroupDocResponse(w http.ResponseWriter) error
+}
+
+type DeleteGroupDoc204Response struct {
+}
+
+func (response DeleteGroupDoc204Response) VisitDeleteGroupDocResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteGroupDocdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteGroupDocdefaultJSONResponse) VisitDeleteGroupDocResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutGroupDocRequestObject struct {
+	Id   ID `json:"id"`
+	Body io.Reader
+}
+
+type PutGroupDocResponseObject interface {
+	VisitPutGroupDocResponse(w http.ResponseWriter) error
+}
+
+type PutGroupDoc200JSONResponse GroupDoc
+
+func (response PutGroupDoc200JSONResponse) VisitPutGroupDocResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutGroupDocdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutGroupDocdefaultJSONResponse) VisitPutGroupDocResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7763,6 +7921,12 @@ type StrictServerInterface interface {
 	// RenameGroup Rename a group
 	// (PATCH /groups/{id})
 	RenameGroup(ctx context.Context, request RenameGroupRequestObject) (RenameGroupResponseObject, error)
+	// DeleteGroupDoc Remove a group's description
+	// (DELETE /groups/{id}/doc)
+	DeleteGroupDoc(ctx context.Context, request DeleteGroupDocRequestObject) (DeleteGroupDocResponseObject, error)
+	// PutGroupDoc Upload a group's description, replacing the one it has
+	// (PUT /groups/{id}/doc)
+	PutGroupDoc(ctx context.Context, request PutGroupDocRequestObject) (PutGroupDocResponseObject, error)
 	// MoveIntoGroup Move a pull request into a group
 	// (POST /groups/{id}/members)
 	MoveIntoGroup(ctx context.Context, request MoveIntoGroupRequestObject) (MoveIntoGroupResponseObject, error)
@@ -8919,6 +9083,60 @@ func (sh *strictHandler) RenameGroup(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RenameGroupResponseObject); ok {
 		if err := validResponse.VisitRenameGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteGroupDoc operation middleware
+func (sh *strictHandler) DeleteGroupDoc(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteGroupDocRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteGroupDoc(ctx, request.(DeleteGroupDocRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteGroupDoc")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteGroupDocResponseObject); ok {
+		if err := validResponse.VisitDeleteGroupDocResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutGroupDoc operation middleware
+func (sh *strictHandler) PutGroupDoc(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutGroupDocRequestObject
+
+	request.Id = id
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutGroupDoc(ctx, request.(PutGroupDocRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutGroupDoc")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutGroupDocResponseObject); ok {
+		if err := validResponse.VisitPutGroupDocResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

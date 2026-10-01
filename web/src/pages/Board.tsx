@@ -349,6 +349,11 @@ export default function Board() {
                       </button>{' '}
                       <Link to={unitPath(u.unit)}>{u.name}</Link>
                       <span className="badge">{u.pull_requests.length}</span> {refreshButton(u, u.name)}
+                      {u.doc_link && (
+                        <a className="doc" href={u.doc_link} target="_blank" rel="noopener noreferrer" aria-label={`Description of ${u.name}`}>
+                          📄
+                        </a>
+                      )}
                     </td>
                     {cells(u)}
                   </tr>,

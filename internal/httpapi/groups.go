@@ -47,30 +47,55 @@ func (s *server) ListGroups(ctx context.Context, _ ListGroupsRequestObject) (Lis
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]int64, 0, len(gs))
+	for _, g := range gs {
+		ids = append(ids, g.ID)
+	}
+	described, err := s.docsOf(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	out := ListGroups200JSONResponse{Groups: []Group{}}
 	for _, g := range gs {
-		out.Groups = append(out.Groups, groupOut(g))
+		out.Groups = append(out.Groups, described.with(groupOut(g)))
 	}
 	return out, nil
 }
 
+// group is a group as the contract has it, with its description.
 func (s *server) group(ctx context.Context, id int64) (Group, error) {
 	g, err := s.grouping.Group(ctx, id)
 	if err != nil {
 		return Group{}, err
 	}
-	return groupOut(g), nil
+	described, err := s.docsOf(ctx, []int64{g.ID})
+	if err != nil {
+		return Group{}, err
+	}
+	return described.with(groupOut(g)), nil
 }
 
+// GetGroup is a group, with its description and whether the caller may change it.
 func (s *server) GetGroup(ctx context.Context, req GetGroupRequestObject) (GetGroupResponseObject, error) {
-	if _, err := requireCaller(ctx); err != nil {
-		return nil, err
-	}
-	g, err := s.group(ctx, req.Id)
+	c, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return GetGroup200JSONResponse(g), nil
+	g, err := s.grouping.Group(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	described, err := s.docsOf(ctx, []int64{g.ID})
+	if err != nil {
+		return nil, err
+	}
+	out := described.with(groupOut(g))
+	editable, err := s.mayDescribe(ctx, c, g)
+	if err != nil {
+		return nil, err
+	}
+	out.DocEditable = &editable
+	return GetGroup200JSONResponse(out), nil
 }
 
 func (s *server) CreateGroup(ctx context.Context, req CreateGroupRequestObject) (CreateGroupResponseObject, error) {

@@ -1,5 +1,5 @@
 // Package httpapi serves Park over HTTP: the API under /api/v1, whose handlers are generated from the contract in
-// api/openapi.yaml; the health checks; and the embedded frontend.
+// api/openapi.yaml; groups' descriptions under /docs, by their links; the health checks; and the embedded frontend.
 //
 // Errors are JSON, {"error": {"code": "…", "message": "…"}}, with stable codes. What went wrong inside is logged
 // and never sent.
@@ -22,6 +22,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/NickWilde18/Park/api"
+	"github.com/NickWilde18/Park/internal/docs"
 	"github.com/NickWilde18/Park/internal/events"
 	"github.com/NickWilde18/Park/internal/facts"
 	"github.com/NickWilde18/Park/internal/fail"
@@ -79,6 +80,10 @@ func New(opts Options) (http.Handler, error) {
 		eventPoll: time.Second,
 		closing:   opts.Closing,
 		log:       log}
+	if opts.Pool != nil {
+		srv.docs = docs.New(opts.Pool, log)
+		mux.HandleFunc("GET /docs/{token}/{path...}", srv.docs.Serve)
+	}
 	strict := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  badRequest,
 		ResponseErrorHandlerFunc: srv.respondError,
@@ -106,8 +111,10 @@ type server struct {
 	verdicts *verdicts.Service
 	tasks    *tasks.Service
 	events   *events.Service
-	pool     *pgxpool.Pool
-	log      *slog.Logger
+	// docs stores and serves groups' descriptions; nil without a pool, when there are none.
+	docs *docs.Service
+	pool *pgxpool.Pool
+	log  *slog.Logger
 	// closing ends the event streams when the server shuts down; nil when it never does.
 	closing <-chan struct{}
 	// eventPoll is how often an event stream looks for new notices.

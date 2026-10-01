@@ -505,3 +505,42 @@ func TestConcurrentResolutions(t *testing.T) {
 		t.Fatalf("%d groups, %d anchors; api#12 in %d, web#7 in %d", groups, anchors, g, g2)
 	}
 }
+
+// A group that absorbs another takes its description when it has none of its own; one that has its own keeps it, and
+// the absorbed group's stays where it was, behind the alias.
+func TestMergeMovesDescription(t *testing.T) {
+	e := newEnv(t)
+	made := map[string]int64{}
+	for i, name := range []string{"a", "b", "c"} {
+		pr := e.pr(t, "api", i+1, "feat/"+name, "main", nil)
+		g, err := e.s.Create(e.ctx, e.actor, "Group "+name, []int64{pr})
+		must(t, err)
+		made[name] = g
+	}
+	describe := func(group, token string) {
+		t.Helper()
+		_, err := e.pool.Exec(e.ctx, "INSERT INTO group_doc (group_id, token, files, size, uploaded_by) VALUES ($1, $2, 0, 0, $3)",
+			made[group], token, e.actor)
+		must(t, err)
+	}
+	tokenOf := func(group string) string {
+		t.Helper()
+		var token string
+		err := e.pool.QueryRow(e.ctx, "SELECT token FROM group_doc WHERE group_id = $1", made[group]).Scan(&token)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ""
+		}
+		must(t, err)
+		return token
+	}
+	describe("b", "b-doc")
+	must(t, e.s.Merge(e.ctx, e.actor, made["a"], made["b"]))
+	if got := tokenOf("a"); got != "b-doc" {
+		t.Fatalf("the group that absorbed b has description %q", got)
+	}
+	describe("c", "c-doc")
+	must(t, e.s.Merge(e.ctx, e.actor, made["a"], made["c"]))
+	if a, c := tokenOf("a"), tokenOf("c"); a != "b-doc" || c != "c-doc" {
+		t.Fatalf("after absorbing c: a has %q, c has %q", a, c)
+	}
+}

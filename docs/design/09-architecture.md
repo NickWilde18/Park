@@ -60,6 +60,7 @@ Park/
     facts/             refresh, webhook intake, polling, fact events, and the collector interface it calls
     forges/github/     the GitHub collector: fetching, and normalizing into neutral facts
     grouping/          chains, assertions, resolution, suggestions
+    docs/              groups' descriptions: reading their zips, storing their files, serving them by link
     verdicts/          roles, parts, placing the ball, queues
     judgement/         questions, fingerprints, the model provider interface
     rules/             rule sets, the field catalog, compilation to CEL

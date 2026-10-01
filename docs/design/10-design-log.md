@@ -319,3 +319,9 @@ Set aside: a sweep on demand, which refreshes every open pull request in full an
 ### D65. A member keeps a way in
 
 Forge sign-in finds a member by the account they linked, and a member who joined through the forge has no password. Unlinking that account left them no way in: the next sign-in found no member for the account, and was refused, or, where admission allowed it, made a new member. This came to light when Settings gained an unlink button, which would have put it one click away. So the last way in cannot be unlinked, as the last admin cannot be demoted; a member connects another account first.
+
+### D66. A group's description is served by its link, sandboxed
+
+Members wanted a feature's page beside its group — what it is for, screenshots, a short video — made as a static site and hosted by Park. A page that runs scripts in Park's origin could act as whoever opens it: read the CSRF token, change groups, make tokens. The owner chose to let pages run scripts. So a description runs sandboxed, in an origin of its own and without Park's session. Its images and videos then cannot be authorized by the session either, so it is served to anyone who has its link, under an unguessable token that each upload replaces. It sends no referrer, so that the token does not reach the sites a page loads fonts from.
+
+Set aside: serving descriptions in Park's origin with scripts forbidden, which keeps them behind sign-in but stops interactive pages working. Also set aside: a separate origin for descriptions, which allows both, at the cost of a second hostname, a certificate, and an address in the configuration.

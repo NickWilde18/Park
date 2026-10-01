@@ -171,8 +171,8 @@ func (s *Service) Rename(ctx context.Context, group int64, name string) error {
 }
 
 // Merge merges one group into another: an alias from the absorbed group, whose anchors, memberships, placements,
-// and exclusions move to the one it joins. Where an exclusion that moved contradicts a placement there, the newer
-// of the two stands.
+// and exclusions move to the one it joins, and its description too when the one it joins has none. Where an
+// exclusion that moved contradicts a placement there, the newer of the two stands.
 func (s *Service) Merge(ctx context.Context, actor, into, from int64) error {
 	return s.act(ctx, func(tx pgx.Tx) error {
 		to, err := target(ctx, tx, into)
@@ -193,6 +193,10 @@ func (s *Service) Merge(ctx context.Context, actor, into, from int64) error {
 			return err
 		}
 		if _, err := tx.Exec(ctx, "UPDATE membership SET group_id = $2 WHERE group_id = $1", absorbed, to); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE group_doc SET group_id = $2 WHERE group_id = $1
+			AND NOT EXISTS (SELECT 1 FROM group_doc WHERE group_id = $2)`, absorbed, to); err != nil {
 			return err
 		}
 		rows, err := tx.Query(ctx, `SELECT pr_id, negative FROM assertion
