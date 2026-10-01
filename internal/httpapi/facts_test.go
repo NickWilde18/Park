@@ -3,6 +3,8 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -184,6 +186,83 @@ func TestWatchThroughARefusedCredential(t *testing.T) {
 		_, _ = io.WriteString(w, `{"message": "Bad credentials"}`)
 	}))
 	t.Cleanup(refusing.Close)
+	admin := factsAdmin(t)
+	var f Forge
+	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/forges", map[string]string{"kind": "github", "name": "GitHub",
+		"base_address": refusing.URL}, &f), http.StatusCreated, "")
+
+	for _, c := range []struct {
+		credential map[string]any
+		name       string
+	}{
+		{name: "token", credential: map[string]any{"kind": "token", "token": "a-revoked-token"}},
+		{name: "app", credential: map[string]any{"kind": "app", "app": map[string]any{"app_id": 7, "installation_id": 55,
+			"private_key": appKey(t)}}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			body := map[string]any{"forge_id": f.Id, "name": c.name}
+			maps.Copy(body, c.credential)
+			var inst Installation
+			wantStatus(t, admin.call(t, "POST", "/api/v1/admin/installations", body, &inst), http.StatusCreated, "")
+			wantStatus(t, admin.call(t, "POST", "/api/v1/admin/repos", map[string]any{"installation_id": inst.Id, "owner": "acme",
+				"name": "api"}, nil), http.StatusBadRequest, "credential_refused")
+		})
+	}
+	var repos Repos
+	wantStatus(t, admin.call(t, "GET", "/api/v1/admin/repos", nil, &repos), http.StatusOK, "")
+	if len(repos.Repos) != 0 {
+		t.Fatalf("watching %+v", repos.Repos)
+	}
+}
+
+// An app installation's private key is read when the installation is added, and when its key is replaced: a key that
+// is not PEM, or not an RSA key, is refused with a 400, rather than taken and failing as a server error the first
+// time Park uses it; a key that reads replaces the old one.
+func TestAppKeyReadWhenAdded(t *testing.T) {
+	admin := factsAdmin(t)
+	var f Forge
+	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/forges", map[string]string{"kind": "github", "name": "GitHub",
+		"base_address": "https://ghe.example.test"}, &f), http.StatusCreated, "")
+	app := func(key string) map[string]any {
+		return map[string]any{"app_id": 7, "installation_id": 55, "private_key": key}
+	}
+	var inst Installation
+	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/installations", map[string]any{"forge_id": f.Id, "name": "app", "kind": "app",
+		"app": app(appKey(t))}, &inst), http.StatusCreated, "")
+	ec, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(ec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range []struct{ name, key string }{
+		{name: "not PEM", key: "-----BEGIN RSA PRIVATE KEY-----\nnot a key\n-----END RSA PRIVATE KEY-----\n"},
+		{name: "not RSA", key: string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))},
+	} {
+		t.Run("adding a key "+c.name, func(t *testing.T) {
+			wantStatus(t, admin.call(t, "POST", "/api/v1/admin/installations", map[string]any{"forge_id": f.Id, "name": c.name,
+				"kind": "app", "app": app(c.key)}, nil), http.StatusBadRequest, "invalid_credential")
+		})
+		t.Run("replacing the key with one "+c.name, func(t *testing.T) {
+			wantStatus(t, admin.call(t, "PATCH", "/api/v1/admin/installations/"+strconv.FormatInt(inst.Id, 10),
+				map[string]any{"app": app(c.key)}, nil), http.StatusBadRequest, "invalid_credential")
+		})
+	}
+	wantStatus(t, admin.call(t, "PATCH", "/api/v1/admin/installations/"+strconv.FormatInt(inst.Id, 10),
+		map[string]any{"app": app(appKey(t))}, nil), http.StatusOK, "")
+	var list Installations
+	wantStatus(t, admin.call(t, "GET", "/api/v1/admin/installations", nil, &list), http.StatusOK, "")
+	if len(list.Installations) != 1 {
+		t.Fatalf("installations %+v", list.Installations)
+	}
+}
+
+// factsAdmin signs in the admin of Park's handler with the fact layer and no runner; a failed test shows Park's log.
+func factsAdmin(t *testing.T) *browser {
+	t.Helper()
 	pool := storetest.MigratedPool(t)
 	logs := &syncBuffer{}
 	t.Cleanup(func() {
@@ -201,36 +280,15 @@ func TestWatchThroughARefusedCredential(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	admin := (&harness{h: h, ids: ids, pool: pool, logs: logs}).admin(t)
-	var f Forge
-	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/forges", map[string]string{"kind": "github", "name": "GitHub",
-		"base_address": refusing.URL}, &f), http.StatusCreated, "")
+	return (&harness{h: h, ids: ids, pool: pool, logs: logs}).admin(t)
+}
+
+// appKey is a new RSA private key, in the PEM a GitHub App's key comes in.
+func appKey(t *testing.T) string {
+	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pemKey := string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}))
-
-	for _, c := range []struct {
-		credential map[string]any
-		name       string
-	}{
-		{name: "token", credential: map[string]any{"kind": "token", "token": "a-revoked-token"}},
-		{name: "app", credential: map[string]any{"kind": "app", "app": map[string]any{"app_id": 7, "installation_id": 55,
-			"private_key": pemKey}}},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			body := map[string]any{"forge_id": f.Id, "name": c.name}
-			maps.Copy(body, c.credential)
-			var inst Installation
-			wantStatus(t, admin.call(t, "POST", "/api/v1/admin/installations", body, &inst), http.StatusCreated, "")
-			wantStatus(t, admin.call(t, "POST", "/api/v1/admin/repos", map[string]any{"installation_id": inst.Id, "owner": "acme",
-				"name": "api"}, nil), http.StatusBadRequest, "credential_refused")
-		})
-	}
-	var repos Repos
-	wantStatus(t, admin.call(t, "GET", "/api/v1/admin/repos", nil, &repos), http.StatusOK, "")
-	if len(repos.Repos) != 0 {
-		t.Fatalf("watching %+v", repos.Repos)
-	}
+	return string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}))
 }

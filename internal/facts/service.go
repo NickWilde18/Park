@@ -178,8 +178,9 @@ func scanInstallation(row pgx.CollectableRow) (Installation, error) {
 	return i, err
 }
 
-// sealCredential checks and seals an installation's credential.
-func (s *Service) sealCredential(id int64, in InstallationInput) ([]byte, error) {
+// sealCredential checks and seals an installation's credential on forge f. An app's private key is read as f's kind
+// reads it, so a key it cannot use is refused here rather than on first use.
+func (s *Service) sealCredential(id int64, f forges.Forge, in InstallationInput) ([]byte, error) {
 	var plain []byte
 	switch in.Kind {
 	case "token":
@@ -190,6 +191,10 @@ func (s *Service) sealCredential(id int64, in InstallationInput) ([]byte, error)
 	case "app":
 		if in.App == nil || in.App.AppID <= 0 || in.App.InstallationID <= 0 || !strings.Contains(in.App.PrivateKey, "PRIVATE KEY") {
 			return nil, fail.New(fail.Invalid, "invalid_credential", "An app installation needs its app ID, installation ID, and private key.")
+		}
+		if _, err := collectorFor(f, Credential{Kind: in.Kind, App: in.App}); err != nil {
+			return nil, fail.New(fail.Invalid, "invalid_credential",
+				"The app's private key cannot be read; use the PEM file the forge generated for the app.")
 		}
 		data, err := json.Marshal(in.App)
 		if err != nil {
@@ -224,7 +229,7 @@ func (s *Service) CreateInstallation(ctx context.Context, in InstallationInput) 
 			RETURNING id`, in.ForgeID, strings.TrimSpace(in.Name), in.Kind).Scan(&id); err != nil {
 			return err
 		}
-		sealed, err := s.sealCredential(id, in)
+		sealed, err := s.sealCredential(id, f, in)
 		if err != nil {
 			return err
 		}
@@ -256,8 +261,10 @@ type InstallationPatch struct {
 func (s *Service) UpdateInstallation(ctx context.Context, id int64, p InstallationPatch) (Installation, error) {
 	var out Installation
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var forgeID int64
 		var kind string
-		if err := tx.QueryRow(ctx, "SELECT credential_kind FROM installation WHERE id = $1 FOR UPDATE", id).Scan(&kind); errors.Is(err, pgx.ErrNoRows) {
+		if err := tx.QueryRow(ctx, "SELECT forge_id, credential_kind FROM installation WHERE id = $1 FOR UPDATE", id).
+			Scan(&forgeID, &kind); errors.Is(err, pgx.ErrNoRows) {
 			return errNoInstallation
 		} else if err != nil {
 			return err
@@ -275,7 +282,11 @@ func (s *Service) UpdateInstallation(ctx context.Context, id int64, p Installati
 			if p.Token != nil {
 				in.Token = *p.Token
 			}
-			sealed, err := s.sealCredential(id, in)
+			f, err := forges.Get(ctx, s.pool, forgeID)
+			if err != nil {
+				return err
+			}
+			sealed, err := s.sealCredential(id, f, in)
 			if err != nil {
 				return err
 			}
