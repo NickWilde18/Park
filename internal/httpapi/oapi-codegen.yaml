@@ -4,5 +4,8 @@ generate:
   std-http-server: true
   strict-server: true
   models: true
+output-options:
+  # The event stream is served by streamEvents: a stream, not a JSON answer.
+  exclude-operation-ids: [streamEvents]
 compatibility:
   always-prefix-enum-values: true

@@ -1097,6 +1097,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live updates, as Server-Sent Events
+         * @description Small notices, each naming what changed: verdict (a unit, as group:<id> or pr:<id>), task (its ID), group (its ID), or pr (the pull request's ID). The client fetches what it needs again. Notices are numbered in the order their changes commit, so a stream that has sent one has sent every one before it. A stream resumes after its Last-Event-ID for an hour; a stream further behind is sent a reload event. A fresh stream begins with what changes next, so a client fetches what it shows once its stream is open. A comment every 30 seconds keeps proxies from closing it.
+         */
+        get: operations["streamEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3776,6 +3796,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Automation"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    streamEvents: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Last-Event-ID"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stream. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
                 };
             };
             default: components["responses"]["Error"];
