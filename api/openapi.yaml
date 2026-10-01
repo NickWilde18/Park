@@ -1209,7 +1209,9 @@ paths:
     post:
       operationId: heartbeatTask
       summary: Extend a lease, with an optional progress note
-      description: Sent before the lease expires, and before each write to the forge; when the lease is no longer current, stop.
+      description: >-
+        Sent before the lease expires, and often while the work goes on; when the lease is no longer current, stop the
+        work at once.
       tags: [tasks]
       parameters:
         - $ref: "#/components/parameters/ID"

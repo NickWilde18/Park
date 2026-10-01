@@ -118,7 +118,7 @@ A queued task that its member's executors have left unclaimed for too long — w
 
 - The executor sends heartbeats, carrying its lease ID, before the lease expires. Each one extends the lease, and may carry a progress note and a flag saying the executor is waiting on its member; the dashboard shows both.
 - The heartbeat's answer says whether the lease is still current, and whether the task is marked to cancel. If the lease is no longer current — it expired, its token was revoked, or a person dismissed the task — the executor must stop.
-- **Fencing**: the executor sends a heartbeat before each write to the forge, and stops if the lease is no longer current. Park cannot stop a write it does not know about; this keeps an executor whose lease has lapsed from acting on work that has passed to another.
+- **Fencing**: while its work goes on, the executor sends heartbeats on its own short rounds, far more often than the lease needs, and stops the work — an agent's session — as soon as one says the lease is no longer current. Park cannot stop a write it does not know about; this keeps work that has passed to another from being acted on for longer than one round. Nothing is asked of the agent itself ([D60](10-design-log.md#d60-an-executor-fences-its-work-with-its-own-heartbeats)).
 - An executor that has to pause, for example on a usage limit, either keeps sending heartbeats or releases the task.
 - Work that arrives meanwhile goes to a follow-up task. The scope of a leased task does not change.
 
@@ -208,7 +208,7 @@ POST /api/v1/tasks/tsk_8f2c/report
 - **T10. Executors see and claim only their own member's tasks**, and take only the items whose actions they name; the other items stay queued.
 - **T11. Tasks never feed verdicts** ([V7](04-verdicts.md#rules)).
 - **T12. Park does not care how a task is done**, and no action merges or closes a pull request.
-- **T13. Every call carries its lease.** A heartbeat or report whose lease is no longer current is refused, and executors send a heartbeat before each write to the forge.
+- **T13. Every call carries its lease.** A heartbeat or report whose lease is no longer current is refused, and an executor stops its work as soon as a heartbeat says its lease is no longer current.
 - **T14. Post-conditions look for events after the start**, so a later change by someone else neither fakes nor undoes the member's work.
 
 ## Defaults
@@ -218,7 +218,7 @@ These are starting points; see [Open questions](11-open-questions.md).
 | Setting | Default |
 |---|---|
 | Lease | 15 minutes, extended by each heartbeat |
-| Heartbeat | Every 5 minutes, and before each write to the forge |
+| Heartbeat | At least every 5 minutes; an executor running an agent's session sends one each round, every 15 seconds in park-executor |
 | Attempts | 3 per member, unit, and action |
 | Backoff before another attempt | 10 minutes, doubling |
 | Polling while verifying | Every 30 seconds |
