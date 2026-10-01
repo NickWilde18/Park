@@ -400,6 +400,86 @@ func TestForgeSignInOverHTTP(t *testing.T) {
 	}
 }
 
+// I10. A member keeps a way in. One who joined through forge sign-in has no password, so the account they signed in
+// with is their only way in: unlinking it is refused, and they still sign in as themselves. The admin, who has a
+// password, may unlink the account they connected; and once the member has connected a second account on the forge,
+// they may unlink the first, and sign in with the second.
+func TestUnlinkKeepsAWayIn(t *testing.T) {
+	a := newAPI(t)
+	admin := a.admin(t)
+	a.hub(t, admin)
+	var inv NewInvite
+	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/invites", map[string]any{}, &inv), http.StatusCreated, "")
+	first := forges.Account{ID: 9, Login: "joiner"}
+	joiner := a.browser()
+	if w := a.signInThroughForge(t, joiner, "?invite="+url.QueryEscape(inv.Code), first); w.Header().Get("Location") != "/" {
+		t.Fatalf("joining: %q", w.Header().Get("Location"))
+	}
+	joiner.refreshCSRF(t)
+	var me Me
+	joiner.call(t, "GET", "/api/v1/me", nil, &me)
+	linked := func(b *browser) []Identity {
+		t.Helper()
+		var ids Identities
+		wantStatus(t, b.call(t, "GET", "/api/v1/me/identities", nil, &ids), http.StatusOK, "")
+		return ids.Identities
+	}
+	unlink := func(b *browser, id int64) *httptest.ResponseRecorder {
+		return b.call(t, "DELETE", "/api/v1/me/identities/"+strconv.FormatInt(id, 10), nil, nil)
+	}
+	signsInAs := func(account forges.Account) int64 {
+		t.Helper()
+		b := a.browser()
+		if w := a.signInThroughForge(t, b, "", account); w.Header().Get("Location") != "/" {
+			t.Fatalf("signing in as %s: %q", account.Login, w.Header().Get("Location"))
+		}
+		b.refreshCSRF(t)
+		var who Me
+		b.call(t, "GET", "/api/v1/me", nil, &who)
+		return who.Member.Id
+	}
+
+	ids := linked(joiner)
+	if len(ids) != 1 || ids[0].AccountId != 9 {
+		t.Fatalf("the joiner's accounts: %+v", ids)
+	}
+	wantStatus(t, unlink(joiner, ids[0].Id), http.StatusConflict, "last_sign_in")
+	if got := signsInAs(first); got != me.Member.Id {
+		t.Fatalf("the joiner signed in as member %d, not %d", got, me.Member.Id)
+	}
+
+	// An account on a forge with no sign-in provider, which an admin linked by hand, is no way in: it does not count
+	// toward the joiner's ways in, and unlinking it is no loss.
+	var other Forge
+	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/forges", map[string]string{"kind": "github", "name": "Other",
+		"base_address": "https://other.example.test"}, &other), http.StatusCreated, "")
+	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/members/"+strconv.FormatInt(me.Member.Id, 10)+"/identities",
+		map[string]any{"forge_id": other.Id, "account_id": 77}, nil), http.StatusCreated, "")
+	ids = linked(joiner)
+	if len(ids) != 2 || ids[0].AccountId != 9 || ids[1].AccountId != 77 {
+		t.Fatalf("the joiner's accounts with one linked by hand: %+v", ids)
+	}
+	wantStatus(t, unlink(joiner, ids[0].Id), http.StatusConflict, "last_sign_in")
+	wantStatus(t, unlink(joiner, ids[1].Id), http.StatusNoContent, "")
+
+	a.signInThroughForge(t, admin, "?mode=link", forges.Account{ID: 42, Login: "root-gh"})
+	mine := linked(admin)
+	if len(mine) != 1 {
+		t.Fatalf("the admin's accounts: %+v", mine)
+	}
+	wantStatus(t, unlink(admin, mine[0].Id), http.StatusNoContent, "")
+
+	second := forges.Account{ID: 10, Login: "joiner-two"}
+	a.signInThroughForge(t, joiner, "?mode=link", second)
+	if ids = linked(joiner); len(ids) != 2 {
+		t.Fatalf("the joiner's accounts after connecting another: %+v", ids)
+	}
+	wantStatus(t, unlink(joiner, ids[0].Id), http.StatusNoContent, "")
+	if got := signsInAs(second); got != me.Member.Id {
+		t.Fatalf("with the second account, the joiner signed in as member %d, not %d", got, me.Member.Id)
+	}
+}
+
 // I9. Passwords, tokens, session IDs, codes, and provider credentials never reach the log, whatever happens.
 func TestNoSecretsInLogs(t *testing.T) {
 	a := newAPI(t)

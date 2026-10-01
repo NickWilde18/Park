@@ -8,14 +8,20 @@ import { useLive } from '../live'
 type Answer = Promise<{ error?: unknown }>
 
 // Groups with their pull requests, nested by chain and marked with the source that placed each, and the open pull
-// requests in none; bridges' open proposals above them; and the manual actions: create, move in, take out, merge, and
-// split. A group is renamed on its own page.
+// requests in none; bridges' open proposals above them, then the open suggestions; and the manual actions: create,
+// move in, take out, merge, and split. A group is renamed on its own page.
 export default function Groups() {
   const [error, setError] = useState('')
   const { data, refresh } = useFetch(async () => {
-    const [g, p, o] = await Promise.all([api.GET('/groups'), api.GET('/prs'), api.GET('/proposals')])
+    const [g, p, o, s] = await Promise.all([api.GET('/groups'), api.GET('/prs'), api.GET('/proposals'), api.GET('/suggestions')])
     const prs: PRs = new Map((p.data?.pull_requests ?? []).map((x) => [x.id, x]))
-    return { groups: g.data?.groups, problem: g.error ? problem(g.error) : '', prs, proposals: o.data?.proposals ?? [] }
+    return {
+      groups: g.data?.groups,
+      problem: g.error ? problem(g.error) : '',
+      prs,
+      proposals: o.data?.proposals ?? [],
+      suggestions: s.data?.suggestions ?? [],
+    }
   })
   useLive(['group', 'pr', 'proposal'], refresh)
   const done = async (answer: Answer) => {
@@ -27,7 +33,7 @@ export default function Groups() {
     }
   }
   if (!data) return <p className="quiet">Loading…</p>
-  const { groups, prs, proposals } = data
+  const { groups, prs, proposals, suggestions } = data
   if (!groups) return <p className="error">{data.problem}</p>
   const grouped = new Set(groups.flatMap((g) => g.members.map((m) => m.pull_request)))
   const loose = [...prs.values()].filter((p) => !grouped.has(p.id) && (p.state === 'open' || p.state === 'draft'))
@@ -41,6 +47,7 @@ export default function Groups() {
       <h1>Groups</h1>
       {error && <p className="error">{error}</p>}
       {proposals.length > 0 && <Proposed proposals={proposals} prs={prs} done={done} />}
+      {suggestions.length > 0 && <Suggested suggestions={suggestions} groups={groups} prs={prs} done={done} />}
       <section aria-label="Current groups">
         <h2>Current groups</h2>
         {groups.length === 0 && <p className="quiet">No groups yet.</p>}
@@ -134,6 +141,46 @@ export default function Groups() {
         <input name="name" placeholder="Name" aria-label="New group's name" required />
         <button type="submit">Create</button>
       </form>
+    </section>
+  )
+}
+
+// Suggested lists the open suggestions: a pull request that a signal puts with another group than its own, with the
+// signal's reason. Accepting places it in that group, as a member would by hand; a dismissed suggestion does not open
+// again.
+function Suggested({
+  suggestions,
+  groups,
+  prs,
+  done,
+}: {
+  suggestions: Schemas['Suggestion'][]
+  groups: Schemas['Group'][]
+  prs: PRs
+  done: (answer: Answer) => Promise<void>
+}) {
+  return (
+    <section aria-label="Suggested">
+      <h2>Suggested</h2>
+      <ul>
+        {suggestions.map((s) => {
+          const pr = prName(prs, s.pull_request)
+          const group = groups.find((g) => g.id === s.group)?.name ?? `group ${s.group}`
+          const path = { params: { path: { id: s.id } } }
+          return (
+            <li key={s.id}>
+              {pr} {prs.get(s.pull_request)?.title} {s.reason} — suggested for{' '}
+              <Link to={unitPath({ kind: 'group', id: s.group })}>{group}</Link>{' '}
+              <button aria-label={`Accept ${pr} into ${group}`} onClick={() => void done(api.POST('/suggestions/{id}/accept', path))}>
+                Accept
+              </button>{' '}
+              <button aria-label={`Dismiss ${pr} for ${group}`} onClick={() => void done(api.POST('/suggestions/{id}/dismiss', path))}>
+                Dismiss
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </section>
   )
 }

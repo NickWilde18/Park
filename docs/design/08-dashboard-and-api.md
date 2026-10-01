@@ -42,7 +42,7 @@ Each role's list drawn as its first-match tree, with passed-over labels on the e
 
 ### Settings
 
-Mine: automation (which actions become tasks, in which repositories), linked identities, tokens. For admins: installations and repositories, members and invites, sign-in providers, the model provider and each question's threshold, and grouping settings.
+Mine: automation (which actions become tasks, in which repositories), linked identities, each of which I can unlink unless it is my last way in ([I10](07-identity.md#rules)), tokens. For admins: installations and repositories, members and invites, sign-in providers, the model provider and each question's threshold, and grouping settings.
 
 ## Live updates
 
