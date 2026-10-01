@@ -720,6 +720,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open proposals from bridges
+         * @description Each with its groups that still have two or more open pull requests; a proposal with no such group is left out.
+         */
+        get: operations["listProposals"];
+        put?: never;
+        /**
+         * Propose groups, as a bridge, for a member to accept
+         * @description With a bridge's token. The bridge, not the request, is the source. A proposal changes no group until a member accepts it. Reposting the same groups under an anchor keeps the live proposal there as it is, decided or not; reposting other groups retracts it and opens a new one. A repository that is not watched is refused like an unknown one.
+         */
+        post: operations["postProposal"];
+        /**
+         * Retract, as a bridge, the live proposal under an anchor
+         * @description Groups a member made by accepting it stay.
+         */
+        delete: operations["retractProposal"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/proposals/{id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept a proposal, as proposed or edited, making its groups
+         * @description Each group with two or more open pull requests becomes a group of those pull requests, placed by the member; the others are skipped. Without groups in the body, the groups are taken as proposed. Refused with nothing_to_group when no group has two open pull requests.
+         */
+        post: operations["acceptProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/proposals/{id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss a proposal; a repost of the same groups does not open it again */
+        post: operations["dismissProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/bridges": {
         parameters: {
             query?: never;
@@ -1106,7 +1171,7 @@ export interface paths {
         };
         /**
          * Live updates, as Server-Sent Events
-         * @description Small notices, each naming what changed: verdict (a unit, as group:<id> or pr:<id>), task (its ID), group (its ID), or pr (the pull request's ID). The client fetches what it needs again. Notices are numbered in the order their changes commit, so a stream that has sent one has sent every one before it. A stream resumes after its Last-Event-ID for an hour; a stream further behind is sent a reload event. A fresh stream begins with what changes next, so a client fetches what it shows once its stream is open. A stream ends when the credential it was opened with stops working, and when Park shuts down. A comment every 30 seconds keeps proxies from closing it.
+         * @description Small notices, each naming what changed: verdict (a unit, as group:<id> or pr:<id>), task (its ID), group (its ID), pr (the pull request's ID), or proposal (its ID). The client fetches what it needs again. Notices are numbered in the order their changes commit, so a stream that has sent one has sent every one before it. A stream resumes after its Last-Event-ID for an hour; a stream further behind is sent a reload event. A fresh stream begins with what changes next, so a client fetches what it shows once its stream is open. A stream ends when the credential it was opened with stops working, and when Park shuts down. A comment every 30 seconds keeps proxies from closing it.
          */
         get: operations["streamEvents"];
         put?: never;
@@ -1638,6 +1703,60 @@ export interface components {
             /** Format: int64 */
             id: number;
             applied: boolean;
+        };
+        ProposalRequest: {
+            /** @description An ID in the bridge's own system, never a link. */
+            anchor: string;
+            /** @description What the bridge's thread is called, shown with the proposal. */
+            title?: string;
+            /** @description IDs in the bridge's own system, never links. */
+            evidence?: string[];
+            /** @description One or more; a pull request is in one of them at most. */
+            groups: components["schemas"]["ProposedGroupRequest"][];
+        };
+        ProposedGroupRequest: {
+            /** @description Without one, an accepted group is named after its oldest pull request. */
+            name?: string;
+            /** @description Two or more. */
+            pull_requests: components["schemas"]["PRName"][];
+        };
+        ProposalResult: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            state: "open" | "accepted" | "dismissed";
+        };
+        Proposals: {
+            proposals: components["schemas"]["Proposal"][];
+        };
+        Proposal: {
+            /** Format: int64 */
+            id: number;
+            /** @description The name of the bridge that proposed it. */
+            bridge: string;
+            title?: string;
+            /** @description The bridge's thread, from its link template; absent when it has none. */
+            link?: string;
+            /** Format: date-time */
+            created_at: string;
+            groups: components["schemas"]["ProposedGroup"][];
+        };
+        ProposedGroup: {
+            name?: string;
+            /** @description Its open pull requests, two or more; one Park has not collected yet is left out until it is. */
+            pull_requests: number[];
+        };
+        AcceptProposalRequest: {
+            /** @description The groups as the member edited them; without them, the groups as proposed. */
+            groups?: components["schemas"]["EditedGroup"][];
+        };
+        EditedGroup: {
+            name: string;
+            pull_requests: number[];
+        };
+        AcceptedProposal: {
+            /** @description The IDs of the groups made. */
+            groups: number[];
         };
         Bridge: {
             /** Format: int64 */
@@ -3241,6 +3360,121 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Retracted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listProposals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open proposals, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Proposals"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    postProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalRequest"];
+            };
+        };
+        responses: {
+            /** @description The live proposal under the anchor. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalResult"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    retractProposal: {
+        parameters: {
+            query: {
+                anchor: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Retracted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    acceptProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptProposalRequest"];
+            };
+        };
+        responses: {
+            /** @description The groups made, in the proposal's order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedProposal"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    dismissProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dismissed. */
             204: {
                 headers: {
                     [name: string]: unknown;

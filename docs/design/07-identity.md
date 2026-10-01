@@ -75,7 +75,7 @@ An admin can also link an account by hand, and the link records who made it. Typ
 |---|---|
 | `read` | Read everything the member can see |
 | `tasks:work` | Claim, heartbeat, report, and release the member's tasks |
-| `assertions:write` | Post and retract grouping assertions, for a bridge token only; the bridge, not the token, is the assertions' source |
+| `assertions:write` | Post and retract grouping assertions and proposals, for a bridge token only; the bridge, not the token, is their source |
 
 ## Visibility
 

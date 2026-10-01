@@ -293,8 +293,9 @@ func TestEventStreamEndsWithItsCredential(t *testing.T) {
 }
 
 // Changes write their own notices: a new verdict, and one retired; a task's state and priority, its items, and its
-// events; a group's members and name; and a pull request's facts. A refresh that changed nothing, and a heartbeat
-// that only extends a lease, write none.
+// events; a group's members and name; a pull request's facts; and a proposal opened, retitled, decided, and
+// retracted. A refresh that changed nothing, a heartbeat that only extends a lease, and a proposal's new evidence
+// write none.
 func TestNoticesFromChanges(t *testing.T) {
 	pool := storetest.MigratedPool(t)
 	ctx := context.Background()
@@ -338,6 +339,12 @@ func TestNoticesFromChanges(t *testing.T) {
 	exec(`INSERT INTO verdict (unit, side, holders, parts, reminders, inputs, seqs, rule_version, evaluated_at)
 		VALUES ('group:1', 'author', '[]', '[]', '[]', '[]', '{}', 1, now())`)
 	exec("UPDATE verdict SET current = false WHERE unit = 'group:1'")
+	var proposal int64
+	must(pool.QueryRow(ctx, "INSERT INTO proposal (source, anchor, fingerprint) VALUES ('bridge:1', 't', 'f') RETURNING id").Scan(&proposal))
+	exec("UPDATE proposal SET evidence = '{m-1}' WHERE id = $1", proposal)
+	exec("UPDATE proposal SET title = 'Two features' WHERE id = $1", proposal)
+	exec("UPDATE proposal SET state = 'dismissed' WHERE id = $1", proposal)
+	exec("UPDATE proposal SET retracted_at = now() WHERE id = $1", proposal)
 	rows, err := pool.Query(ctx, "SELECT kind || ' ' || subject FROM event_notice ORDER BY id")
 	must(err)
 	var got []string
@@ -352,6 +359,9 @@ func TestNoticesFromChanges(t *testing.T) {
 		want = append(want, "task "+task1)
 	}
 	want = append(want, "group "+group1, "group "+group1, "verdict group:1", "verdict group:1")
+	for range 4 { // opened; retitled; dismissed; retracted
+		want = append(want, "proposal "+itoa(proposal))
+	}
 	if strings.Join(got, ", ") != strings.Join(want, ", ") {
 		t.Fatalf("notices %v, want %v", got, want)
 	}

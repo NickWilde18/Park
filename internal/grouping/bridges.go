@@ -102,49 +102,24 @@ func (s *Service) Assert(ctx context.Context, bridge int64, token string, a Asse
 	source := "bridge:" + strconv.FormatInt(bridge, 10)
 	var out AssertResult
 	err := s.act(ctx, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, "SELECT id, owner || '/' || name, name FROM repo WHERE watched")
+		names, err := watchedNames(ctx, tx)
 		if err != nil {
-			return err
-		}
-		full := map[string]int64{}
-		short := map[string][]int64{}
-		for rows.Next() {
-			var id int64
-			var f, n string
-			if err := rows.Scan(&id, &f, &n); err != nil {
-				return err
-			}
-			full[strings.ToLower(f)] = id
-			short[strings.ToLower(n)] = append(short[strings.ToLower(n)], id)
-		}
-		if err := rows.Err(); err != nil {
 			return err
 		}
 		var members []member
 		seen := map[member]bool{}
 		for _, ref := range a.PRs {
-			name := strings.ToLower(strings.TrimSpace(ref.Repo))
-			id, ok := full[name]
-			if !ok && len(short[name]) == 1 {
-				id, ok = short[name][0], true
-			}
-			if !ok || ref.Number <= 0 {
+			m, ok := names.member(ref)
+			if !ok {
 				return errUnknownRepo
 			}
-			m := member{Repo: id, Number: ref.Number}
 			if seen[m] {
 				continue
 			}
 			seen[m] = true
 			members = append(members, m)
-			var stored bool
-			if err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pr_fact WHERE repo_id = $1 AND number = $2)", id, ref.Number).Scan(&stored); err != nil {
+			if err := collect(ctx, tx, m); err != nil {
 				return err
-			}
-			if !stored {
-				if err := work.Enqueue(ctx, tx, facts.KindRefreshPR, strconv.FormatInt(id, 10)+"/"+strconv.Itoa(ref.Number), time.Time{}); err != nil {
-					return err
-				}
 			}
 		}
 		data, err := json.Marshal(members)
@@ -175,6 +150,57 @@ func (s *Service) Assert(ctx context.Context, bridge int64, token string, a Asse
 			out.Applied, token, seenAt).Scan(&out.ID)
 	})
 	return out, err
+}
+
+// repoNames resolves the repository names bridges use — owner/name, or a name only one watched repository has — to
+// watched repositories.
+type repoNames struct {
+	full  map[string]int64
+	short map[string][]int64
+}
+
+// watchedNames reads the watched repositories' names.
+func watchedNames(ctx context.Context, tx pgx.Tx) (repoNames, error) {
+	rows, err := tx.Query(ctx, "SELECT id, owner || '/' || name, name FROM repo WHERE watched")
+	if err != nil {
+		return repoNames{}, err
+	}
+	defer rows.Close()
+	n := repoNames{full: map[string]int64{}, short: map[string][]int64{}}
+	for rows.Next() {
+		var id int64
+		var full, short string
+		if err := rows.Scan(&id, &full, &short); err != nil {
+			return repoNames{}, err
+		}
+		n.full[strings.ToLower(full)] = id
+		n.short[strings.ToLower(short)] = append(n.short[strings.ToLower(short)], id)
+	}
+	return n, rows.Err()
+}
+
+// member resolves a bridge's reference to a pull request; false when its repository is unknown or not watched, or
+// its number cannot be a pull request's.
+func (n repoNames) member(ref PRRef) (member, bool) {
+	name := strings.ToLower(strings.TrimSpace(ref.Repo))
+	id, ok := n.full[name]
+	if !ok && len(n.short[name]) == 1 {
+		id, ok = n.short[name][0], true
+	}
+	if !ok || ref.Number <= 0 {
+		return member{}, false
+	}
+	return member{Repo: id, Number: ref.Number}, true
+}
+
+// collect queues a refresh of a pull request Park has not collected yet, so that it joins once it is.
+func collect(ctx context.Context, tx pgx.Tx, m member) error {
+	var stored bool
+	if err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pr_fact WHERE repo_id = $1 AND number = $2)", m.Repo, m.Number).
+		Scan(&stored); err != nil || stored {
+		return err
+	}
+	return work.Enqueue(ctx, tx, facts.KindRefreshPR, strconv.FormatInt(m.Repo, 10)+"/"+strconv.Itoa(m.Number), time.Time{})
 }
 
 // Retract retracts a bridge's live assertion under an anchor, and resolves.

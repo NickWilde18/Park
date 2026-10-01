@@ -18,7 +18,8 @@ import (
 
 // A whole round of grouping: two repositories' pull requests from one author's branch are grouped by the queue as
 // they are collected; a bridge's thread takes the group over and names it; tokens and sessions may do only their own
-// part, and no token changes a group; members rename and take out through their session.
+// part, and no token changes a group; members rename and take out through their session. A bridge's proposal is
+// listed with a link to its thread, and a member accepts it, which groups its pull requests, or dismisses another.
 func TestGroupingOverHTTP(t *testing.T) {
 	pool := storetest.MigratedPool(t)
 	logs := &syncBuffer{}
@@ -116,5 +117,44 @@ func TestGroupingOverHTTP(t *testing.T) {
 	}
 	var sugs Suggestions
 	wantStatus(t, reader.call(t, "GET", "/api/v1/suggestions", nil, &sugs), http.StatusOK, "")
+
+	proposal := func(anchor string) map[string]any {
+		return map[string]any{"anchor": anchor, "title": "Two features", "groups": []map[string]any{{"name": "Export",
+			"pull_requests": []map[string]any{{"repo": "acme/api", "number": 12}, {"repo": "web", "number": 12}}}}}
+	}
+	var proposed ProposalResult
+	wantStatus(t, bridgeClient.call(t, "POST", "/api/v1/proposals", proposal("thread-9"), &proposed), http.StatusCreated, "")
+	if proposed.State != ProposalResultStateOpen {
+		t.Fatalf("proposed %+v", proposed)
+	}
+	wantStatus(t, admin.call(t, "POST", "/api/v1/proposals", proposal("thread-9"), nil), http.StatusForbidden, "bridge_only")
+	wantStatus(t, reader.call(t, "POST", "/api/v1/proposals", proposal("thread-9"), nil), http.StatusForbidden, "insufficient_scope")
+	wantStatus(t, bridgeClient.call(t, "GET", "/api/v1/proposals", nil, nil), http.StatusForbidden, "insufficient_scope")
+	var open Proposals
+	wantStatus(t, reader.call(t, "GET", "/api/v1/proposals", nil, &open), http.StatusOK, "")
+	if len(open.Proposals) != 1 || open.Proposals[0].Bridge != "Tracker" || open.Proposals[0].Link == nil ||
+		*open.Proposals[0].Link != "https://tracker.example.test/t/thread-9" || len(open.Proposals[0].Groups) != 1 ||
+		len(open.Proposals[0].Groups[0].PullRequests) != 2 {
+		t.Fatalf("open proposals %+v", open)
+	}
+	accept := "/api/v1/proposals/" + strconv.FormatInt(proposed.Id, 10) + "/accept"
+	wantStatus(t, reader.call(t, "POST", accept, map[string]any{}, nil), http.StatusForbidden, "insufficient_scope")
+	var accepted AcceptedProposal
+	wantStatus(t, admin.call(t, "POST", accept, map[string]any{}, &accepted), http.StatusOK, "")
+	if len(accepted.Groups) != 1 {
+		t.Fatalf("accepted %+v", accepted)
+	}
+	wantStatus(t, admin.call(t, "GET", "/api/v1/groups/"+strconv.FormatInt(accepted.Groups[0], 10), nil, &got), http.StatusOK, "")
+	if got.Name != "Export" || len(got.Members) != 2 || got.Members[0].Source != GroupMemberSourceManual {
+		t.Fatalf("the accepted group: %+v", got)
+	}
+	wantStatus(t, bridgeClient.call(t, "POST", "/api/v1/proposals", proposal("thread-10"), &proposed), http.StatusCreated, "")
+	wantStatus(t, admin.call(t, "POST", "/api/v1/proposals/"+strconv.FormatInt(proposed.Id, 10)+"/dismiss", nil, nil), http.StatusNoContent, "")
+	wantStatus(t, reader.call(t, "GET", "/api/v1/proposals", nil, &open), http.StatusOK, "")
+	if len(open.Proposals) != 0 {
+		t.Fatalf("decided proposals are listed: %+v", open)
+	}
+	wantStatus(t, bridgeClient.call(t, "DELETE", "/api/v1/proposals?anchor=thread-9", nil, nil), http.StatusNoContent, "")
+	wantStatus(t, bridgeClient.call(t, "DELETE", "/api/v1/proposals?anchor=thread-9", nil, nil), http.StatusNotFound, "not_found")
 	wantStatus(t, bridgeClient.call(t, "DELETE", "/api/v1/assertions?anchor=thread-1", nil, nil), http.StatusNoContent, "")
 }
