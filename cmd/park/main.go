@@ -166,6 +166,8 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		log.InfoContext(ctx, "Park has no members yet: set it up within an hour, with the setup code from the configuration")
 	}
 
+	// closing ends the event streams as the server shuts down; it is closed by srv.Shutdown, below.
+	closing := make(chan struct{})
 	handler, err := httpapi.New(httpapi.Options{
 		Ready: func(ctx context.Context) error {
 			pending, err := store.Pending(ctx, pool, migrations)
@@ -186,6 +188,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		Verdicts: balls,
 		Tasks:    taskStage,
 		Events:   notices,
+		Closing:  closing,
 		Pool:     pool,
 	})
 	if err != nil {
@@ -201,6 +204,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		IdleTimeout:       2 * time.Minute,
 		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 	}
+	srv.RegisterOnShutdown(func() { close(closing) })
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
 	log.InfoContext(ctx, "listening", "addr", ln.Addr().String(), "version", fullVersion())

@@ -2,12 +2,15 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/NickWilde18/Park/internal/events"
+	"github.com/NickWilde18/Park/internal/fail"
 )
 
 // streamEvents streams notices as Server-Sent Events: docs/design/08-dashboard-and-api.md#live-updates. A stream
@@ -15,6 +18,10 @@ import (
 // and a fresh one begins after the newest notice committed, so that it is sent any still committing. Notices are
 // numbered in the order their changes commit, so a stream that has sent one has sent every one before it. A comment
 // every 30 seconds keeps proxies from closing it.
+//
+// The credential a stream was opened with is checked again before each batch of notices and each comment, and the
+// stream ends once it no longer works — a token revoked, a session signed out, a member disabled. The stream also
+// ends when the server shuts down.
 func (s *server) streamEvents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if _, err := requireCaller(ctx); err != nil {
@@ -56,12 +63,15 @@ func (s *server) streamEvents(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		for _, n := range notices {
-			data, _ := json.Marshal(map[string]string{"subject": n.Subject})
-			_, _ = fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", n.ID, n.Kind, data)
-			after = n.ID
-		}
 		if len(notices) > 0 {
+			if !s.stillSignedIn(r) {
+				return
+			}
+			for _, n := range notices {
+				data, _ := json.Marshal(map[string]string{"subject": n.Subject})
+				_, _ = fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", n.ID, n.Kind, data)
+				after = n.ID
+			}
 			if err := rc.Flush(); err != nil {
 				return
 			}
@@ -69,12 +79,36 @@ func (s *server) streamEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-s.closing:
+			return
 		case <-poll.C:
 		case <-keepalive.C:
+			if !s.stillSignedIn(r) {
+				return
+			}
 			_, _ = fmt.Fprint(w, ": keepalive\n\n")
 			if err := rc.Flush(); err != nil {
 				return
 			}
 		}
 	}
+}
+
+// stillSignedIn reports whether the token or session a request came with still works. A failure to tell is logged,
+// and counts as no.
+func (s *server) stillSignedIn(r *http.Request) bool {
+	ctx := r.Context()
+	var err error
+	if token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+		_, err = s.id.TokenCaller(ctx, token)
+	} else if ck, cerr := r.Cookie(sessionCookie); cerr == nil {
+		_, err = s.id.SessionCaller(ctx, ck.Value)
+	} else {
+		return false
+	}
+	var f *fail.Error
+	if err != nil && !errors.As(err, &f) && ctx.Err() == nil {
+		s.log.WarnContext(ctx, "check a stream's credential", "error", err)
+	}
+	return err == nil
 }

@@ -32,15 +32,26 @@ BEGIN
 END
 $$;
 
+-- A unit's verdict changes when a new one is stored, and when its current one is retired with nothing after it, as
+-- when the unit's last pull request leaves it.
 CREATE CONSTRAINT TRIGGER verdict_notice AFTER INSERT ON verdict DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW EXECUTE FUNCTION notice('verdict', 'unit');
+CREATE CONSTRAINT TRIGGER verdict_retired_notice AFTER UPDATE ON verdict DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+    WHEN (OLD.current AND NOT NEW.current)
+    EXECUTE FUNCTION notice('verdict', 'unit');
 
+-- A task changes with what its pages show of it: its state, priority, note, and attempt; its items; and its history.
+-- A heartbeat that only extends its lease writes no notice.
 CREATE CONSTRAINT TRIGGER task_created_notice AFTER INSERT ON task DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW EXECUTE FUNCTION notice('task', 'id');
 CREATE CONSTRAINT TRIGGER task_notice AFTER UPDATE ON task DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
-    WHEN ((OLD.state, OLD.note, OLD.waiting, OLD.cancel_marked, OLD.attempt) IS DISTINCT FROM
-          (NEW.state, NEW.note, NEW.waiting, NEW.cancel_marked, NEW.attempt))
+    WHEN ((OLD.state, OLD.priority, OLD.note, OLD.waiting, OLD.cancel_marked, OLD.attempt) IS DISTINCT FROM
+          (NEW.state, NEW.priority, NEW.note, NEW.waiting, NEW.cancel_marked, NEW.attempt))
     EXECUTE FUNCTION notice('task', 'id');
+CREATE CONSTRAINT TRIGGER task_item_notice AFTER INSERT OR UPDATE OR DELETE ON task_item DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION notice('task', 'task_id');
+CREATE CONSTRAINT TRIGGER task_event_notice AFTER INSERT ON task_event DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION notice('task', 'task_id');
 
 CREATE CONSTRAINT TRIGGER membership_notice AFTER INSERT OR UPDATE OR DELETE ON membership DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW EXECUTE FUNCTION notice('group', 'group_id');

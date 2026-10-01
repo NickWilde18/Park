@@ -46,7 +46,10 @@ type Options struct {
 	Verdicts *verdicts.Service
 	Tasks    *tasks.Service
 	Events   *events.Service
-	Pool     *pgxpool.Pool
+	// Closing is closed when the server begins to shut down. Event streams end then, since a stream ends only when
+	// its client leaves, and shutting down waits for every request to end.
+	Closing <-chan struct{}
+	Pool    *pgxpool.Pool
 }
 
 // timeNow is the clock errors that carry a wait read.
@@ -74,6 +77,7 @@ func New(opts Options) (http.Handler, error) {
 	}
 	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, rules: opts.Rules, verdicts: opts.Verdicts, tasks: opts.Tasks, events: opts.Events, pool: opts.Pool,
 		eventPoll: time.Second,
+		closing:   opts.Closing,
 		log:       log}
 	strict := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  badRequest,
@@ -104,6 +108,8 @@ type server struct {
 	events   *events.Service
 	pool     *pgxpool.Pool
 	log      *slog.Logger
+	// closing ends the event streams when the server shuts down; nil when it never does.
+	closing <-chan struct{}
 	// eventPoll is how often an event stream looks for new notices.
 	eventPoll time.Duration
 }

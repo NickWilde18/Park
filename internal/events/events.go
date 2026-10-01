@@ -82,7 +82,8 @@ func (s *Service) Bounds(ctx context.Context) (oldest, newest, last int64, err e
 	return oldest, newest, last, err
 }
 
-// Missed reports whether a stream that saw notices up to after would miss some it cannot be given any more.
+// Missed reports whether a stream that saw notices up to after would miss some it cannot be given any more: the next
+// one it needs was forgotten, or it saw more than were ever numbered, from a database since restored from before them.
 func Missed(after, oldest, last int64) bool {
-	return after < last && (oldest == 0 || oldest > after+1)
+	return after > last || (after < last && (oldest == 0 || oldest > after+1))
 }

@@ -1106,7 +1106,7 @@ export interface paths {
         };
         /**
          * Live updates, as Server-Sent Events
-         * @description Small notices, each naming what changed: verdict (a unit, as group:<id> or pr:<id>), task (its ID), group (its ID), or pr (the pull request's ID). The client fetches what it needs again. Notices are numbered in the order their changes commit, so a stream that has sent one has sent every one before it. A stream resumes after its Last-Event-ID for an hour; a stream further behind is sent a reload event. A fresh stream begins with what changes next, so a client fetches what it shows once its stream is open. A comment every 30 seconds keeps proxies from closing it.
+         * @description Small notices, each naming what changed: verdict (a unit, as group:<id> or pr:<id>), task (its ID), group (its ID), or pr (the pull request's ID). The client fetches what it needs again. Notices are numbered in the order their changes commit, so a stream that has sent one has sent every one before it. A stream resumes after its Last-Event-ID for an hour; a stream further behind is sent a reload event. A fresh stream begins with what changes next, so a client fetches what it shows once its stream is open. A stream ends when the credential it was opened with stops working, and when Park shuts down. A comment every 30 seconds keeps proxies from closing it.
          */
         get: operations["streamEvents"];
         put?: never;
