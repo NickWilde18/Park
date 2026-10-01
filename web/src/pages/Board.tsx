@@ -4,6 +4,7 @@ import { useFetch } from '../fetch'
 import { pathText, since, unitPath, words } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
+import { asked, refreshPRs } from '../refresh'
 
 type BoardUnit = Schemas['BoardUnit']
 type BoardPR = Schemas['BoardPullRequest']
@@ -182,7 +183,8 @@ const nameOf = (p: BoardPR) => `${p.summary.repo.name}#${p.summary.number}`
 // Board: every open unit in one table, as it stands for me — whose ball, since when, my task — and each of its open
 // pull requests: my action and its reason, its checks, the threads waiting on me, the open threads, my review, its
 // chain, author, and last activity, and the path of rules behind my action. Rows sort by a column, filter by the
-// ball, the repository, and words, and fold by group; the columns shown are kept in the browser.
+// ball, the repository, and words, and fold by group; the columns shown are kept in the browser. The forge can be
+// asked now about every repository, or the one the board shows, and about a unit's pull requests.
 export default function Board() {
   const { data, refresh } = useFetch(async () => {
     const { data, error } = await api.GET('/board')
@@ -195,11 +197,14 @@ export default function Board() {
   const [ball, setBall] = useState('')
   const [repo, setRepo] = useState('')
   const [query, setQuery] = useState('')
+  const [status, setStatus] = useState('')
+  const [polling, setPolling] = useState(false)
   if (!data) return <p className="quiet">Loading…</p>
   if (!data.units) return <p className="error">{data.problem}</p>
 
   const shown = columns.filter((c) => !hidden.has(c.key))
   const repos = [...new Set(data.units.flatMap((u) => u.pull_requests.map(repoOf)))].sort()
+  const repoIDs = new Map(data.units.flatMap((u) => u.pull_requests.map((p) => [repoOf(p), p.summary.repo.id] as const)))
   const find = query.trim().toLowerCase()
   let units = data.units.filter(
     (u) =>
@@ -222,6 +227,23 @@ export default function Board() {
   }
   const sortBy = (column: string) =>
     setSort((s) => (s?.key !== column ? { key: column, down: false } : s.down ? undefined : { key: column, down: true }))
+  // poll asks the forge now for the repository the board shows, or for every repository.
+  const poll = async () => {
+    const id = repoIDs.get(repo)
+    setPolling(true)
+    const { error } = await api.POST('/prs/refresh', { params: { query: id === undefined ? {} : { repo: id } } })
+    setPolling(false)
+    setStatus(error ? problem(error) : asked(id === undefined ? 'every repository' : repo))
+  }
+  const refreshUnit = async (u: BoardUnit, name: string) => {
+    const failed = await refreshPRs(u.pull_requests.map((p) => p.summary.id))
+    setStatus(failed || asked(name))
+  }
+  const refreshButton = (u: BoardUnit, name: string) => (
+    <button className="refresh" aria-label={`Refresh ${name}`} title="Refresh from the forge" onClick={() => void refreshUnit(u, name)}>
+      ↻
+    </button>
+  )
   const cells = (u: BoardUnit, p?: BoardPR) =>
     shown.map((c) => (
       <td key={c.key} className={c.wrap ? 'wrap' : undefined}>
@@ -264,6 +286,9 @@ export default function Board() {
         />
         <button onClick={() => setFolded(new Set(units.filter((u) => u.unit.kind === 'group').map(keyOf)))}>Fold all</button>
         <button onClick={() => setFolded(new Set())}>Unfold all</button>
+        <button disabled={polling} onClick={() => void poll()}>
+          {repoIDs.has(repo) ? `Refresh ${repo}` : 'Refresh all repositories'}
+        </button>
         <details className="columns">
           <summary>Columns</summary>
           {columns.map((c) => (
@@ -274,6 +299,9 @@ export default function Board() {
         </details>
         <span className="quiet">
           {units.length} of {data.units.length} units
+        </span>
+        <span role="status" className="quiet">
+          {status}
         </span>
       </div>
       {units.length === 0 ? (
@@ -301,7 +329,7 @@ export default function Board() {
                   return (
                     <tr key={keyOf(u)} className="alone">
                       <td>
-                        <Link to={unitPath(u.unit)}>{nameOf(p)}</Link> {p.summary.title}
+                        <Link to={unitPath(u.unit)}>{nameOf(p)}</Link> {p.summary.title} {refreshButton(u, nameOf(p))}
                       </td>
                       {cells(u, p)}
                     </tr>
@@ -320,7 +348,7 @@ export default function Board() {
                         {open ? '▾' : '▸'}
                       </button>{' '}
                       <Link to={unitPath(u.unit)}>{u.name}</Link>
-                      <span className="badge">{u.pull_requests.length}</span>
+                      <span className="badge">{u.pull_requests.length}</span> {refreshButton(u, u.name)}
                     </td>
                     {cells(u)}
                   </tr>,

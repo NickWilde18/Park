@@ -527,6 +527,27 @@ paths:
                 $ref: "#/components/schemas/PullRequests"
         default:
           $ref: "#/components/responses/Error"
+  /prs/refresh:
+    post:
+      operationId: refreshPullRequests
+      summary: Poll the watched repositories now
+      description: >-
+        Runs the scheduled poll now, of every watched repository or of the one repo names: it lists the repository's
+        open pull requests and refreshes those that are new, updated, or in another stack, and those no longer open. A
+        poll already waiting moves earlier rather than running twice, and one waiting out a failure's backoff keeps it.
+      tags: [prs]
+      parameters:
+        - name: repo
+          in: query
+          description: Only this repository, which must be watched.
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "202":
+          description: The polls are queued.
+        default:
+          $ref: "#/components/responses/Error"
   /prs/{id}:
     get:
       operationId: getPullRequest

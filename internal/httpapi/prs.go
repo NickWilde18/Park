@@ -210,6 +210,21 @@ func (s *server) RefreshPullRequest(ctx context.Context, req RefreshPullRequestR
 	return RefreshPullRequest202Response{}, nil
 }
 
+// RefreshPullRequests runs the scheduled poll now, of every watched repository or of the one asked for.
+func (s *server) RefreshPullRequests(ctx context.Context, req RefreshPullRequestsRequestObject) (RefreshPullRequestsResponseObject, error) {
+	if _, err := requireCaller(ctx); err != nil {
+		return nil, err
+	}
+	var repo int64
+	if req.Params.Repo != nil {
+		repo = *req.Params.Repo
+	}
+	if err := s.facts.RequestPoll(ctx, repo); err != nil {
+		return nil, err
+	}
+	return RefreshPullRequests202Response{}, nil
+}
+
 func installationOut(i facts.Installation) Installation {
 	return Installation{Id: i.ID, ForgeId: i.ForgeID, Name: i.Name, Kind: InstallationKind(i.Kind), HasWebhookSecret: i.HasWebhookSecret,
 		WebhookPath: "/hooks/" + strconv.FormatInt(i.ID, 10), CreatedAt: i.CreatedAt}

@@ -176,6 +176,90 @@ func TestFactsOverHTTP(t *testing.T) {
 	}
 }
 
+// Polling now, from a member's session. An admin watches two repositories, whose polls then wait ten minutes ahead.
+// Asking for one repository makes its poll due at once, while the other's waits; asking for all makes both due. A
+// poll waiting out a failure's backoff keeps it. A repository no longer watched, or never known, is not found. A read
+// token may not ask, and no one signed out may.
+func TestRefreshRepositoriesOverHTTP(t *testing.T) {
+	pool := storetest.MigratedPool(t)
+	logs := &syncBuffer{}
+	log := slog.New(slog.NewJSONHandler(logs, nil))
+	box, _ := secret.New(secretKey)
+	ids, err := identity.New(pool, box, log, identity.Options{SecretKey: secretKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := New(Options{Ready: ready, UI: built, Logger: log, Identity: ids, Facts: facts.New(pool, box, log), Pool: pool})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &harness{h: h, ids: ids, pool: pool, logs: logs}
+	admin := a.admin(t)
+	var f Forge
+	admin.call(t, "POST", "/api/v1/admin/forges", map[string]string{"kind": "testhub", "name": "Hub", "base_address": "https://hub.example.test"}, &f)
+	var inst Installation
+	admin.call(t, "POST", "/api/v1/admin/installations", map[string]any{"forge_id": f.Id, "name": "acme", "kind": "token", "token": "t"}, &inst)
+	repo := map[string]string{}
+	for _, name := range []string{"api", "web"} {
+		var r Repo
+		wantStatus(t, admin.call(t, "POST", "/api/v1/admin/repos", map[string]any{"installation_id": inst.Id, "owner": "acme", "name": name}, &r),
+			http.StatusCreated, "")
+		repo[name] = strconv.FormatInt(r.Id, 10)
+	}
+	var inv NewInvite
+	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/invites", map[string]any{}, &inv), http.StatusCreated, "")
+	member := a.browser()
+	wantStatus(t, member.call(t, "POST", "/api/v1/auth/register", map[string]string{"invite": inv.Code, "username": "ana",
+		"password": "a long enough password", "display_name": "Ana"}, nil), http.StatusCreated, "")
+	member.refreshCSRF(t)
+
+	ctx := context.Background()
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, sql, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	later := func() {
+		exec("UPDATE work_item SET run_after = now() + interval '10 minutes' WHERE kind = $1", facts.KindPollRepo)
+	}
+	due := func(name string) bool {
+		t.Helper()
+		var ok bool
+		if err := pool.QueryRow(ctx, "SELECT run_after <= now() FROM work_item WHERE kind = $1 AND key = $2", facts.KindPollRepo, repo[name]).
+			Scan(&ok); err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	later()
+	wantStatus(t, member.call(t, "POST", "/api/v1/prs/refresh?repo="+repo["api"], nil, nil), http.StatusAccepted, "")
+	if !due("api") || due("web") {
+		t.Fatalf("asking for api: api due %v, web due %v", due("api"), due("web"))
+	}
+	later()
+	wantStatus(t, member.call(t, "POST", "/api/v1/prs/refresh", nil, nil), http.StatusAccepted, "")
+	if !due("api") || !due("web") {
+		t.Fatalf("asking for all: api due %v, web due %v", due("api"), due("web"))
+	}
+	exec("UPDATE work_item SET run_after = now() + interval '5 minutes', attempts = 1 WHERE kind = $1 AND key = $2", facts.KindPollRepo, repo["api"])
+	wantStatus(t, member.call(t, "POST", "/api/v1/prs/refresh", nil, nil), http.StatusAccepted, "")
+	if due("api") {
+		t.Fatal("a poll waiting out a failure's backoff was moved")
+	}
+
+	wantStatus(t, admin.call(t, "PATCH", "/api/v1/admin/repos/"+repo["web"], map[string]any{"watched": false}, nil), http.StatusOK, "")
+	wantStatus(t, member.call(t, "POST", "/api/v1/prs/refresh?repo="+repo["web"], nil, nil), http.StatusNotFound, "not_found")
+	wantStatus(t, member.call(t, "POST", "/api/v1/prs/refresh?repo=999999", nil, nil), http.StatusNotFound, "not_found")
+	var token NewToken
+	wantStatus(t, member.call(t, "POST", "/api/v1/me/tokens", map[string]any{"name": "reader", "scopes": []string{"read"}}, &token),
+		http.StatusCreated, "")
+	reader := a.browser()
+	reader.bearer = token.Token
+	wantStatus(t, reader.call(t, "POST", "/api/v1/prs/refresh", nil, nil), http.StatusForbidden, "insufficient_scope")
+	wantStatus(t, a.browser().call(t, "POST", "/api/v1/prs/refresh", nil, nil), http.StatusUnauthorized, "unauthenticated")
+}
+
 // A GitHub that refuses every credential, as it answers a revoked token, or an app whose key it cannot verify: the
 // admin who watches a repository through either installation is told the forge refused its credential, with a 400
 // they can act on rather than a server failure, and nothing is watched.
