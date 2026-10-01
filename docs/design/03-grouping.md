@@ -69,6 +69,8 @@ External and structural sources do not know Park's group IDs; they can only say 
 | `suggestion` | Pull request, proposed group — or, from the model, a proposed new group's name — reason, source (structural or model); for the model, the fingerprint and confidence; state (open, accepted, dismissed) |
 | `proposal` | A bridge's proposed groups under an anchor: source, anchor, an optional title, evidence as IDs, a fingerprint of the groups, state (open, accepted, dismissed), who decided and when; creation and retraction times. One proposal per anchor is live |
 | `proposal_group` | One proposed group: its position in the proposal, an optional name, and its pull requests as repository and number |
+| `group_doc` | A group's description: the group, the random token its link carries, its entry file, how many files and bytes it holds, and who uploaded it and when |
+| `group_doc_file` | One file of a description: its path, its content type, and its bytes |
 
 Chains are derived on read from `pr_fact` and are not stored.
 
@@ -150,6 +152,17 @@ A thread that links many pull requests may be one large unit of work, or several
 
 `DELETE /proposals?anchor=…` retracts the live proposal under that anchor; groups a member made by accepting it stay.
 
+## Descriptions
+
+A group can carry a description: a static site — an `index.html` and the files it loads — that says what the group's work is for, shown beside the group ([D66](10-design-log.md#d66-a-groups-description-is-served-by-its-link-sandboxed)).
+
+1. A member who wrote one of the group's pull requests, or an admin, uploads it as a zip. It holds at most 500 files, unpacking to at most 100 MB, from a zip of at most 20 MB. Every path in it is relative, stays inside it, and is no link. Its `index.html` is at its top, or in the one folder at its top, which then counts as its top. Files a system adds, such as `__MACOSX` and `.DS_Store`, are left out.
+2. Park stores the files and a new random token. The description is served at `/docs/{token}/…` to anyone who has its link, without signing in. Every answer is sandboxed into an origin of its own, so that a page's scripts can neither read the viewer's session nor call Park as them. It sends no referrer, so that the link stays out of the requests the page makes elsewhere, and serves ranges, so that videos seek.
+3. Uploading again replaces the description under a new token, and the old link stops working. Removing it removes its files.
+4. A group that absorbs another takes the other's description when it has none of its own.
+
+A description's link is not filtered by visibility ([A4](08-dashboard-and-api.md#rules)): whoever has it reads it. A description is not a fact about pull requests, but what its uploader chose to share.
+
 ## Group names
 
 A group takes its name from the highest source that offers one: a manual rename, then an external assertion's title, then the title of the oldest pull request in a stack anchor, then the title of the issue behind an issue anchor — for now, the title of the oldest pull request that closes it ([D51](10-design-log.md#d51-an-issue-anchor-is-named-after-its-oldest-pull-request)) — then the branch name of a branch anchor, then the title of the oldest pull request behind a reference anchor, then — for a group created by accepting the model's suggestion — the name the model proposed. A group made by accepting a bridge's proposal is named as a member names one: by the proposed name, or, when the proposal named none, by its oldest pull request's title. The name changes when a higher source offers one, or when the source it came from changes it — a thread is retitled.
@@ -189,6 +202,7 @@ The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), 
 - **G14.** Resolution does not depend on the order in which events arrive: each component is resolved as one batch, winning claims first and anchors after, in a canonical order.
 - **G15.** Chain edges stay within one repository, never start from a fork's branch, and never hang from a long-lived branch.
 - **G16.** A bridge's proposal changes nothing until a member accepts it, and accepting records manual placements. Reposting the same groups under an anchor neither reopens a proposal nor repeats a decision.
+- **G17.** A group's description changes only by a member who wrote one of its pull requests, or by an admin, and is served by its link alone, sandboxed.
 
 ## Defaults
 
@@ -198,6 +212,7 @@ The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), 
 | Model call timeout | 20 seconds |
 | Candidates per model question | 10 |
 | Largest external assertion applied | 3 pull requests |
+| A description's zip | At most 20 MB, unpacking to at most 100 MB and 500 files |
 | Branch words ignored for similarity | Those in more than a fifth of open pull requests' branch names |
 | Branch names never grouped | `main`, `master`, `develop`, `dev`, `trunk`, `release/*`, `hotfix/*`, `patch-*`, `dependabot/*`, `renovate/*` |
 | Long-lived branches, never a parent in a chain | The default branch, protected branches, and `main`, `master`, `develop`, `dev`, `trunk`, `release/*` |

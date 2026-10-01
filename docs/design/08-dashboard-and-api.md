@@ -18,7 +18,7 @@ Every open unit in one table, as it stands for me: a row for each unit, which fo
 
 My units come first, by priority and then by how long I have held them, then the units I wait on, then the rest. Rows sort by any column, and filter by where the ball is and by repository; which columns show is my choice, kept in the browser.
 
-From the board, I can ask the forge now: for every repository, or the one the board is filtered to, and for one unit's pull requests ([D64](10-design-log.md#d64-a-member-can-ask-for-a-poll-now)).
+From the board, I can ask the forge now: for every repository, or the one the board is filtered to, and for one unit's pull requests ([D64](10-design-log.md#d64-a-member-can-ask-for-a-poll-now)). A group's row links to its description.
 
 ### Team
 
@@ -26,11 +26,11 @@ Each member's held units and oldest hold, and every group with where its ball is
 
 ### Groups
 
-Groups with their pull requests, nested by chain, each pull request marked with the source that placed it; the suggestions inbox; bridges' open proposals, each with its groups, to accept as proposed or edited, or to dismiss ([Grouping](03-grouping.md#flow-bridge-proposals)); and the manual actions: move, take out, create, merge, split, rename. The grouping pipeline is drawn as its boxes — sources, then resolution, then groups — each configurable, none rewirable.
+Groups with their pull requests, nested by chain, each pull request marked with the source that placed it; each group's description, linked; the suggestions inbox; bridges' open proposals, each with its groups, to accept as proposed or edited, or to dismiss ([Grouping](03-grouping.md#flow-bridge-proposals)); and the manual actions: move, take out, create, merge, split, rename. The grouping pipeline is drawn as its boxes — sources, then resolution, then groups — each configurable, none rewirable.
 
 ### Unit
 
-A group, or a pull request in no group, showing only the pull requests the viewer can read ([Identity](07-identity.md#visibility)). Where its ball is and who holds it, and every person's part with its path — `author → not a draft → no conflicts → checks not failing → Changes requested, all answered` — the judgements used, and the rule set version. For each pull request: its facts — checks, reviews, and threads — when Park last checked them on the forge, and the timeline of its fact events. Its tasks, with their history. A member can refresh its open pull requests from the forge.
+A group, or a pull request in no group, showing only the pull requests the viewer can read ([Identity](07-identity.md#visibility)). Where its ball is and who holds it, and every person's part with its path — `author → not a draft → no conflicts → checks not failing → Changes requested, all answered` — the judgements used, and the rule set version. For each pull request: its facts — checks, reviews, and threads — when Park last checked them on the forge, and the timeline of its fact events. Its tasks, with their history. A member can refresh its open pull requests from the forge. A group's description shows beside it, in a sidebar, with the controls to upload, replace, or remove it for those who may ([Grouping](03-grouping.md#descriptions)).
 
 ### Tasks
 
@@ -50,7 +50,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 
 ## Conventions
 
-- **Base path** `/api/v1`, JSON bodies; a request body of any other type is refused. The OpenAPI document, served at `/api/v1/openapi.json`, is the single source for server and client code.
+- **Base path** `/api/v1`, JSON bodies; a request body of any other type is refused, but for a group description's zip, `application/zip`, which browsers do not send across sites without asking first. The OpenAPI document, served at `/api/v1/openapi.json`, is the single source for server and client code.
 - **Authentication**: browsers use the session cookie and the CSRF header, `X-CSRF-Token`, whose value `GET /me` gives; machines send `Authorization: Bearer <token>`. Tokens are never accepted in URLs.
 - **Errors**: `{"error": {"code": "…", "message": "…"}}`, with stable codes. Internal details go to logs, never into responses.
 - **Pagination**: cursors — `?cursor=…&limit=…`, and a `next_cursor` in the response.
@@ -67,7 +67,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 | Session | `GET /setup` · `POST /setup` · `GET /auth/providers` · `POST /auth/login` · `POST /auth/register` · `GET /auth/{provider}/start` · `GET /auth/{provider}/callback` · `POST /auth/logout` · `GET /me` |
 | Queue and verdicts | `GET /queue` · `GET /board` · `GET /verdicts` · `GET /verdicts/{id}` |
 | Pull requests | `GET /prs` · `POST /prs/refresh` · `GET /prs/{id}` · `GET /prs/{id}/timeline` · `POST /prs/{id}/refresh` · `POST /prs/{id}/nudged` |
-| Groups | `GET /groups` · `GET /groups/{id}` · `POST /groups` · `PATCH /groups/{id}` · `POST /groups/{id}/members` · `DELETE /groups/{id}/members/{pr}` · `POST /groups/{id}/merge` · `POST /groups/{id}/split` |
+| Groups | `GET /groups` · `GET /groups/{id}` · `POST /groups` · `PATCH /groups/{id}` · `POST /groups/{id}/members` · `DELETE /groups/{id}/members/{pr}` · `POST /groups/{id}/merge` · `POST /groups/{id}/split` · `PUT /groups/{id}/doc` · `DELETE /groups/{id}/doc` |
 | Suggestions | `GET /suggestions` · `POST /suggestions/{id}/accept` · `POST /suggestions/{id}/dismiss` |
 | Assertions | `POST /assertions` · `DELETE /assertions?anchor=…` |
 | Proposals | `POST /proposals` · `DELETE /proposals?anchor=…` · `GET /proposals` · `POST /proposals/{id}/accept` · `POST /proposals/{id}/dismiss` |
@@ -77,14 +77,14 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 | Administration | `/admin/forges` · `/admin/installations` · `/admin/repos` · `/admin/members` · `/admin/invites` · `/admin/providers` · `/admin/bridges` · `/admin/grouping` · `/admin/model` |
 | Events | `GET /events` |
 
-Outside `/api/v1`: `POST /hooks/{installation_id}` for forge deliveries, and `GET /healthz` and `GET /readyz` for health checks. `{provider}` is the ID an admin gave a configured sign-in provider, not a vendor's name.
+Outside `/api/v1`: `POST /hooks/{installation_id}` for forge deliveries; `GET /docs/{token}/…` for groups' descriptions, by their links; and `GET /healthz` and `GET /readyz` for health checks. `{provider}` is the ID an admin gave a configured sign-in provider, not a vendor's name.
 
 ## Rules
 
 - **A1. One contract.** The OpenAPI document is the source; server stubs and the client are generated from it, and CI fails when they drift.
 - **A2. Same origin.** The frontend calls relative paths (`/api/...`) and contains no hostnames — nothing about where or how Park is deployed.
 - **A3. No stored links.** Forge links are rendered per response from stable IDs.
-- **A4. Filtered by visibility** ([I7](07-identity.md#rules)), pull request by pull request: every list, every read, every event, and every write.
+- **A4. Filtered by visibility** ([I7](07-identity.md#rules)), pull request by pull request: every list, every read, every event, and every write. A group's description, read by its link, is the one exception ([Grouping](03-grouping.md#descriptions)).
 - **A5. Every write is authorized** by permission and recorded with its actor.
 - **A6. Errors carry codes, not internals.**
 - **A7. Changes within a version only add.**

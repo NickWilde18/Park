@@ -64,8 +64,14 @@ func (s *server) GetBoard(ctx context.Context, _ GetBoardRequestObject) (GetBoar
 		}
 	}
 	groups := map[int64]grouping.GroupView{}
+	groupIDs := make([]int64, 0, len(gs))
 	for _, g := range gs {
 		groups[g.ID] = g
+		groupIDs = append(groupIDs, g.ID)
+	}
+	described, err := s.docsOf(ctx, groupIDs)
+	if err != nil {
+		return nil, err
 	}
 	taskOf := map[string]tasks.Task{}
 	for _, t := range mineTasks {
@@ -89,6 +95,10 @@ func (s *server) GetBoard(ctx context.Context, _ GetBoardRequestObject) (GetBoar
 			u.Name = g.Name
 			source := BoardUnitNameSource(g.NameSource)
 			u.NameSource = &source
+			if d, ok := described[g.ID]; ok {
+				link := d.Link
+				u.DocLink = &link
+			}
 			for _, m := range g.Members {
 				if m.Open {
 					members = append(members, m.PR)

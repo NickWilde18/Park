@@ -776,6 +776,45 @@ paths:
                 $ref: "#/components/schemas/Group"
         default:
           $ref: "#/components/responses/Error"
+  /groups/{id}/doc:
+    put:
+      operationId: putGroupDoc
+      summary: Upload a group's description, replacing the one it has
+      description: >-
+        Takes a zip of a static site: at most 20 MB, unpacking to at most 100 MB and 500 files, with its index.html at
+        its top or in the one folder at its top. Only a member who wrote one of the group's pull requests, or an admin,
+        may. The description is served at its link, under a new token, and the old link stops working.
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/zip:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: The group's description.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDoc"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteGroupDoc
+      summary: Remove a group's description
+      description: Only a member who wrote one of the group's pull requests, or an admin, may.
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: The description and its files are gone, and its link stops working.
+        default:
+          $ref: "#/components/responses/Error"
   /groups/{id}/members:
     post:
       operationId: moveIntoGroup
@@ -2392,6 +2431,31 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GroupMember"
+        doc:
+          $ref: "#/components/schemas/GroupDoc"
+        doc_editable:
+          type: boolean
+          description: Whether the caller may change the group's description; given when one group is asked for.
+    GroupDoc:
+      type: object
+      description: A group's description, a static site Park serves by its link, sandboxed.
+      required: [link, files, size, uploaded_by, uploaded_at]
+      properties:
+        link:
+          type: string
+          description: The description's address on Park, built for this answer. Whoever has it can read the description.
+        files:
+          type: integer
+        size:
+          type: integer
+          format: int64
+          description: The bytes its files unpack to.
+        uploaded_by:
+          type: string
+          description: The display name of the member who uploaded it.
+        uploaded_at:
+          type: string
+          format: date-time
     Groups:
       type: object
       required: [groups]
@@ -3121,6 +3185,9 @@ components:
             $ref: "#/components/schemas/Account"
         task:
           $ref: "#/components/schemas/Task"
+        doc_link:
+          type: string
+          description: The address of a group's description, if it has one.
         pull_requests:
           type: array
           description: The unit's open pull requests.

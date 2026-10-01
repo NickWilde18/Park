@@ -7,8 +7,8 @@ import { useLive } from '../live'
 
 type Answer = Promise<{ error?: unknown }>
 
-// Groups with their pull requests, nested by chain and marked with the source that placed each, and the open pull
-// requests in none; bridges' open proposals above them, then the open suggestions; and the manual actions: create,
+// Groups with their pull requests, nested by chain and marked with the source that placed each, and each group's
+// description, linked; the open pull requests in none; bridges' open proposals above them, then the open suggestions; and the manual actions: create,
 // move in, take out, merge, and split. A group is renamed on its own page.
 export default function Groups() {
   const [error, setError] = useState('')
@@ -56,6 +56,14 @@ export default function Groups() {
             <h3>
               <Link to={unitPath({ kind: 'group', id: g.id })}>{g.name}</Link>
             </h3>
+            {g.doc && (
+              <p className="quiet">
+                <a href={g.doc.link} target="_blank" rel="noopener noreferrer">
+                  Description
+                </a>
+                , by {g.doc.uploaded_by}
+              </p>
+            )}
             <ul>
               {[...g.members]
                 .sort((a, b) => (a.chain.id ?? a.pull_request) - (b.chain.id ?? b.pull_request) || a.chain.position - b.chain.position)

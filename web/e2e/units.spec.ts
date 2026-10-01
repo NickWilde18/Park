@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 import { call, signIn } from './session.ts'
 
@@ -115,4 +116,34 @@ test('a bridge\'s proposals are dismissed or accepted on the groups page', async
   const made = current.locator('article.group', { has: page.getByRole('heading', { name: 'Exports', exact: true }) })
   await expect(made.getByText('api#15 Export formats')).toBeVisible()
   await expect(made.getByText('api#16 Statement emails')).toBeVisible()
+})
+
+// Ana wrote a pull request of the first group, so she may give it a description: a zip of a static site, uploaded
+// from the group's page. It shows beside the group, framed in a sandbox whose script runs in an origin of its own: it
+// can read neither the viewer's cookies nor Park's answers as them. The groups page and the board link to it, and
+// once removed it is gone, and the page offers the upload again.
+test("a group's description is uploaded, shown beside it in a sandbox, and removed", async ({ page }) => {
+  await signIn(page, 'ana')
+  await page.goto('/units/group/1')
+  await page.getByLabel('Upload: a zip of a static site').setInputFiles(fileURLToPath(new URL('./fixtures/description.zip', import.meta.url)))
+  await page.getByRole('button', { name: 'Upload', exact: true }).click()
+  const framed = page.locator('aside.doc iframe')
+  const frame = page.frameLocator('aside.doc iframe')
+  await expect(frame.getByRole('heading', { name: 'Billing, explained' })).toBeVisible()
+  await expect(frame.locator('#scripted')).toHaveText('scripts run, cookies closed')
+  await expect(frame.locator('#me')).toHaveText('me: refused')
+  expect(await framed.getAttribute('sandbox')).toContain('allow-scripts')
+  expect(await framed.getAttribute('sandbox')).not.toContain('allow-same-origin')
+  const link = await page.getByRole('link', { name: 'Open in a new tab' }).getAttribute('href')
+  expect(link).toMatch(/^\/docs\/[A-Za-z0-9_-]{22}\/$/)
+
+  await page.getByRole('link', { name: 'Groups', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'Description', exact: true })).toHaveAttribute('href', link ?? '')
+  await page.getByRole('link', { name: 'Board', exact: true }).click()
+  await expect(page.getByRole('link', { name: /^Description of / })).toHaveAttribute('href', link ?? '')
+
+  await page.goto('/units/group/1')
+  await page.getByRole('button', { name: 'Remove', exact: true }).click()
+  await expect(page.locator('aside.doc')).toHaveCount(0)
+  await expect(page.getByLabel('Upload: a zip of a static site')).toBeVisible()
 })

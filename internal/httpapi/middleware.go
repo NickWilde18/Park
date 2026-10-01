@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 )
 
@@ -21,13 +22,21 @@ func recoverPanics(log *slog.Logger, next http.Handler) http.Handler {
 			if err, ok := v.(error); ok && errors.Is(err, http.ErrAbortHandler) {
 				panic(v)
 			}
-			log.ErrorContext(r.Context(), "handler panicked", "path", r.URL.Path, "panic", v, "stack", string(debug.Stack()))
+			log.ErrorContext(r.Context(), "handler panicked", "path", logged(r.URL.Path), "panic", v, "stack", string(debug.Stack()))
 			if !rec.wrote {
 				writeError(rec, http.StatusInternalServerError, "internal", "Something went wrong.")
 			}
 		}()
 		next.ServeHTTP(rec, r)
 	})
+}
+
+// logged is a request's path as the log keeps it: a description's link is its key, so its token is left out.
+func logged(p string) string {
+	if strings.HasPrefix(p, "/docs/") {
+		return "/docs/…"
+	}
+	return p
 }
 
 // logRequests logs every request with its status and duration, except successful health checks.
@@ -39,7 +48,7 @@ func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 		if (r.URL.Path == "/healthz" || r.URL.Path == "/readyz") && rec.status == http.StatusOK {
 			return
 		}
-		log.InfoContext(r.Context(), "request", "method", r.Method, "path", r.URL.Path, "status", rec.status,
+		log.InfoContext(r.Context(), "request", "method", r.Method, "path", logged(r.URL.Path), "status", rec.status,
 			"duration_ms", time.Since(start).Milliseconds())
 	})
 }
