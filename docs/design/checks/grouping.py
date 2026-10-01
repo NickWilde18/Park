@@ -45,7 +45,7 @@ WANT_EDGES = {("s#61", "s#60"), ("s#62", "s#60"), ("c#72", "b#70"), ("c#72", "b#
 
 
 # ---------- resolution ----------
-STRENGTH = {"issue": 0, "branch": 1, "refs": 2}  # structural tie-break: the lower wins
+STRENGTH = {"stack": 0, "issue": 1, "branch": 2, "refs": 3}  # structural tie-break: the lower wins
 
 
 def resolve(assertions):
@@ -89,6 +89,9 @@ RESOLUTION_CASES = [
      [claim("branch", "branch:one", ["a", "c"], 1), claim("issue", "issue:7", ["c", "d"], 2),
       claim("branch", "branch:two", ["d", "e"], 3)],
      {frozenset({"a"}), frozenset({"c", "d"}), frozenset({"e"})}),
+    ("a stack {api#1, api#2, api#3} made after mutual references {api#1, web#9}: the stack keeps its root",
+     [claim("refs", "refs:api#1", ["api#1", "web#9"], 1), claim("stack", "stack:1/40", ["api#1", "api#2", "api#3"], 2)],
+     {frozenset({"api#1", "api#2", "api#3"}), frozenset({"web#9"})}),
 ]
 
 # ---------- arrival order ----------
@@ -136,6 +139,9 @@ ARRIVAL_CASES = [
     ("a–c by branch, c–d by issue, d–e by branch, in every order",
      [("branch", "branch:one", ["a", "c"]), ("issue", "issue:7", ["c", "d"]), ("branch", "branch:two", ["d", "e"])],
      {frozenset({"a"}), frozenset({"c", "d"}), frozenset({"e"})}),
+    ("mutual references {api#1, web#9} and a stack {api#1, api#2, api#3}, in either order",
+     [("refs", "refs:api#1", ["api#1", "web#9"]), ("stack", "stack:1/40", ["api#1", "api#2", "api#3"])],
+     {frozenset({"api#1", "api#2", "api#3"}), frozenset({"web#9"})}),
 ]
 
 print(f"long-lived branches: {', '.join(LONG_LIVED)}")

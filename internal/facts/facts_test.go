@@ -67,7 +67,11 @@ func (f *fakeForge) ListOpen(context.Context, Repo) ([]Listed, error) {
 	var out []Listed
 	for n, p := range f.prs {
 		if p.PR.Open() {
-			out = append(out, Listed{Number: n, UpdatedAt: p.PR.UpdatedAt})
+			l := Listed{Number: n, UpdatedAt: p.PR.UpdatedAt}
+			if p.PR.Stack != nil {
+				l.Stack = *p.PR.Stack
+			}
+			out = append(out, l)
 		}
 	}
 	return out, nil
@@ -401,6 +405,58 @@ func TestPolling(t *testing.T) {
 	}
 	if _, ok := e.queued(t, KindRefreshPR, prKey(e.repo.ID, 14)); !ok {
 		t.Error("the sweep skipped an unchanged pull request")
+	}
+}
+
+// Joining a stack does not move a pull request's update time, so polling compares the listed stack with the stored
+// one. A pull request put in a stack, its update time as it was, is refreshed and its stack recorded; once the stack
+// is stored, polling leaves it alone; taken out again, it is refreshed, and the event records the stack as null. A
+// state stored before stacks were collected, with no stack at all, refreshes to no change.
+func TestPollingSeesStacks(t *testing.T) {
+	e := newEnv(t)
+	e.forge.prs[15] = e.fetched(15, nil)
+	e.refresh(t, 15)
+	if _, err := e.pool.Exec(e.ctx, "UPDATE pr_fact SET state = state - 'stack' WHERE number = 15"); err != nil {
+		t.Fatal(err)
+	}
+	e.refresh(t, 15)
+	if s, _ := e.stored(t, 15); s.seq != 1 {
+		t.Fatalf("a state stored without a stack refreshed to event %d", s.seq)
+	}
+	poll := func() bool {
+		t.Helper()
+		e.clearQueue(t)
+		if err := e.s.pollRepo(e.ctx, e.item(KindPollRepo, strconv.FormatInt(e.repo.ID, 10))); err != nil {
+			t.Fatal(err)
+		}
+		_, ok := e.queued(t, KindRefreshPR, prKey(e.repo.ID, 15))
+		return ok
+	}
+	if poll() {
+		t.Fatal("an unchanged pull request was refreshed")
+	}
+	stack := 40
+	e.forge.prs[15] = e.fetched(15, func(p *PR) { p.Stack = &stack })
+	if !poll() {
+		t.Fatal("a pull request put in a stack, its update time as it was, was not refreshed")
+	}
+	e.refresh(t, 15)
+	s, _ := e.stored(t, 15)
+	if s.state.Stack == nil || *s.state.Stack != 40 || s.seq != 2 {
+		t.Fatalf("the stack was not recorded: %+v", s)
+	}
+	if poll() {
+		t.Fatal("a pull request whose stack is stored was refreshed again")
+	}
+	e.forge.prs[15] = e.fetched(15, nil)
+	if !poll() {
+		t.Fatal("a pull request taken out of its stack was not refreshed")
+	}
+	e.refresh(t, 15)
+	events, err := e.s.Timeline(e.ctx, s.id)
+	if err != nil || len(events) != 3 || !slices.Equal(Changed(events[2].Changes), []string{"stack"}) ||
+		string(events[2].Changes["stack"].New) != "null" {
+		t.Fatalf("leaving the stack: %+v, %v", events, err)
 	}
 }
 

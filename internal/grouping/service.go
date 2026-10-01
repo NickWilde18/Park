@@ -68,7 +68,7 @@ func (s *Service) Register(r *work.Runner) {
 
 // relevant are the facts grouping reads.
 var relevant = map[string]bool{"state": true, "head_branch": true, "base_branch": true, "head_repo": true, "author": true,
-	"closes_issues": true, "references": true, "title": true}
+	"closes_issues": true, "references": true, "title": true, "stack": true}
 
 // FactsFollower queues a resolution when a pull request's facts that grouping reads change.
 func (s *Service) FactsFollower() facts.Follower {
@@ -122,6 +122,9 @@ func (s *Service) loadOpen(ctx context.Context, tx pgx.Tx) (open, map[int64]Repo
 		}
 		n.Title, n.HeadBranch, n.BaseBranch, n.Author, n.HeadRepo = p.Title, p.HeadBranch, p.BaseBranch, p.Author, p.HeadRepo
 		n.CreatedAt, n.ClosesIssues, n.References = p.CreatedAt, p.ClosesIssues, p.References
+		if p.Stack != nil {
+			n.Stack = *p.Stack
+		}
 		o.nodes = append(o.nodes, n)
 		if _, ok := repos[n.Repo]; !ok {
 			info := RepoInfo{DefaultBranch: def, Protected: map[string]bool{}}
@@ -436,7 +439,7 @@ func (s *Service) nameOf(anchor string, res result, assertions map[int64]liveAss
 	return claimName(a, winners, o)
 }
 
-// claimName is the name a claim offers, and where it comes from: an external title; for an issue or reference
+// claimName is the name a claim offers, and where it comes from: an external title; for a stack, issue, or reference
 // anchor, the title of the oldest pull request among its members; for a branch anchor, the branch.
 func claimName(a liveAssertion, winners []int64, o open) (string, string) {
 	oldest := func() string {
@@ -468,6 +471,8 @@ func claimName(a liveAssertion, winners []int64, o open) (string, string) {
 	case kind == KindBranch && a.Anchor != nil:
 		_, name, _ := strings.Cut(strings.TrimPrefix(*a.Anchor, "branch:"), "/")
 		return name, "branch"
+	case kind == KindStack:
+		return oldest(), "stack"
 	case kind == KindIssue:
 		return oldest(), "issue"
 	}
@@ -475,7 +480,7 @@ func claimName(a liveAssertion, winners []int64, o open) (string, string) {
 }
 
 // nameRank orders the sources of a group's name, highest first.
-var nameRank = map[string]int{"manual": 0, "external": 1, "issue": 2, "branch": 3, "refs": 4}
+var nameRank = map[string]int{"manual": 0, "external": 1, "stack": 2, "issue": 3, "branch": 4, "refs": 5}
 
 // rename gives each active group the name of the highest source that offers one, unless a member named it.
 func (s *Service) rename(ctx context.Context, tx pgx.Tx, assertions map[int64]liveAssertion, o open) error {
@@ -555,8 +560,8 @@ func (s *Service) suggest(ctx context.Context, tx pgx.Tx, res result, weak []Wea
 	for _, pr := range prs {
 		for _, l := range res.Lost[pr] {
 			_, key := splitAnchor(l.claim.Anchor)
-			reason := map[string]string{KindIssue: "closes the same issue", KindBranch: "has the same branch name",
-				KindRefs: "refers to them, and they to it"}[l.claim.Kind]
+			reason := map[string]string{KindStack: "is in the same stack", KindIssue: "closes the same issue",
+				KindBranch: "has the same branch name", KindRefs: "refers to them, and they to it"}[l.claim.Kind]
 			if err := insert(pr, l.Group, reason, "claim:"+key+"->"+strconv.FormatInt(l.Group, 10)); err != nil {
 				return err
 			}

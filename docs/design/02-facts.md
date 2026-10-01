@@ -28,6 +28,7 @@ Park learns about the world through facts: immutable, attributed records. This c
 | Identity | Repository ID, number, author account ID, title, labels; whether the author may dismiss reviews in this repository |
 | Lifecycle | State (open, draft, merged, closed); created, ready-for-review, updated, and merged or closed times |
 | Branches | Head repository and head branch — the head repository differs for a pull request from a fork — head commit and the time it was pushed, base branch |
+| Stack | The number of the stack the forge records the pull request in, unique within its repository; none for a pull request in no stack, and on a forge that records no stacks |
 | Merge | Mergeability: clean, conflicting, or unknown; and the forge's own merge verdict: whether it can be merged now, and what blocks it — reviews, code owners, checks, being behind the base, conflicts, or something else |
 | Review requests | Each requested account or team, with the time of the request, and whether it was made to a code owner |
 | Reviews | Each review: ID, author, state (approved, changes requested, or commented), the commit it was on, time, whether it was dismissed, whether it has a written body, and whether its author's approval counts toward the forge's requirement |
@@ -45,13 +46,14 @@ Park learns about the world through facts: immutable, attributed records. This c
 - **Required approvals** the forge will not reveal — a branch's protection needs administration read access — are worked out from the forge's own review decision: one more than the approvals that count while it asks for review, and the approvals there are once it is satisfied.
 - **Whether the author may dismiss** comes from their access level in the repository as the forge reports it — write or more — kept for an hour; when the forge will not say, from their standing in the repository: owner, member, or collaborator.
 - **References** are parsed from the title and the first 2,000 characters of the description; later text is often pasted logs, where `#N` is a line or build number. A bare `#N` refers to the same repository and never to another. `name#N` or `owner/name#N` counts only when it names exactly one watched repository. Closed issues come from the forge's own closing references, not from parsing.
+- **Stacks** are read from a forge that records them; a forge of the same kind may not, such as an older server. Whether it does is asked of the forge once, and until it has answered, a refresh fails and is retried rather than store a pull request as in no stack.
 
 ## Flow: refresh one pull request
 
 Every collection path ends here. Given a repository ID and a pull request number:
 
 1. Take the per-pull-request lock, so that refreshes of one pull request never interleave.
-2. Fetch the pull request's full current state from the forge: the pull request itself, its review requests with their times, its reviews, its threads, its conversation, the checks on its head commit, the forge's merge verdict, and the issues it closes.
+2. Fetch the pull request's full current state from the forge: the pull request itself, its review requests with their times, its reviews, its threads, its conversation, the checks on its head commit, the forge's merge verdict, the issues it closes, and the stack it is in.
 3. Normalize it into the `pr_fact` shape.
 4. Diff against the stored `pr_fact`.
 5. If nothing differs, stop. Otherwise, in one transaction, append a `fact_event` with the next sequence number and the changed fields, update `pr_fact`, and queue work for the later stages: grouping, verdicts, and the verification of any task that touches this pull request.
@@ -78,8 +80,8 @@ Forges do not redeliver on their own. When Park starts, it reads the forge's del
 
 For each watched repository, on a schedule:
 
-1. List its open pull requests with their update times — one inexpensive, paginated query.
-2. Refresh those not stored yet, and those whose update time is newer than the stored one.
+1. List its open pull requests with their update times and stacks — one inexpensive, paginated query.
+2. Refresh those not stored yet, those whose update time is newer than the stored one, and those whose stack differs from the stored one: joining a stack does not move a pull request's update time.
 3. Refresh every stored open pull request missing from the list: it was merged or closed.
 
 Less often, a full sweep refreshes every open pull request regardless of update time, because some changes — a check run finishing, for example — do not move a pull request's update time.

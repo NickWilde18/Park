@@ -10,7 +10,7 @@
         "author": {"__typename": "User", "login": "ana", "databaseId": 501, "name": "Ana"},
         "labels": {"nodes": [{"name": "feature"}, {"name": "billing"}]},
         "headRepository": {"databaseId": 2002}, "headRefName": "feat/billing-export", "headRefOid": "headsha12",
-        "baseRefName": "main", "mergeable": "MERGEABLE", "mergeStateStatus": "BLOCKED", "reviewDecision": "CHANGES_REQUESTED",
+        "baseRefName": "main", "stack": {"number": 40}, "mergeable": "MERGEABLE", "mergeStateStatus": "BLOCKED", "reviewDecision": "CHANGES_REQUESTED",
         "bodyText": "Exports invoices. Fixes the totals; see https://example.test/doc for the format.",
         "closingIssuesReferences": {"nodes": [{"number": 40, "repository": {"databaseId": 1001}}]},
         "reviewRequests": {"nodes": [

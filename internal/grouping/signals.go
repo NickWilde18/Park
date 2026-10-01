@@ -6,9 +6,10 @@ import (
 	"strings"
 )
 
-// The kinds of structural signal, strongest first: closing the same issue beats the same branch name, which beats
-// mutual references.
+// The kinds of structural signal, strongest first: the same stack beats closing the same issue, which beats the same
+// branch name, which beats mutual references.
 const (
+	KindStack  = "stack"
 	KindIssue  = "issue"
 	KindBranch = "branch"
 	KindRefs   = "refs"
@@ -16,14 +17,16 @@ const (
 
 func strength(kind string) int {
 	switch kind {
-	case KindIssue:
+	case KindStack:
 		return 0
-	case KindBranch:
+	case KindIssue:
 		return 1
-	case KindRefs:
+	case KindBranch:
 		return 2
+	case KindRefs:
+		return 3
 	}
-	return 3
+	return 4
 }
 
 // Signal is a structural co-membership: these pull requests belong together, under an anchor.
@@ -41,10 +44,11 @@ type Weak struct {
 	Other  int64
 }
 
-// Signals derives the structural signals among open pull requests: two or more closing the same issue; the same head
-// branch name in two or more repositories, by the same author, unless the name is never grouped; and references in
-// both directions, connected pairs forming one signal. No signal pairs two pull requests of the same chain (G9): of
-// a chain's pull requests, a signal keeps the one nearest the root.
+// Signals derives the structural signals among open pull requests: two or more the forge records in one stack; two
+// or more closing the same issue; the same head branch name in two or more repositories, by the same author, unless
+// the name is never grouped; and references in both directions, connected pairs forming one signal. No signal but a
+// stack pairs two pull requests of the same chain (G9): of a chain's pull requests, another signal keeps the one
+// nearest the root.
 func Signals(nodes []Node, chains map[int64]Chain, neverGrouped []string) ([]Signal, []Weak) {
 	byID := map[int64]*Node{}
 	byRef := map[[2]int64]int64{} // {repo, number} → pull request
@@ -55,10 +59,24 @@ func Signals(nodes []Node, chains map[int64]Chain, neverGrouped []string) ([]Sig
 	}
 	var signals []Signal
 	add := func(anchor, kind string, prs []int64) {
-		prs = onePerChain(prs, chains)
+		if kind != KindStack {
+			prs = onePerChain(prs, chains)
+		}
 		if len(prs) >= 2 {
+			sort.Slice(prs, func(i, j int) bool { return prs[i] < prs[j] })
 			signals = append(signals, Signal{Anchor: anchor, Kind: kind, PRs: prs})
 		}
+	}
+
+	stacks := map[[2]int64][]int64{} // {repo, stack} → pull requests
+	for _, n := range nodes {
+		if n.Stack != 0 {
+			k := [2]int64{n.Repo, int64(n.Stack)}
+			stacks[k] = append(stacks[k], n.ID)
+		}
+	}
+	for k, prs := range stacks {
+		add("stack:"+strconv.FormatInt(k[0], 10)+"/"+strconv.FormatInt(k[1], 10), KindStack, prs)
 	}
 
 	issues := map[[2]int64][]int64{}

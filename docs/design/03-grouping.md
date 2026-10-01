@@ -8,6 +8,8 @@ A chain is structural: a pull request whose base branch is another open pull req
 
 A group is a judgment: "these belong together" can come from several places with different reliability. Being stacked does not by itself make pull requests one feature — a chain of separate refactors is still a chain, and each of its pull requests is reviewed and merged on its own — so chains and groups are separate relations. The dashboard nests chains inside groups where both apply.
 
+A stack that the forge records is a different fact. Its author put the pull requests in it, in order, as one series, so a forge's stack is a structural signal of its own: the one signal that groups pull requests of a chain ([D63](10-design-log.md#d63-a-stack-the-forge-records-is-a-group)).
+
 ## The aggregator resolves; it does not collect
 
 ```
@@ -43,12 +45,13 @@ External and structural sources do not know Park's group IDs; they can only say 
 
 | Signal | Anchor | Effect |
 |---|---|---|
+| The forge records two or more open pull requests in one stack | `stack:<repository ID>/<number>` | Asserted |
 | Two or more pull requests close the same issue | `issue:<repository ID>/<number>` | Asserted |
 | The same head branch name in two or more repositories, by the same author | `branch:<author ID>/<name>` | Asserted |
 | Pull requests that reference each other, in both directions; connected pairs form one assertion | `refs:<oldest pull request in the set>` | Asserted |
 | A one-way reference across repositories, between pull requests with similar branch names | — | Suggestion |
 
-- **Never within a chain.** No structural signal pairs two pull requests of the same chain: of a chain's pull requests in one signal, it keeps the one nearest the root. Stacked pull requests reference each other all the time ("based on #41"), yet each is reviewed and merged on its own; only members and external sources can group them.
+- **Never within a chain**, but for a stack. No other structural signal pairs two pull requests of the same chain: of a chain's pull requests in one signal, it keeps the one nearest the root. Stacked pull requests reference each other all the time ("based on #41"), yet each is reviewed and merged on its own; only the forge's stack, members, and external sources group them.
 - **Similar branch names** share at least two words, making up more than half of the shorter name's words. Words that appear in more than a fifth of all open pull requests' branch names are ignored: which words are noise depends on the team, so it is measured rather than listed.
 - **One-way references within one repository are not a signal.** A repository's pull requests for one epic reference each other and share words naturally.
 - **Some branch names never form a group**: default branches, release and hotfix branches, names a forge generates for web edits, and dependency-update prefixes. The list is configurable. Different authors who share a branch name are grouped by members or bridges, not by the name: generic names like `fix-typo` recur by chance.
@@ -88,7 +91,7 @@ Runs when a pull request's facts change, when an assertion that names it is adde
 3. **Decide each pull request's winning claim**, before any anchor is mapped:
    1. Drop claims a member has excluded: a placement in, or a mapped anchor pointing to, a group the member took this pull request out of.
    2. Keep the highest authority among the rest.
-   3. Break ties within it. Manual and external claims: the newest wins — when a pull request is resubmitted for review, teams open a new thread, and the new thread is where it belongs. Structural claims: closing the same issue beats the same branch name, which beats mutual references. Still tied: a claim that keeps the pull request in its current group wins; otherwise the oldest assertion does.
+   3. Break ties within it. Manual and external claims: the newest wins — when a pull request is resubmitted for review, teams open a new thread, and the new thread is where it belongs. Structural claims: the same stack beats closing the same issue, which beats the same branch name, which beats mutual references. Still tied: a claim that keeps the pull request in its current group wins; otherwise the oldest assertion does.
 4. **Map the anchors** of winning claims that are not mapped yet, in canonical order. Each maps to the active group that holds the most of the pull requests whose winning claim it is, among groups none of them is excluded from and that no other winning claim keeps — a mapped anchor that still has winners, a placement, or an anchor mapped before it — the oldest such group on a tie; or else to a new group. Only those pull requests count, and a group another claim keeps is not up for taking: an anchor never follows a pull request that chose a different claim, so claims cannot chain into a union ([D50](10-design-log.md#d50-an-anchor-takes-only-a-group-no-other-claim-keeps)).
 5. **Ask the model for a suggestion** for pull requests with no claim at all, if it is on (next flow). Nothing changes until a member accepts one.
 6. **Write the changes.** Record each pull request whose group changed, with the assertion that placed it, and queue work for verdicts, tasks, and the dashboard.
@@ -149,7 +152,7 @@ A thread that links many pull requests may be one large unit of work, or several
 
 ## Group names
 
-A group takes its name from the highest source that offers one: a manual rename, then an external assertion's title, then the title of the issue behind an issue anchor — for now, the title of the oldest pull request that closes it ([D51](10-design-log.md#d51-an-issue-anchor-is-named-after-its-oldest-pull-request)) — then the branch name of a branch anchor, then the title of the oldest pull request behind a reference anchor, then — for a group created by accepting the model's suggestion — the name the model proposed. A group made by accepting a bridge's proposal is named as a member names one: by the proposed name, or, when the proposal named none, by its oldest pull request's title. The name changes when a higher source offers one, or when the source it came from changes it — a thread is retitled.
+A group takes its name from the highest source that offers one: a manual rename, then an external assertion's title, then the title of the oldest pull request in a stack anchor, then the title of the issue behind an issue anchor — for now, the title of the oldest pull request that closes it ([D51](10-design-log.md#d51-an-issue-anchor-is-named-after-its-oldest-pull-request)) — then the branch name of a branch anchor, then the title of the oldest pull request behind a reference anchor, then — for a group created by accepting the model's suggestion — the name the model proposed. A group made by accepting a bridge's proposal is named as a member names one: by the proposed name, or, when the proposal named none, by its oldest pull request's title. The name changes when a higher source offers one, or when the source it came from changes it — a thread is retitled.
 
 ## A worked example
 
@@ -178,7 +181,7 @@ The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), 
 - **G6.** Only members exclude, and an exclusion holds against every source.
 - **G7.** An anchor maps to at most one group, and a source and key name one anchor; two servers resolving at once cannot create it twice. The mapping is fixed when the anchor is first used, and changes only when groups merge (it is re-pointed) or its group is archived (it is released).
 - **G8.** Group identity is independent of membership. Merges leave aliases; groups are archived, never deleted.
-- **G9.** Structural signals never pair two pull requests of the same chain.
+- **G9.** Structural signals never pair two pull requests of the same chain, except the forge's own stack.
 - **G10.** A structural claim that loses becomes a suggestion; weak signals are only ever suggestions.
 - **G11.** The model only suggests, for pull requests with no claim, one at a time, recorded by fingerprint, and asks again only when a pull request's own inputs change. A suggestion changes nothing until a member accepts it.
 - **G12.** Every membership records the assertion that placed it.

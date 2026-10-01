@@ -53,6 +53,10 @@ type PR struct {
 	AuthorCanDismiss bool       `json:"author_can_dismiss"`
 	CanMergeNow      bool       `json:"can_merge_now"`
 	CodeOwnersNeeded bool       `json:"code_owner_review_required"`
+	// Stack is the number of the stack the forge records the pull request in, unique within its repository; nil for
+	// none, and on a forge that records no stacks. It is null rather than left out, so that leaving a stack is a
+	// change the diff sees.
+	Stack *int `json:"stack"`
 }
 
 // The states of a pull request.
@@ -166,10 +170,12 @@ type Team struct {
 	ID   int64
 }
 
-// Listed is an open pull request as a listing shows it.
+// Listed is an open pull request as a listing shows it: its update time, and the number of the stack the forge
+// records it in, 0 for none. Joining a stack does not move the update time, so polling compares both.
 type Listed struct {
 	UpdatedAt time.Time
 	Number    int
+	Stack     int
 }
 
 // Light is what changes without moving a pull request's update time: its head, mergeability, and checks.
@@ -225,7 +231,7 @@ type Collector interface {
 	// FetchPR fetches a pull request's full current state. Protection is what the forge requires of its base
 	// branch, from the last repository refresh.
 	FetchPR(ctx context.Context, r Repo, number int, protection map[string]Protection) (Fetched, error)
-	// ListOpen lists the open pull requests with their update times.
+	// ListOpen lists the open pull requests with their update times and stacks.
 	ListOpen(ctx context.Context, r Repo) ([]Listed, error)
 	// Light fetches what can change without moving the update time.
 	Light(ctx context.Context, r Repo, number int) (Light, error)

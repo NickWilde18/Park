@@ -36,26 +36,35 @@ func (s *Service) watchedRepo(ctx context.Context, it work.Item) (*repoState, Co
 	return &r, col, nil
 }
 
-// storedOpen returns the stored open pull requests of a repository, with the forge's update time of each.
-func (s *Service) storedOpen(ctx context.Context, repoID int64) (map[int]time.Time, error) {
-	rows, err := s.pool.Query(ctx, "SELECT number, forge_updated_at FROM pr_fact WHERE repo_id = $1 AND open", repoID)
+// storedPR is what polling compares of a stored open pull request with the listing: the forge's update time, and the
+// stack, 0 for none.
+type storedPR struct {
+	at    time.Time
+	stack int
+}
+
+// storedOpen returns the stored open pull requests of a repository, by number.
+func (s *Service) storedOpen(ctx context.Context, repoID int64) (map[int]storedPR, error) {
+	rows, err := s.pool.Query(ctx, `SELECT number, forge_updated_at, coalesce((state->>'stack')::int, 0)
+		FROM pr_fact WHERE repo_id = $1 AND open`, repoID)
 	if err != nil {
 		return nil, err
 	}
-	out := map[int]time.Time{}
+	out := map[int]storedPR{}
 	for rows.Next() {
 		var n int
-		var at time.Time
-		if err := rows.Scan(&n, &at); err != nil {
+		var st storedPR
+		if err := rows.Scan(&n, &st.at, &st.stack); err != nil {
 			return nil, err
 		}
-		out[n] = at
+		out[n] = st
 	}
 	return out, rows.Err()
 }
 
 // pollRepo lists a repository's open pull requests and refreshes the new ones, the ones updated since they were
-// stored, and the stored ones no longer open. It then waits for the next poll.
+// stored or listed in another stack than the stored one, and the stored ones no longer open. It then waits for the
+// next poll.
 func (s *Service) pollRepo(ctx context.Context, it work.Item) error {
 	return s.poll(ctx, it, false)
 }
@@ -83,8 +92,8 @@ func (s *Service) poll(ctx context.Context, it work.Item, sweep bool) error {
 		open := map[int]bool{}
 		for _, l := range listed {
 			open[l.Number] = true
-			at, ok := stored[l.Number]
-			if sweep || !ok || l.UpdatedAt.After(at) {
+			st, ok := stored[l.Number]
+			if sweep || !ok || l.UpdatedAt.After(st.at) || l.Stack != st.stack {
 				if err := work.Enqueue(ctx, tx, KindRefreshPR, prKey(r.ID, l.Number), time.Time{}); err != nil {
 					return err
 				}
