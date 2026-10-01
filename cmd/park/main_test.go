@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -124,8 +125,27 @@ func TestServe(t *testing.T) {
 	}
 }
 
-// park serve stops at once, and cleanly, while a dashboard's event stream is open: shutting down ends the stream,
-// which would otherwise be waited for until the shutdown's deadline.
+// logs collects what serve logs, and can be read while serve still runs.
+type logs struct {
+	b  bytes.Buffer
+	mu sync.Mutex
+}
+
+func (l *logs) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *logs) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+// park serve stops cleanly while a dashboard's event stream is open: shutting down ends the stream at once, which
+// would otherwise be waited for until the shutdown's deadline, and serve then returns without an error. The two are
+// timed apart, and a failure shows serve's log, so that a slow shutdown says which part was slow.
 func TestServeEndsStreams(t *testing.T) {
 	vars := env(map[string]string{
 		"PARK_DATABASE_URL": storetest.Database(t), "PARK_SECRET_KEY": key, "PARK_HTTP_ADDR": "127.0.0.1:0",
@@ -135,7 +155,8 @@ func TestServeEndsStreams(t *testing.T) {
 	defer cancel()
 	listening := make(chan string, 1)
 	done := make(chan error, 1)
-	go func() { done <- run(ctx, []string{"serve"}, vars, io.Discard, io.Discard, listening) }()
+	log := &logs{}
+	go func() { done <- run(ctx, []string{"serve"}, vars, io.Discard, log, listening) }()
 	var addr string
 	select {
 	case addr = <-listening:
@@ -181,14 +202,26 @@ func TestServeEndsStreams(t *testing.T) {
 	}
 
 	stopping := time.Now()
+	ended := make(chan time.Duration, 1)
+	go func() {
+		_, _ = io.Copy(io.Discard, stream.Body)
+		ended <- time.Since(stopping)
+	}()
 	cancel()
 	select {
-	case err := <-done:
-		took := time.Since(stopping).Round(time.Millisecond)
-		if err != nil || took > 3*time.Second {
-			t.Fatalf("serve returned %v after %s", err, took)
+	case took := <-ended:
+		if took > 3*time.Second {
+			t.Fatalf("the stream ended %s after the shutdown began\n%s", took.Round(time.Millisecond), log)
 		}
 	case <-time.After(15 * time.Second):
-		t.Fatal("serve did not stop")
+		t.Fatalf("the stream did not end\n%s", log)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("serve returned %v, %s after the shutdown began\n%s", err, time.Since(stopping).Round(time.Millisecond), log)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatalf("serve did not stop\n%s", log)
 	}
 }
