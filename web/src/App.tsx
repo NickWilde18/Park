@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { api } from './api/client'
+import Board from './pages/Board'
 import Groups from './pages/Groups'
 import Queue from './pages/Queue'
 import Rules from './pages/Rules'
@@ -25,6 +26,8 @@ function page(path: string): ReactNode {
   switch (path) {
     case '/':
       return <Queue />
+    case '/board':
+      return <Board />
     case '/tasks':
       return <Tasks />
     case '/groups':
@@ -49,6 +52,7 @@ function Shell() {
       <header>
         <nav>
           <Link to="/">Queue</Link>
+          <Link to="/board">Board</Link>
           <Link to="/tasks">Tasks</Link>
           <Link to="/groups">Groups</Link>
           <Link to="/rules">Rules</Link>
@@ -58,7 +62,7 @@ function Shell() {
           {me.member.display_name} <button onClick={signOut}>Sign out</button>
         </span>
       </header>
-      <main>{page(path)}</main>
+      <main className={path === '/board' ? 'wide' : undefined}>{page(path)}</main>
     </>
   )
 }

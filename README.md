@@ -29,7 +29,7 @@ Executors work a member's tasks with an API token scoped to `tasks:work`: `POST 
 
 Bridges post assertions that pull requests belong together, from where the team discusses them, such as a chat's review threads, and propose groups they are unsure of, which members accept on the groups page: an admin registers each at `/api/v1/admin/bridges`, and its owner makes its token, scoped to `assertions:write`, with its `bridge_id`.
 
-Each member's queue — the units whose ball they hold — and waiting list are the dashboard's first page, and `GET /api/v1/queue`, once an admin links their forge account, `POST /api/v1/admin/members/{id}/identities`, or they sign in through the forge.
+Each member's queue — the units whose ball they hold — and waiting list are the dashboard's first page, and `GET /api/v1/queue`, once an admin links their forge account, `POST /api/v1/admin/members/{id}/identities`, or they sign in through the forge. The board, at `/board`, is every open unit in one table as it stands for its reader, from `GET /api/v1/board`.
 
 To try the dashboard without a forge, fill an empty database with a small team's pull requests, then start Park on it and sign in as `ana` or `ben`, with the password the seed prints:
 

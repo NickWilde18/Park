@@ -57,20 +57,7 @@ func verdictOut(v verdicts.Verdict, inputs bool) Verdict {
 		out.Holders = append(out.Holders, holder)
 	}
 	for _, p := range v.Parts {
-		part := VerdictPart{PullRequest: p.PR, Account: accountOut(p.Account, p.Login, p.Name), Role: VerdictPartRole(p.Role),
-			Kind: VerdictPartKind(p.Kind), Action: optional(p.Action), Targets: listOf(p.Targets), Priority: VerdictPartPriority(p.Priority),
-			Reason: p.Reason, ReasonError: optional(p.ReasonError), Rule: p.Rule, Path: []PathStep{}}
-		if p.Remind {
-			part.Remind = &p.Remind
-		}
-		if p.Task {
-			part.Task = &p.Task
-		}
-		for _, s := range p.Path {
-			part.Path = append(part.Path, PathStep{Rule: s.Rule, Name: s.Name, PassedOver: optional(s.PassedOver),
-				Outcome: PathStepOutcome(s.Outcome), Judgements: listOf(s.Judgements), Error: optional(s.Error)})
-		}
-		out.Parts = append(out.Parts, part)
+		out.Parts = append(out.Parts, partOut(p))
 	}
 	for _, r := range v.Reminders {
 		out.Reminders = append(out.Reminders, Reminder{Account: accountOut(r.Account, r.Login, r.Name), PullRequest: r.PR, Reason: r.Reason})
@@ -84,6 +71,24 @@ func verdictOut(v verdicts.Verdict, inputs bool) Verdict {
 		out.Inputs = &list
 	}
 	return out
+}
+
+// partOut is one person's part on one pull request, with the path of rules that decided it.
+func partOut(p verdicts.Part) VerdictPart {
+	part := VerdictPart{PullRequest: p.PR, Account: accountOut(p.Account, p.Login, p.Name), Role: VerdictPartRole(p.Role),
+		Kind: VerdictPartKind(p.Kind), Action: optional(p.Action), Targets: listOf(p.Targets), Priority: VerdictPartPriority(p.Priority),
+		Reason: p.Reason, ReasonError: optional(p.ReasonError), Rule: p.Rule, Path: []PathStep{}}
+	if p.Remind {
+		part.Remind = &p.Remind
+	}
+	if p.Task {
+		part.Task = &p.Task
+	}
+	for _, s := range p.Path {
+		part.Path = append(part.Path, PathStep{Rule: s.Rule, Name: s.Name, PassedOver: optional(s.PassedOver),
+			Outcome: PathStepOutcome(s.Outcome), Judgements: listOf(s.Judgements), Error: optional(s.Error)})
+	}
+	return part
 }
 
 func verdictsOut(vs []verdicts.Verdict) []Verdict {

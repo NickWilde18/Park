@@ -11,18 +11,23 @@ func groupOut(g grouping.GroupView) Group {
 	out := Group{Id: g.ID, Name: g.Name, NameSource: GroupNameSource(g.NameSource), State: GroupState(g.State), CreatedAt: g.CreatedAt,
 		Members: []GroupMember{}}
 	for _, m := range g.Members {
-		chain := ChainPosition{Position: m.Chain.Position, Length: m.Chain.Length, Below: m.Chain.Below}
-		if m.Chain.ID != 0 {
-			id := m.Chain.ID
-			chain.Id = &id
-		}
-		if chain.Position == 0 {
-			chain.Position, chain.Length = 1, 1
-		}
 		out.Members = append(out.Members, GroupMember{PullRequest: m.PR, Open: m.Open, Since: m.Since, Source: GroupMemberSource(m.Source),
-			Reason: m.Reason, Chain: chain})
+			Reason: m.Reason, Chain: chainOut(m.Chain)})
 	}
 	return out
+}
+
+// chainOut is a pull request's place in its chain; one not stacked is the only one of a chain of one.
+func chainOut(c grouping.Chain) ChainPosition {
+	chain := ChainPosition{Position: c.Position, Length: c.Length, Below: c.Below}
+	if c.ID != 0 {
+		id := c.ID
+		chain.Id = &id
+	}
+	if chain.Position == 0 {
+		chain.Position, chain.Length = 1, 1
+	}
+	return chain
 }
 
 // requireMember returns the calling member's ID. Only a session gets here: tokenMay lets no token change groups.
