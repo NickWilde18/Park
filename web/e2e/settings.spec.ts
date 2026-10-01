@@ -42,3 +42,77 @@ test('settings unlink an account, unless it is the last way in', async ({ page }
   await listed
   expect(unlinks).toBe(2)
 })
+
+// Ana, an admin, invites a teammate: the invite's code and link are shown once. The link opens the sign-in page
+// ready to join, the code filled in; Dana joins with a local account, and lands in her queue, the link's query gone.
+// Back in Settings, Ana lets Dana publish rules, which stays so, and the invite says who used it.
+test('an admin invites a teammate, who joins with its link, and is given a permission', async ({ page, browser }) => {
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Settings' }).click()
+  const admin = page.getByRole('region', { name: 'Administration' })
+  await admin.getByRole('button', { name: 'Create an invite' }).click()
+  const shown = admin.locator('.notice code').last()
+  await expect(shown).toContainText('/?invite=')
+  const link = new URL((await shown.textContent()) ?? '')
+
+  const theirs = await browser.newContext()
+  const dana = await theirs.newPage()
+  await dana.goto(link.pathname + link.search)
+  await expect(dana.getByRole('heading', { name: 'Join Park' })).toBeVisible()
+  await expect(dana.getByLabel('Invite')).toHaveValue(link.searchParams.get('invite') ?? '')
+  await dana.getByLabel('Username').fill('dana')
+  await dana.getByLabel('Password').fill('a long enough password')
+  await dana.getByLabel('Your name').fill('Dana')
+  await dana.getByRole('button', { name: 'Join', exact: true }).click()
+  await expect(dana.getByRole('heading', { name: 'My queue' })).toBeVisible()
+  await expect(dana).toHaveURL(/\/$/)
+  await theirs.close()
+
+  await page.reload()
+  const rules = admin.getByRole('checkbox', { name: 'Dana publishes rules' })
+  await expect(rules).not.toBeChecked()
+  await rules.click()
+  await expect(rules).toBeChecked()
+  await page.reload()
+  await expect(admin.getByRole('checkbox', { name: 'Dana publishes rules' })).toBeChecked()
+  await expect(admin.getByText(/used by Dana/)).toBeVisible()
+})
+
+// Ana adds a sign-in provider: Settings shows the address its forge calls back to, and a link to connect an account
+// through it; the sign-in page offers it, and, with an invite typed in, joins through it with the invite. Removed, it
+// is offered no more.
+test('an admin adds a sign-in provider, which Park offers, and removes it', async ({ page, browser }) => {
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Settings' }).click()
+  const admin = page.getByRole('region', { name: 'Administration' })
+  await admin.getByLabel('Provider ID').fill('hub-sso')
+  await admin.getByLabel('Provider name').fill('Hub SSO')
+  await admin.getByLabel('Provider client ID').fill('client-id')
+  await admin.getByLabel('Provider client secret').fill('client-secret')
+  await admin.getByRole('button', { name: 'Add a provider' }).click()
+  await expect(admin.getByText(/\/api\/v1\/auth\/hub-sso\/callback$/)).toBeVisible()
+  const connect = page.getByRole('link', { name: 'Connect an account on Hub SSO' })
+  await expect(connect).toHaveAttribute('href', '/api/v1/auth/hub-sso/start?mode=link')
+
+  const theirs = await browser.newContext()
+  const visitor = await theirs.newPage()
+  await visitor.goto('/')
+  await expect(visitor.getByRole('link', { name: 'Sign in with Hub SSO' })).toHaveAttribute('href', '/api/v1/auth/hub-sso/start')
+  await visitor.getByRole('button', { name: 'Have an invite? Join Park' }).click()
+  await visitor.getByLabel('Invite').fill('CODE-1234')
+  await expect(visitor.getByRole('link', { name: 'Join with Hub SSO' })).toHaveAttribute('href', '/api/v1/auth/hub-sso/start?invite=CODE-1234')
+  await theirs.close()
+
+  await admin.getByRole('button', { name: 'Remove Hub SSO' }).click()
+  await expect(admin.getByText('Hub SSO removed.')).toBeVisible()
+  await expect(connect).toHaveCount(0)
+})
+
+// A sign-in through a provider that failed comes back with a code, and the sign-in page says what it means; a code
+// it does not know still says the sign-in did not work.
+test('the sign-in page says why a sign-in through a provider failed', async ({ page }) => {
+  await page.goto('/?sign_in_error=not_invited')
+  await expect(page.getByText('This forge account is not a member of Park. Ask an admin for an invite.')).toBeVisible()
+  await page.goto('/?sign_in_error=something_new')
+  await expect(page.getByText('The sign-in did not work. Try again.')).toBeVisible()
+})
