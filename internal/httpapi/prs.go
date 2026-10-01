@@ -11,13 +11,17 @@ import (
 	"github.com/NickWilde18/Park/internal/forges"
 )
 
-// factsError turns a forge's rate limit into an error the caller can act on.
+// factsError turns a forge's rate limit, and its refusal of an installation's credential, into an error the caller
+// can act on.
 func factsError(err error) error {
 	var rl *facts.RateLimited
-	if errors.As(err, &rl) {
+	switch {
+	case errors.As(err, &rl):
 		f := fail.New(fail.RateLimited, "forge_rate_limited", "The forge's rate limit holds; try again later.")
 		f.RetryAfter = max(rl.Until.Sub(timeNow()), 0)
 		return f
+	case errors.Is(err, facts.ErrRefused):
+		return fail.New(fail.Invalid, "credential_refused", "The forge refused the installation's credential; replace it, then try again.")
 	}
 	return err
 }
