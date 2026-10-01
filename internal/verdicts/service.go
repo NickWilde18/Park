@@ -93,12 +93,14 @@ func (s *Service) Start(ctx context.Context) error {
 	return work.Enqueue(ctx, s.pool, KindHourly, "all", time.Time{})
 }
 
+// openUnits selects the open units: the units of the open pull requests in watched repositories.
+const openUnits = `SELECT CASE WHEN m.group_id IS NULL THEN 'pr:' || p.id ELSE 'group:' || m.group_id END AS unit
+	FROM pr_fact p JOIN repo r ON r.id = p.repo_id LEFT JOIN membership m ON m.pr_id = p.id WHERE p.open AND r.watched`
+
 // enqueueOpen queues every open unit to be evaluated, and every unit whose current verdict is still open, so that it
 // is closed out or ends.
 func enqueueOpen(ctx context.Context, tx pgx.Tx) error {
-	rows, err := tx.Query(ctx, `SELECT CASE WHEN m.group_id IS NULL THEN 'pr:' || p.id ELSE 'group:' || m.group_id END
-		FROM pr_fact p JOIN repo r ON r.id = p.repo_id LEFT JOIN membership m ON m.pr_id = p.id WHERE p.open AND r.watched
-		UNION SELECT unit FROM verdict WHERE current AND closed IS NULL`)
+	rows, err := tx.Query(ctx, openUnits+" UNION SELECT unit FROM verdict WHERE current AND closed IS NULL")
 	if err != nil {
 		return err
 	}
@@ -270,8 +272,12 @@ func (s *Service) Evaluate(ctx context.Context, unit string) error {
 			if merged {
 				v.Closed = "merged"
 			}
-		} else if err := s.evaluate(ctx, tx, v, open, compiled, chains, previous, strings.HasPrefix(unit, "group:")); err != nil {
-			return err
+		} else {
+			people, err := s.parties(ctx, tx, open, chains, strings.HasPrefix(unit, "group:"), now)
+			if err != nil {
+				return err
+			}
+			conclude(v, people, compiled, previous)
 		}
 		if previous != nil && previous.visible() == v.visible() {
 			return nil
@@ -283,26 +289,44 @@ func (s *Service) Evaluate(ctx context.Context, unit string) error {
 	})
 }
 
-// evaluate fills a verdict in from its open pull requests: every person's part, the ball, and the reminders.
-func (s *Service) evaluate(ctx context.Context, tx pgx.Tx, v *Verdict, open []stored, compiled *rules.Compiled,
-	chains map[int64]grouping.Chain, previous *Verdict, group bool) error {
+// party is one person on one of a unit's open pull requests, with what their role's rules read.
+type party struct {
+	login string
+	name  string
+	Person
+	pr    int64
+	forge int64
+}
+
+// parties finds the people of a unit's open pull requests, and computes what each one's list reads as of now.
+func (s *Service) parties(ctx context.Context, tx pgx.Tx, open []stored, chains map[int64]grouping.Chain, group bool,
+	now time.Time) ([]party, error) {
 	size := 0
 	if group {
 		size = len(open)
 	}
+	var out []party
 	for _, p := range open {
-		c, names, err := s.context(ctx, tx, p, v.EvaluatedAt)
+		c, names, err := s.context(ctx, tx, p, now)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		c.Chain, c.GroupSize = chains[p.id], size
 		for _, person := range People(p.facts, c) {
-			login, name := c.login(person.Account), names[person.Account]
-			v.Parts = append(v.Parts, Part{Part: compiled.Evaluate(person.Role, person.Input), Login: login, Name: name, Role: person.Role,
-				PR: p.id, Forge: p.forge, Account: person.Account})
-			v.Inputs = append(v.Inputs, Input{Fields: person.Input.Fields, Login: login, Name: name, Role: person.Role, PR: p.id,
-				Forge: p.forge, Account: person.Account})
+			out = append(out, party{login: c.login(person.Account), name: names[person.Account], Person: person, pr: p.id, forge: p.forge})
 		}
+	}
+	return out, nil
+}
+
+// conclude fills a verdict in from a unit's people under a rule set: every person's part, the ball, and the reminders.
+// A holder who held the ball in the previous verdict holds it since then.
+func conclude(v *Verdict, people []party, compiled *rules.Compiled, previous *Verdict) {
+	for _, p := range people {
+		v.Parts = append(v.Parts, Part{Part: compiled.Evaluate(p.Role, p.Input), Login: p.login, Name: p.name, Role: p.Role, PR: p.pr,
+			Forge: p.forge, Account: p.Account})
+		v.Inputs = append(v.Inputs, Input{Fields: p.Input.Fields, Login: p.login, Name: p.name, Role: p.Role, PR: p.pr, Forge: p.forge,
+			Account: p.Account})
 	}
 	placed := Place(v.Parts)
 	v.Side, v.Fallback = placed.Side, placed.Fallback
@@ -313,7 +337,6 @@ func (s *Service) evaluate(ctx context.Context, tx pgx.Tx, v *Verdict, open []st
 				Account: p.Account})
 		}
 	}
-	return nil
 }
 
 // context loads what a pull request's fields need beyond its facts — logins, teams, and nudges — and the accounts'

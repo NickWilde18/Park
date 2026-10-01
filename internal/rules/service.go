@@ -84,10 +84,12 @@ type Draft struct {
 	BaseVersion *int
 	// PublishedVersion is the version it became, once published.
 	PublishedVersion *int
-	Rules            RuleSet
-	Problems         []Problem
-	ID               int64
-	CreatedBy        int64
+	// CreatorName is the display name of the member who started it.
+	CreatorName string
+	Rules       RuleSet
+	Problems    []Problem
+	ID          int64
+	CreatedBy   int64
 }
 
 var (
@@ -258,20 +260,26 @@ func versionExists(ctx context.Context, tx pgx.Tx, base *int) error {
 	return nil
 }
 
-// Draft returns a draft, with every problem that keeps it from being published now.
-func (s *Service) Draft(ctx context.Context, id int64) (Draft, error) {
+const draftQuery = `SELECT d.id, d.base_version, d.rules, d.created_by, m.display_name, d.created_at, d.updated_at,
+	d.published_version FROM rule_draft d JOIN member m ON m.id = d.created_by`
+
+func scanDraft(row pgx.Row) (Draft, error) {
 	var d Draft
 	var data []byte
-	err := s.pool.QueryRow(ctx, `SELECT id, base_version, rules, created_by, created_at, updated_at, published_version
-		FROM rule_draft WHERE id = $1`, id).Scan(&d.ID, &d.BaseVersion, &data, &d.CreatedBy, &d.CreatedAt, &d.UpdatedAt,
-		&d.PublishedVersion)
+	if err := row.Scan(&d.ID, &d.BaseVersion, &data, &d.CreatedBy, &d.CreatorName, &d.CreatedAt, &d.UpdatedAt,
+		&d.PublishedVersion); err != nil {
+		return Draft{}, err
+	}
+	return d, json.Unmarshal(data, &d.Rules)
+}
+
+// Draft returns a draft, with every problem that keeps it from being published now.
+func (s *Service) Draft(ctx context.Context, id int64) (Draft, error) {
+	d, err := scanDraft(s.pool.QueryRow(ctx, draftQuery+" WHERE d.id = $1", id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Draft{}, errNoDraft
 	}
 	if err != nil {
-		return Draft{}, err
-	}
-	if err := json.Unmarshal(data, &d.Rules); err != nil {
 		return Draft{}, err
 	}
 	n, err := current(ctx, s.pool)
@@ -280,6 +288,27 @@ func (s *Service) Draft(ctx context.Context, id int64) (Draft, error) {
 	}
 	d.Problems = problems(d, n)
 	return d, nil
+}
+
+// Drafts lists the drafts not yet published, the one changed last first, each with every problem that keeps it from
+// being published now.
+func (s *Service) Drafts(ctx context.Context) ([]Draft, error) {
+	rows, err := s.pool.Query(ctx, draftQuery+" WHERE d.published_version IS NULL ORDER BY d.updated_at DESC, d.id DESC")
+	if err != nil {
+		return nil, err
+	}
+	ds, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Draft, error) { return scanDraft(row) })
+	if err != nil {
+		return nil, err
+	}
+	n, err := current(ctx, s.pool)
+	if err != nil {
+		return nil, err
+	}
+	for i := range ds {
+		ds[i].Problems = problems(ds[i], n)
+	}
+	return ds, nil
 }
 
 // problems are a draft's publish problems, given the version published now; a published draft has none.
