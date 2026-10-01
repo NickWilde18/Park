@@ -18,6 +18,24 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for ActionRole.
+const (
+	ActionRoleAuthor   ActionRole = "author"
+	ActionRoleReviewer ActionRole = "reviewer"
+)
+
+// Valid indicates whether the value is a known member of the ActionRole enum.
+func (e ActionRole) Valid() bool {
+	switch e {
+	case ActionRoleAuthor:
+		return true
+	case ActionRoleReviewer:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuthProviderKind.
 const (
 	AuthProviderKindForge AuthProviderKind = "forge"
@@ -387,6 +405,24 @@ func (e PathStepOutcome) Valid() bool {
 	case PathStepOutcomeNotMatched:
 		return true
 	case PathStepOutcomeUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PreviewVerdictSide.
+const (
+	PreviewVerdictSideAuthor   PreviewVerdictSide = "author"
+	PreviewVerdictSideReviewer PreviewVerdictSide = "reviewer"
+)
+
+// Valid indicates whether the value is a known member of the PreviewVerdictSide enum.
+func (e PreviewVerdictSide) Valid() bool {
+	switch e {
+	case PreviewVerdictSideAuthor:
+		return true
+	case PreviewVerdictSideReviewer:
 		return true
 	default:
 		return false
@@ -955,6 +991,25 @@ type Account struct {
 	Name  string `json:"name"`
 }
 
+// Action defines model for Action.
+type Action struct {
+	Name string `json:"name"`
+
+	// Role The role whose parts may name it.
+	Role ActionRole `json:"role"`
+
+	// Task Whether a part with it may become a task.
+	Task bool `json:"task"`
+}
+
+// ActionRole The role whose parts may name it.
+type ActionRole string
+
+// Actions defines model for Actions.
+type Actions struct {
+	Actions []Action `json:"actions"`
+}
+
 // AppCredential defines model for AppCredential.
 type AppCredential struct {
 	AppId          int64 `json:"app_id"`
@@ -1239,6 +1294,9 @@ type Field struct {
 
 	// Name Such as pr.checks.
 	Name string `json:"name"`
+
+	// Operators The ops a structured condition's term on this field takes, as Condition names them.
+	Operators []string `json:"operators"`
 
 	// Type Numbers are whole numbers, and hours whole hours; accounts are logins.
 	Type FieldType `json:"type"`
@@ -1643,6 +1701,42 @@ type PathStep struct {
 // PathStepOutcome defines model for PathStep.Outcome.
 type PathStepOutcome string
 
+// PreviewChange defines model for PreviewChange.
+type PreviewChange struct {
+	// After A verdict that is computed and not stored, for an open unit.
+	After PreviewVerdict `json:"after"`
+
+	// Before A verdict that is computed and not stored, for an open unit.
+	Before PreviewVerdict `json:"before"`
+
+	// Name A group's name, or a pull request's title.
+	Name string `json:"name"`
+	Unit Unit   `json:"unit"`
+}
+
+// PreviewUnit defines model for PreviewUnit.
+type PreviewUnit struct {
+	// Name A group's name, or a pull request's title.
+	Name string `json:"name"`
+	Unit Unit   `json:"unit"`
+
+	// Verdict A verdict that is computed and not stored, for an open unit.
+	Verdict PreviewVerdict `json:"verdict"`
+}
+
+// PreviewVerdict A verdict that is computed and not stored, for an open unit.
+type PreviewVerdict struct {
+	// Fallback The rules found nothing for anyone to do, and the authors hold the ball.
+	Fallback  bool               `json:"fallback"`
+	Holders   []Holder           `json:"holders"`
+	Parts     []VerdictPart      `json:"parts"`
+	Reminders []Reminder         `json:"reminders"`
+	Side      PreviewVerdictSide `json:"side"`
+}
+
+// PreviewVerdictSide defines model for PreviewVerdict.Side.
+type PreviewVerdictSide string
+
 // Problem defines model for Problem.
 type Problem struct {
 	Code    string       `json:"code"`
@@ -1993,7 +2087,10 @@ type RuleSetDraft struct {
 	BaseVersion *int      `json:"base_version,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedBy   int64     `json:"created_by"`
-	Id          int64     `json:"id"`
+
+	// CreatedByName The display name of the member who started it.
+	CreatedByName string `json:"created_by_name"`
+	Id            int64  `json:"id"`
 
 	// Problems What keeps it from being published now; empty when nothing does.
 	Problems []Problem `json:"problems"`
@@ -2004,6 +2101,29 @@ type RuleSetDraft struct {
 	// Rules Each role's ordered list of rules. The first rule whose condition matches decides a person's part.
 	Rules     RuleSet   `json:"rules"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// RuleSetDrafts defines model for RuleSetDrafts.
+type RuleSetDrafts struct {
+	Drafts []RuleSetDraft `json:"drafts"`
+}
+
+// RuleSetPreview defines model for RuleSetPreview.
+type RuleSetPreview struct {
+	// Changes Every unit whose verdict the draft would change, as a person sees it: where the ball is, who holds it and what for, the reminders, and the fallback. Groups first, then pull requests in no group.
+	Changes []PreviewChange `json:"changes"`
+
+	// EvaluatedAt The moment both were evaluated at, for the fields that read elapsed time.
+	EvaluatedAt time.Time `json:"evaluated_at"`
+
+	// EvaluatedUnits How many open units were evaluated.
+	EvaluatedUnits int `json:"evaluated_units"`
+
+	// Fallback Every unit whose ball the draft would leave to the fallback, changed or not.
+	Fallback []PreviewUnit `json:"fallback"`
+
+	// Version The version in force, which the draft is compared with.
+	Version int `json:"version"`
 }
 
 // RuleSetVersion defines model for RuleSetVersion.
@@ -2408,6 +2528,9 @@ type ReportTaskJSONRequestBody = ReportRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListActions The actions a part can name, by role
+	// (GET /actions)
+	ListActions(w http.ResponseWriter, r *http.Request)
 	// ListBridges Every registered bridge
 	// (GET /admin/bridges)
 	ListBridges(w http.ResponseWriter, r *http.Request)
@@ -2597,12 +2720,21 @@ type ServerInterface interface {
 	// ListRuleSets The published rule set versions, newest first; the first is in force
 	// (GET /rulesets)
 	ListRuleSets(w http.ResponseWriter, r *http.Request)
+	// ListRuleSetDrafts The drafts not yet published, the one changed last first
+	// (GET /rulesets/drafts)
+	ListRuleSetDrafts(w http.ResponseWriter, r *http.Request)
 	// CreateRuleSetDraft Start a draft of the next version, from the published one or from an imported rule-set file
 	// (POST /rulesets/drafts)
 	CreateRuleSetDraft(w http.ResponseWriter, r *http.Request)
+	// GetRuleSetDraft A draft, published or not
+	// (GET /rulesets/drafts/{id})
+	GetRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID)
 	// UpdateRuleSetDraft Replace a draft's rules, and with base_version, bring it up to date
 	// (PUT /rulesets/drafts/{id})
 	UpdateRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID)
+	// PreviewRuleSetDraft What publishing a draft would change, unit by unit
+	// (POST /rulesets/drafts/{id}/preview)
+	PreviewRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID)
 	// PublishRuleSetDraft Publish a draft as the next version
 	// (POST /rulesets/drafts/{id}/publish)
 	PublishRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID)
@@ -2664,6 +2796,20 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListActions operation middleware
+func (siw *ServerInterfaceWrapper) ListActions(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListActions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListBridges operation middleware
 func (siw *ServerInterfaceWrapper) ListBridges(w http.ResponseWriter, r *http.Request) {
@@ -4028,11 +4174,51 @@ func (siw *ServerInterfaceWrapper) ListRuleSets(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// ListRuleSetDrafts operation middleware
+func (siw *ServerInterfaceWrapper) ListRuleSetDrafts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRuleSetDrafts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateRuleSetDraft operation middleware
 func (siw *ServerInterfaceWrapper) CreateRuleSetDraft(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateRuleSetDraft(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRuleSetDraft operation middleware
+func (siw *ServerInterfaceWrapper) GetRuleSetDraft(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRuleSetDraft(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4059,6 +4245,32 @@ func (siw *ServerInterfaceWrapper) UpdateRuleSetDraft(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateRuleSetDraft(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewRuleSetDraft operation middleware
+func (siw *ServerInterfaceWrapper) PreviewRuleSetDraft(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewRuleSetDraft(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4685,10 +4897,14 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/bridges", wrapper.CreateBridge)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/fields", wrapper.ListFields)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/questions", wrapper.ListQuestions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/actions", wrapper.ListActions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rulesets", wrapper.ListRuleSets)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rulesets/{version}", wrapper.GetRuleSet)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rulesets/drafts", wrapper.ListRuleSetDrafts)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts", wrapper.CreateRuleSetDraft)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rulesets/drafts/{id}", wrapper.GetRuleSetDraft)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/rulesets/drafts/{id}", wrapper.UpdateRuleSetDraft)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts/{id}/preview", wrapper.PreviewRuleSetDraft)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts/{id}/publish", wrapper.PublishRuleSetDraft)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/queue", wrapper.GetQueue)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/board", wrapper.GetBoard)
@@ -4710,6 +4926,44 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 }
 
 type ErrorJSONResponse Error
+
+type ListActionsRequestObject struct {
+}
+
+type ListActionsResponseObject interface {
+	VisitListActionsResponse(w http.ResponseWriter) error
+}
+
+type ListActions200JSONResponse Actions
+
+func (response ListActions200JSONResponse) VisitListActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListActionsdefaultJSONResponse) VisitListActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type ListBridgesRequestObject struct {
 }
@@ -7073,6 +7327,44 @@ func (response ListRuleSetsdefaultJSONResponse) VisitListRuleSetsResponse(w http
 	return err
 }
 
+type ListRuleSetDraftsRequestObject struct {
+}
+
+type ListRuleSetDraftsResponseObject interface {
+	VisitListRuleSetDraftsResponse(w http.ResponseWriter) error
+}
+
+type ListRuleSetDrafts200JSONResponse RuleSetDrafts
+
+func (response ListRuleSetDrafts200JSONResponse) VisitListRuleSetDraftsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRuleSetDraftsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListRuleSetDraftsdefaultJSONResponse) VisitListRuleSetDraftsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateRuleSetDraftRequestObject struct {
 	Body *CreateRuleSetDraftJSONRequestBody
 }
@@ -7101,6 +7393,45 @@ type CreateRuleSetDraftdefaultJSONResponse struct {
 }
 
 func (response CreateRuleSetDraftdefaultJSONResponse) VisitCreateRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRuleSetDraftRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetRuleSetDraftResponseObject interface {
+	VisitGetRuleSetDraftResponse(w http.ResponseWriter) error
+}
+
+type GetRuleSetDraft200JSONResponse RuleSetDraft
+
+func (response GetRuleSetDraft200JSONResponse) VisitGetRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRuleSetDraftdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetRuleSetDraftdefaultJSONResponse) VisitGetRuleSetDraftResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7141,6 +7472,45 @@ type UpdateRuleSetDraftdefaultJSONResponse struct {
 }
 
 func (response UpdateRuleSetDraftdefaultJSONResponse) VisitUpdateRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewRuleSetDraftRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type PreviewRuleSetDraftResponseObject interface {
+	VisitPreviewRuleSetDraftResponse(w http.ResponseWriter) error
+}
+
+type PreviewRuleSetDraft200JSONResponse RuleSetPreview
+
+func (response PreviewRuleSetDraft200JSONResponse) VisitPreviewRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewRuleSetDraftdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PreviewRuleSetDraftdefaultJSONResponse) VisitPreviewRuleSetDraftResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7816,6 +8186,9 @@ func (response GetVerdictdefaultJSONResponse) VisitGetVerdictResponse(w http.Res
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ListActions The actions a part can name, by role
+	// (GET /actions)
+	ListActions(ctx context.Context, request ListActionsRequestObject) (ListActionsResponseObject, error)
 	// ListBridges Every registered bridge
 	// (GET /admin/bridges)
 	ListBridges(ctx context.Context, request ListBridgesRequestObject) (ListBridgesResponseObject, error)
@@ -8005,12 +8378,21 @@ type StrictServerInterface interface {
 	// ListRuleSets The published rule set versions, newest first; the first is in force
 	// (GET /rulesets)
 	ListRuleSets(ctx context.Context, request ListRuleSetsRequestObject) (ListRuleSetsResponseObject, error)
+	// ListRuleSetDrafts The drafts not yet published, the one changed last first
+	// (GET /rulesets/drafts)
+	ListRuleSetDrafts(ctx context.Context, request ListRuleSetDraftsRequestObject) (ListRuleSetDraftsResponseObject, error)
 	// CreateRuleSetDraft Start a draft of the next version, from the published one or from an imported rule-set file
 	// (POST /rulesets/drafts)
 	CreateRuleSetDraft(ctx context.Context, request CreateRuleSetDraftRequestObject) (CreateRuleSetDraftResponseObject, error)
+	// GetRuleSetDraft A draft, published or not
+	// (GET /rulesets/drafts/{id})
+	GetRuleSetDraft(ctx context.Context, request GetRuleSetDraftRequestObject) (GetRuleSetDraftResponseObject, error)
 	// UpdateRuleSetDraft Replace a draft's rules, and with base_version, bring it up to date
 	// (PUT /rulesets/drafts/{id})
 	UpdateRuleSetDraft(ctx context.Context, request UpdateRuleSetDraftRequestObject) (UpdateRuleSetDraftResponseObject, error)
+	// PreviewRuleSetDraft What publishing a draft would change, unit by unit
+	// (POST /rulesets/drafts/{id}/preview)
+	PreviewRuleSetDraft(ctx context.Context, request PreviewRuleSetDraftRequestObject) (PreviewRuleSetDraftResponseObject, error)
 	// PublishRuleSetDraft Publish a draft as the next version
 	// (POST /rulesets/drafts/{id}/publish)
 	PublishRuleSetDraft(ctx context.Context, request PublishRuleSetDraftRequestObject) (PublishRuleSetDraftResponseObject, error)
@@ -8101,6 +8483,30 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListActions operation middleware
+func (sh *strictHandler) ListActions(w http.ResponseWriter, r *http.Request) {
+	var request ListActionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListActions(ctx, request.(ListActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListActionsResponseObject); ok {
+		if err := validResponse.VisitListActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ListBridges operation middleware
@@ -9848,6 +10254,30 @@ func (sh *strictHandler) ListRuleSets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListRuleSetDrafts operation middleware
+func (sh *strictHandler) ListRuleSetDrafts(w http.ResponseWriter, r *http.Request) {
+	var request ListRuleSetDraftsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRuleSetDrafts(ctx, request.(ListRuleSetDraftsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRuleSetDrafts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRuleSetDraftsResponseObject); ok {
+		if err := validResponse.VisitListRuleSetDraftsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CreateRuleSetDraft operation middleware
 func (sh *strictHandler) CreateRuleSetDraft(w http.ResponseWriter, r *http.Request) {
 	var request CreateRuleSetDraftRequestObject
@@ -9872,6 +10302,32 @@ func (sh *strictHandler) CreateRuleSetDraft(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateRuleSetDraftResponseObject); ok {
 		if err := validResponse.VisitCreateRuleSetDraftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRuleSetDraft operation middleware
+func (sh *strictHandler) GetRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetRuleSetDraftRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRuleSetDraft(ctx, request.(GetRuleSetDraftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRuleSetDraft")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRuleSetDraftResponseObject); ok {
+		if err := validResponse.VisitGetRuleSetDraftResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -9905,6 +10361,32 @@ func (sh *strictHandler) UpdateRuleSetDraft(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateRuleSetDraftResponseObject); ok {
 		if err := validResponse.VisitUpdateRuleSetDraftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewRuleSetDraft operation middleware
+func (sh *strictHandler) PreviewRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PreviewRuleSetDraftRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewRuleSetDraft(ctx, request.(PreviewRuleSetDraftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewRuleSetDraft")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewRuleSetDraftResponseObject); ok {
+		if err := validResponse.VisitPreviewRuleSetDraftResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

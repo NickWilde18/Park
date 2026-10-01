@@ -60,6 +60,9 @@ var operators = map[Type][]string{
 	Judgement:       {"is"},
 }
 
+// Operators are the structured operators a term on a field of the type takes.
+func (t Type) Operators() []string { return slices.Clone(operators[t]) }
+
 var comparisons = map[string]string{"eq": "==", "ne": "!=", "lt": "<", "le": "<=", "gt": ">", "ge": ">="}
 
 // compileCondition compiles a condition to a program, and names the judgements it reads.

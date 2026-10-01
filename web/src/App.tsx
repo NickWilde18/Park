@@ -3,6 +3,7 @@ import { api } from './api/client'
 import Board from './pages/Board'
 import Groups from './pages/Groups'
 import Queue from './pages/Queue'
+import RuleDraft from './pages/RuleDraft'
 import Rules from './pages/Rules'
 import Settings from './pages/Settings'
 import Tasks from './pages/Tasks'
@@ -23,6 +24,8 @@ export default function App() {
 function page(path: string): ReactNode {
   const unit = /^\/units\/(group|pr)\/(\d+)$/.exec(path)
   if (unit) return <Unit kind={unit[1] === 'pr' ? 'pull_request' : 'group'} id={Number(unit[2])} />
+  const draft = /^\/rules\/drafts\/(\d+)$/.exec(path)
+  if (draft) return <RuleDraft id={Number(draft[1])} />
   switch (path) {
     case '/':
       return <Queue />

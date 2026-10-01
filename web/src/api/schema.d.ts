@@ -884,6 +884,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The actions a part can name, by role */
+        get: operations["listActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rulesets": {
         parameters: {
             query?: never;
@@ -925,7 +942,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * The drafts not yet published, the one changed last first
+         * @description Needs the rules permission.
+         */
+        get: operations["listRuleSetDrafts"];
         put?: never;
         /**
          * Start a draft of the next version, from the published one or from an imported rule-set file
@@ -945,10 +966,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * A draft, published or not
+         * @description Needs the rules permission.
+         */
+        get: operations["getRuleSetDraft"];
         /** Replace a draft's rules, and with base_version, bring it up to date */
         put: operations["updateRuleSetDraft"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rulesets/drafts/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What publishing a draft would change, unit by unit
+         * @description Needs the rules permission. Every open unit is evaluated with the version in force and with the draft, from the same facts at the same moment, using recorded judgements only: the preview never asks the model, and stores nothing. A judgement with no recorded answer leaves its rule's outcome unknown. Refused with draft_has_problems while the draft has any but being stale, since it cannot be evaluated.
+         */
+        post: operations["previewRuleSetDraft"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1874,6 +1919,8 @@ export interface components {
             meaning: string;
             /** @description The values of a choice, a list of choices, or a judgement. */
             choices?: string[];
+            /** @description The ops a structured condition's term on this field takes, as Condition names them. */
+            operators: string[];
         };
         Fields: {
             fields: components["schemas"]["Field"][];
@@ -1891,6 +1938,19 @@ export interface components {
         };
         Questions: {
             questions: components["schemas"]["Question"][];
+        };
+        Action: {
+            name: string;
+            /**
+             * @description The role whose parts may name it.
+             * @enum {string}
+             */
+            role: "author" | "reviewer";
+            /** @description Whether a part with it may become a task. */
+            task: boolean;
+        };
+        Actions: {
+            actions: components["schemas"]["Action"][];
         };
         /** @description Each role's ordered list of rules. The first rule whose condition matches decides a person's part. */
         RuleSet: {
@@ -1980,12 +2040,55 @@ export interface components {
             problems: components["schemas"]["Problem"][];
             /** Format: int64 */
             created_by: number;
+            /** @description The display name of the member who started it. */
+            created_by_name: string;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             updated_at: string;
             /** @description The version it became, once published. */
             published_version?: number;
+        };
+        RuleSetDrafts: {
+            drafts: components["schemas"]["RuleSetDraft"][];
+        };
+        RuleSetPreview: {
+            /** @description The version in force, which the draft is compared with. */
+            version: number;
+            /**
+             * Format: date-time
+             * @description The moment both were evaluated at, for the fields that read elapsed time.
+             */
+            evaluated_at: string;
+            /** @description How many open units were evaluated. */
+            evaluated_units: number;
+            /** @description Every unit whose verdict the draft would change, as a person sees it: where the ball is, who holds it and what for, the reminders, and the fallback. Groups first, then pull requests in no group. */
+            changes: components["schemas"]["PreviewChange"][];
+            /** @description Every unit whose ball the draft would leave to the fallback, changed or not. */
+            fallback: components["schemas"]["PreviewUnit"][];
+        };
+        PreviewChange: {
+            unit: components["schemas"]["Unit"];
+            /** @description A group's name, or a pull request's title. */
+            name: string;
+            before: components["schemas"]["PreviewVerdict"];
+            after: components["schemas"]["PreviewVerdict"];
+        };
+        PreviewUnit: {
+            unit: components["schemas"]["Unit"];
+            /** @description A group's name, or a pull request's title. */
+            name: string;
+            verdict: components["schemas"]["PreviewVerdict"];
+        };
+        /** @description A verdict that is computed and not stored, for an open unit. */
+        PreviewVerdict: {
+            /** @enum {string} */
+            side: "author" | "reviewer";
+            /** @description The rules found nothing for anyone to do, and the authors hold the ball. */
+            fallback: boolean;
+            holders: components["schemas"]["Holder"][];
+            parts: components["schemas"]["VerdictPart"][];
+            reminders: components["schemas"]["Reminder"][];
         };
         DraftRequest: {
             /** @description The version it starts from; the one published now by default. */
@@ -3776,6 +3879,27 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    listActions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The actions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Actions"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     listRuleSets: {
         parameters: {
             query?: never;
@@ -3820,6 +3944,27 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    listRuleSetDrafts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The drafts, each with its problems. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleSetDrafts"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     createRuleSetDraft: {
         parameters: {
             query?: never;
@@ -3835,6 +3980,29 @@ export interface operations {
         responses: {
             /** @description The draft, with its problems. */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleSetDraft"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getRuleSetDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The draft, with its problems. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3867,6 +4035,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuleSetDraft"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    previewRuleSetDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The verdicts the draft would change, and the units it would leave to the fallback. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleSetPreview"];
                 };
             };
             default: components["responses"]["Error"];

@@ -310,10 +310,10 @@ Passed-over labels: 1 "not a draft", 2 "checks not running", 6 "reviewed before"
 
 ## Editing and publishing
 
-1. **Draft.** A member with the rules permission starts a draft from the published version. Several drafts can exist at once.
+1. **Draft.** A member with the rules permission starts a draft from the published version. Several drafts can exist at once; those not yet published are listed, each with its problems.
 2. **Edit.** Add, remove, and reorder rules; edit conditions in the structured editor or as expressions; edit conclusions.
 3. **Check on save.** Every condition and reason template is compiled and type-checked against the field catalog, and errors are shown on the rule. A draft with errors can be saved, but not published.
-4. **Preview.** The draft is evaluated against the current facts of every open unit, using recorded judgements only — the preview never calls the model, and shows a judgement with no recorded answer as "would ask the model". The dashboard lists every verdict that would change, before and after, and every unit whose ball the draft would leave to the fallback.
+4. **Preview.** The draft is evaluated against the current facts of every open unit, using recorded judgements only — the preview never calls the model, and shows a judgement with no recorded answer as "would ask the model". The version in force is evaluated beside it, from the same facts at the same moment, so that every change listed is the draft's own: a unit's stored verdict can be older than its facts, or than the clock the fields of elapsed time read. The dashboard lists every verdict that would change, before and after, and every unit whose ball the draft would leave to the fallback. The preview stores nothing. A draft with problems is not previewed, since its rules cannot be evaluated; one started from an older version is, against the version in force.
 5. **Examples.** Members can pin a past verdict as an example: its inputs, judgements, and conclusion. Before publishing, every pinned example is evaluated again; an example whose conclusion would change must be confirmed as intended, or the draft changed.
 6. **Publish.** The draft becomes the next version, atomically. Every open unit is evaluated again, and the new verdicts reference the new version. The publish records who did it, and when.
 7. **Roll back** by publishing an earlier version's content as a new version.
@@ -328,7 +328,7 @@ A draft can be published only when:
 - every pinned example is confirmed;
 - the draft was started from the version that is published now. A draft started from an older version must be brought up to date first, so that publishing never silently undoes someone else's change.
 
-In the first release there is no editor ([Phases](README.md#phases)): a draft is imported from a rule-set file — kept, and reviewed, in git — through the same publish API, and every check above runs on it. The file is the JSON document the API takes ([D53](10-design-log.md#d53-a-rule-set-is-one-json-document)): each role's list, and each rule's name, passed-over label, condition, and conclusion.
+A draft can also be started from a rule-set file — kept, and reviewed, in git — through the same API, and every check above runs on it. The file is the JSON document the API takes ([D53](10-design-log.md#d53-a-rule-set-is-one-json-document)): each role's list, and each rule's name, passed-over label, condition, and conclusion. The dashboard's editor edits the same document ([D67](10-design-log.md#d67-rules-are-edited-on-the-dashboard)). Pinned examples are not built yet ([Phases](README.md#phases)), so the check that every pinned example is confirmed has none to check.
 
 ## Rules
 

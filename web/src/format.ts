@@ -45,12 +45,13 @@ export function words(s?: string): string {
 }
 
 // pathText writes a part's path through its role's rules: the role, then each rule tried — its passed-over label when
-// it did not match, nothing when it has none — and the rule that decided. Rules never reached do not appear.
-export function pathText(part: Schemas['VerdictPart']): string {
+// it did not match, nothing when it has none — and the rule that decided. Rules never reached do not appear. A rule
+// that reads a judgement nobody has answered is marked as unknown says, such as a preview's "would ask the model".
+export function pathText(part: Schemas['VerdictPart'], unknown = 'judgement not known'): string {
   const steps: string[] = [part.role]
   for (const s of part.path) {
     if (s.outcome === 'matched') steps.push(s.name)
-    else if (s.outcome === 'unknown') steps.push(`${s.name} · judgement not known`)
+    else if (s.outcome === 'unknown') steps.push(`${s.name} · ${unknown}`)
     else if (s.outcome === 'error') steps.push(`${s.name} · failed`)
     else if (s.passed_over) steps.push(s.passed_over)
   }

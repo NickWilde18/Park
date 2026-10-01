@@ -45,11 +45,11 @@ The chapters describe the whole design. The first release builds its core loop i
 | Facts | GitHub: webhooks, polling, short polling, redelivery | A second forge |
 | Grouping | Chains, structural signals, manual grouping, bridge assertions | Model suggestions |
 | Verdicts | One ball per unit, with the default rule set | Model judgements |
-| Rules | Stored and versioned; shown as the rule trees; changed by importing a rule-set file, kept and reviewed in git, through the publish API, with every publish check | The rule editor: structured conditions, expressions, preview, pinned examples |
+| Rules | Stored and versioned; shown as the rule trees; drafted on the dashboard, with structured conditions or expressions, and previewed, or imported from a rule-set file kept and reviewed in git; published with every publish check | Pinned examples; each version's differences from the one before |
 | Tasks | The whole contract: leases, locks, post-conditions, verification, retries | — |
 | Identity | Local accounts, forge sign-in, API tokens, the setup code | OIDC single sign-on; admission by forge organization or OIDC group |
 | Visibility | Every member sees every watched repository — fit only for one team whose members all have the same access | Visibility by forge access, pull request by pull request; required before a second team or an open-source release |
-| Dashboard | My queue, the unit view with rule paths, tasks, the rule trees, manual grouping | The team view, the suggestions inbox, the full settings |
+| Dashboard | My queue, the board, the unit view with rule paths, tasks, the rules and their editor, manual grouping, the suggestions inbox, the settings but the model's and grouping's | The team view; the model's and grouping's settings |
 | Operations | One server process; the Postgres work queue as designed; structured logs | Several processes side by side; OpenTelemetry traces and metrics |
 
 ## Glossary

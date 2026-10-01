@@ -1133,6 +1133,20 @@ paths:
                 $ref: "#/components/schemas/Questions"
         default:
           $ref: "#/components/responses/Error"
+  /actions:
+    get:
+      operationId: listActions
+      summary: The actions a part can name, by role
+      tags: [rules]
+      responses:
+        "200":
+          description: The actions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Actions"
+        default:
+          $ref: "#/components/responses/Error"
   /rulesets:
     get:
       operationId: listRuleSets
@@ -1168,6 +1182,20 @@ paths:
         default:
           $ref: "#/components/responses/Error"
   /rulesets/drafts:
+    get:
+      operationId: listRuleSetDrafts
+      summary: The drafts not yet published, the one changed last first
+      description: Needs the rules permission.
+      tags: [rules]
+      responses:
+        "200":
+          description: The drafts, each with its problems.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleSetDrafts"
+        default:
+          $ref: "#/components/responses/Error"
     post:
       operationId: createRuleSetDraft
       summary: Start a draft of the next version, from the published one or from an imported rule-set file
@@ -1191,6 +1219,22 @@ paths:
         default:
           $ref: "#/components/responses/Error"
   /rulesets/drafts/{id}:
+    get:
+      operationId: getRuleSetDraft
+      summary: A draft, published or not
+      description: Needs the rules permission.
+      tags: [rules]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The draft, with its problems.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleSetDraft"
+        default:
+          $ref: "#/components/responses/Error"
     put:
       operationId: updateRuleSetDraft
       summary: Replace a draft's rules, and with base_version, bring it up to date
@@ -1210,6 +1254,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RuleSetDraft"
+        default:
+          $ref: "#/components/responses/Error"
+  /rulesets/drafts/{id}/preview:
+    post:
+      operationId: previewRuleSetDraft
+      summary: What publishing a draft would change, unit by unit
+      description: >-
+        Needs the rules permission. Every open unit is evaluated with the version in force and with the draft, from the
+        same facts at the same moment, using recorded judgements only: the preview never asks the model, and stores
+        nothing. A judgement with no recorded answer leaves its rule's outcome unknown. Refused with draft_has_problems
+        while the draft has any but being stale, since it cannot be evaluated.
+      tags: [rules]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The verdicts the draft would change, and the units it would leave to the fallback.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleSetPreview"
         default:
           $ref: "#/components/responses/Error"
   /rulesets/drafts/{id}/publish:
@@ -2711,7 +2776,7 @@ components:
           type: string
     Field:
       type: object
-      required: [name, type, meaning]
+      required: [name, type, meaning, operators]
       properties:
         name:
           type: string
@@ -2728,6 +2793,11 @@ components:
           items:
             type: string
           description: The values of a choice, a list of choices, or a judgement.
+        operators:
+          type: array
+          items:
+            type: string
+          description: The ops a structured condition's term on this field takes, as Condition names them.
     Fields:
       type: object
       required: [fields]
@@ -2761,6 +2831,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Question"
+    Action:
+      type: object
+      required: [name, role, task]
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+          enum: [author, reviewer]
+          description: The role whose parts may name it.
+        task:
+          type: boolean
+          description: Whether a part with it may become a task.
+    Actions:
+      type: object
+      required: [actions]
+      properties:
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Action"
     RuleSet:
       type: object
       required: [author, reviewer]
@@ -2905,7 +2996,7 @@ components:
           $ref: "#/components/schemas/RuleSet"
     RuleSetDraft:
       type: object
-      required: [id, rules, problems, created_by, created_at, updated_at]
+      required: [id, rules, problems, created_by, created_by_name, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -2923,6 +3014,9 @@ components:
         created_by:
           type: integer
           format: int64
+        created_by_name:
+          type: string
+          description: The display name of the member who started it.
         created_at:
           type: string
           format: date-time
@@ -2932,6 +3026,87 @@ components:
         published_version:
           type: integer
           description: The version it became, once published.
+    RuleSetDrafts:
+      type: object
+      required: [drafts]
+      properties:
+        drafts:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleSetDraft"
+    RuleSetPreview:
+      type: object
+      required: [version, evaluated_at, evaluated_units, changes, fallback]
+      properties:
+        version:
+          type: integer
+          description: The version in force, which the draft is compared with.
+        evaluated_at:
+          type: string
+          format: date-time
+          description: The moment both were evaluated at, for the fields that read elapsed time.
+        evaluated_units:
+          type: integer
+          description: How many open units were evaluated.
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreviewChange"
+          description: >-
+            Every unit whose verdict the draft would change, as a person sees it: where the ball is, who holds it and
+            what for, the reminders, and the fallback. Groups first, then pull requests in no group.
+        fallback:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreviewUnit"
+          description: Every unit whose ball the draft would leave to the fallback, changed or not.
+    PreviewChange:
+      type: object
+      required: [unit, name, before, after]
+      properties:
+        unit:
+          $ref: "#/components/schemas/Unit"
+        name:
+          type: string
+          description: A group's name, or a pull request's title.
+        before:
+          $ref: "#/components/schemas/PreviewVerdict"
+        after:
+          $ref: "#/components/schemas/PreviewVerdict"
+    PreviewUnit:
+      type: object
+      required: [unit, name, verdict]
+      properties:
+        unit:
+          $ref: "#/components/schemas/Unit"
+        name:
+          type: string
+          description: A group's name, or a pull request's title.
+        verdict:
+          $ref: "#/components/schemas/PreviewVerdict"
+    PreviewVerdict:
+      type: object
+      description: A verdict that is computed and not stored, for an open unit.
+      required: [side, fallback, holders, parts, reminders]
+      properties:
+        side:
+          type: string
+          enum: [author, reviewer]
+        fallback:
+          type: boolean
+          description: The rules found nothing for anyone to do, and the authors hold the ball.
+        holders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Holder"
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerdictPart"
+        reminders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reminder"
     DraftRequest:
       type: object
       properties:
