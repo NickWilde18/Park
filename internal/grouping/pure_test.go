@@ -205,6 +205,9 @@ func TestArrivalOrder(t *testing.T) {
 			[]event{{"branch:one", AuthorityStructural, KindBranch, []int64{1, 3}}, {"issue:7", AuthorityStructural, KindIssue, []int64{3, 4}},
 				{"branch:two", AuthorityStructural, KindBranch, []int64{4, 5}}},
 			"[1] [3 4] [5]"},
+		{"mutual references {1, 9} and a stack {1, 2, 3}: the stack keeps its root", []int64{1, 2, 3, 9},
+			[]event{{"refs:1", AuthorityStructural, KindRefs, []int64{1, 9}}, {"stack:1/40", AuthorityStructural, KindStack, []int64{1, 2, 3}}},
+			"[1 2 3] [9]"},
 		{"an external thread over a branch pair keeps the pair; a second thread takes one of them", []int64{1, 2, 3},
 			[]event{{"branch:x", AuthorityStructural, KindBranch, []int64{1, 2}}, {"bridge:1/t1", AuthorityExternal, "", []int64{1, 2}},
 				{"bridge:1/t2", AuthorityExternal, "", []int64{2, 3}}},
@@ -304,6 +307,7 @@ func TestWinningClaims(t *testing.T) {
 	newerExternal := claim{Anchor: "bridge:1/b", Authority: AuthorityExternal, Assertion: 3, Seen: t0.Add(time.Minute)}
 	branch := claim{Anchor: "branch:x", Kind: KindBranch, Authority: AuthorityStructural, Assertion: 4, Seen: t0}
 	issue := claim{Anchor: "issue:9", Kind: KindIssue, Authority: AuthorityStructural, Assertion: 5, Seen: t0.Add(time.Hour)}
+	stack := claim{Anchor: "stack:1/40", Kind: KindStack, Authority: AuthorityStructural, Assertion: 7, Seen: t0.Add(2 * time.Hour)}
 	for _, c := range []struct {
 		name    string
 		x, y    claim
@@ -312,9 +316,11 @@ func TestWinningClaims(t *testing.T) {
 	}{
 		{"manual over external", manual, external, 0, true},
 		{"external over structural", external, issue, 0, true},
+		{"external over a stack", external, stack, 0, true},
 		{"the newer external", newerExternal, external, 0, true},
 		{"the stronger structural kind", issue, branch, 0, true},
 		{"the stronger kind even against staying", issue, branch, 10, true},
+		{"a stack over the same issue, though newer and against staying", stack, issue, 20, true},
 	} {
 		if got := b.better(c.x, c.y, c.current); got != c.want {
 			t.Errorf("%s: %v", c.name, got)
@@ -376,6 +382,30 @@ func TestSignals(t *testing.T) {
 	}
 	if len(weak) != 1 || weak[0].PR != 7 || weak[0].Other != 9 {
 		t.Fatalf("weak %+v", weak)
+	}
+}
+
+// A stack the forge records is a signal of its own, and the only one that pairs pull requests of a chain (G9, D63):
+// all its open pull requests, sorted, under the repository's ID and the stack's number. The same chain's references
+// in both directions make no signal, and a stack with one open pull request left makes none either.
+func TestStackSignal(t *testing.T) {
+	root := node(1, "feat/a", "main")
+	mid := node(2, "feat/b", "feat/a")
+	top := node(3, "feat/c", "feat/b")
+	root.Stack, mid.Stack, top.Stack = 40, 40, 40
+	root.References = []facts.Ref{{Repo: 1, Number: 3}}
+	top.References = []facts.Ref{{Repo: 1, Number: 1}}
+	lone := node(4, "fix/d", "main")
+	lone.Stack = 41
+	nodes := []Node{top, lone, mid, root}
+	chains := Chains(nodes, map[int64]RepoInfo{1: {DefaultBranch: "main"}}, longLived)
+	if chains[3].ID == 0 || chains[3].ID != chains[1].ID {
+		t.Fatalf("the stack is not a chain: %+v", chains)
+	}
+	signals, weak := Signals(nodes, chains, nil)
+	if len(signals) != 1 || signals[0].Anchor != "stack:1/40" || signals[0].Kind != KindStack ||
+		!reflect.DeepEqual(signals[0].PRs, []int64{1, 2, 3}) || len(weak) != 0 {
+		t.Fatalf("signals %+v, weak %+v", signals, weak)
 	}
 }
 

@@ -152,6 +152,76 @@ func TestWorkedExampleStored(t *testing.T) {
 	}
 }
 
+// A forge's stack is one group (D63), through the database. Before the forge records it, three stacked pull
+// requests are a chain and no more: the root is grouped with another repository's pull request it references both
+// ways, and the other two stand alone. Once the forge records the three in one stack, they are one group, named
+// after the oldest of them with the stack as the name's source, each placed for being in the same stack. The root
+// leaves the reference group, whose other pull request stays where it was: nothing is unioned. A pull request taken
+// out of the stack stands alone again.
+func TestStackGroupStored(t *testing.T) {
+	e := newEnv(t)
+	made := func(minute int, stacked bool, refs ...facts.Ref) func(*facts.PR) {
+		return func(p *facts.PR) {
+			p.CreatedAt = time.Date(2026, 9, 1, 9, minute, 0, 0, time.UTC)
+			p.References = append([]facts.Ref{}, refs...)
+			if stacked {
+				stack := 372
+				p.Stack = &stack
+			}
+		}
+	}
+	toWeb, toAPI := facts.Ref{Repo: e.repos["web"], Number: 491}, facts.Ref{Repo: e.repos["api"], Number: 366}
+	e.pr(t, "web", 491, "config/backend", "main", made(3, false, toAPI))
+	place := func(stacked ...bool) {
+		t.Helper()
+		e.pr(t, "api", 366, "config/1", "main", made(0, stacked[0], toWeb))
+		e.pr(t, "api", 367, "config/2", "config/1", made(1, stacked[1]))
+		e.pr(t, "api", 368, "config/3", "config/2", made(2, stacked[2]))
+		e.resolve(t)
+	}
+	place(false, false, false)
+	refsGroup, _, _ := e.group(t, "api#366")
+	if g, _, _ := e.group(t, "web#491"); refsGroup == 0 || g != refsGroup {
+		t.Fatalf("the root and the pull request it references: groups %d and %d", refsGroup, g)
+	}
+	for _, k := range []string{"api#367", "api#368"} {
+		if g, _, _ := e.group(t, k); g != 0 {
+			t.Fatalf("%s is in group %d before the forge records a stack", k, g)
+		}
+	}
+
+	place(true, true, true)
+	stackGroup, name, source := e.group(t, "api#366")
+	if stackGroup == 0 || stackGroup == refsGroup || name != "api change config/1" || source != "stack" {
+		t.Fatalf("the stack's group: %d %q from %q; the reference group was %d", stackGroup, name, source, refsGroup)
+	}
+	for _, k := range []string{"api#367", "api#368"} {
+		if g, _, _ := e.group(t, k); g != stackGroup {
+			t.Fatalf("%s is in group %d, not the stack's %d", k, g, stackGroup)
+		}
+	}
+	if g, _, _ := e.group(t, "web#491"); g != refsGroup {
+		t.Fatalf("the reference group's other pull request moved to group %d", g)
+	}
+	view, err := e.s.Group(e.ctx, stackGroup)
+	if err != nil || len(view.Members) != 3 {
+		t.Fatalf("view %+v, %v", view, err)
+	}
+	for _, m := range view.Members {
+		if m.Source != "structural" || m.Reason != "same stack" {
+			t.Fatalf("member %+v", m)
+		}
+	}
+
+	place(true, true, false)
+	if g, _, _ := e.group(t, "api#368"); g != 0 {
+		t.Fatalf("a pull request out of the stack is still in group %d", g)
+	}
+	if g, _, _ := e.group(t, "api#367"); g != stackGroup {
+		t.Fatalf("the stack's group lost a pull request still in it: %d", g)
+	}
+}
+
 // Bridges: a repository that is not watched is refused like an unknown one; a large assertion is recorded but not
 // applied; reposting under an anchor keeps one live assertion, first seen when the anchor was; retracting it lets
 // the next claim decide.
@@ -388,7 +458,7 @@ func TestFollowersAndTriggers(t *testing.T) {
 	for _, c := range []struct {
 		fields []string
 		queued bool
-	}{{[]string{"checks"}, false}, {[]string{"checks", "head_branch"}, true}} {
+	}{{[]string{"checks"}, false}, {[]string{"checks", "head_branch"}, true}, {[]string{"stack"}, true}} {
 		if _, err := e.pool.Exec(e.ctx, "DELETE FROM work_item"); err != nil {
 			t.Fatal(err)
 		}

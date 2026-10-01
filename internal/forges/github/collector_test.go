@@ -106,12 +106,21 @@ func tokenCollector(t *testing.T, f *fakeAPI) *collector {
 
 var repo = facts.Repo{Owner: "acme", Name: "api", ForgeRepo: 1001}
 
+// probeKey picks out the collector's question whether the forge has stacks, and stacksSupported answers it as
+// github.com does.
+const (
+	probeKey        = `__type(name: "PullRequestStack")`
+	stacksSupported = `{"data": {"__type": {"name": "PullRequestStack"}}}`
+)
+
 // A pull request's state is normalized from GitHub's answer, with every page of its threads. The fork's head
 // repository is kept; a required check that has not reported is missing; reviews keep whether they had a body; the
-// author's pending review, and all text and addresses, are dropped.
+// author's pending review, and all text and addresses, are dropped. The forge has stacks, so the query asks for the
+// pull request's, and the state keeps its number.
 func TestFetchPR(t *testing.T) {
 	f := newFakeAPI(t)
-	f.graphql["pullRequest(number: $number) {\n      number title"] = fixture(t, "pr.json")
+	f.graphql[probeKey] = stacksSupported
+	f.graphql["baseRefName stack { number }"] = fixture(t, "pr.json")
 	f.graphql["reviewThreads(first: 100, after: $cursor)"] = fixture(t, "threads_page2.json")
 	c := tokenCollector(t, f)
 	got, err := c.FetchPR(context.Background(), repo, 12, map[string]facts.Protection{
@@ -122,8 +131,9 @@ func TestFetchPR(t *testing.T) {
 	}
 	p := got.PR
 	if p.Number != 12 || p.State != facts.StateOpen || p.Author != 501 || p.HeadRepo != 2002 || got.ForgeRepo != 1001 ||
-		p.HeadSHA != "headsha12" || p.BaseBranch != "main" || p.ReadyAt == nil || !slices.Equal(p.Labels, []string{"billing", "feature"}) {
-		t.Fatalf("identity and branches: %+v", p)
+		p.HeadSHA != "headsha12" || p.BaseBranch != "main" || p.ReadyAt == nil || !slices.Equal(p.Labels, []string{"billing", "feature"}) ||
+		p.Stack == nil || *p.Stack != 40 {
+		t.Fatalf("identity, branches, and stack: %+v", p)
 	}
 	if len(p.Threads) != 2 || p.Threads[1].ID != "THREAD_B" || len(p.Threads[0].Comments) != 2 || p.Threads[0].Comments[1].EditedAt == nil {
 		t.Fatalf("threads: %+v", p.Threads)
@@ -361,13 +371,61 @@ func TestMissed(t *testing.T) {
 	}
 }
 
-// The listing of open pull requests follows every page.
+// The listing of open pull requests follows every page, with each pull request's stack: 0 for one in none.
 func TestListOpen(t *testing.T) {
 	f := newFakeAPI(t)
-	f.graphql["pullRequests(states: OPEN, first: 100, after: $cursor)"] = `{"data": {"repository": {"pullRequests": {
-		"pageInfo": {"hasNextPage": false}, "nodes": [{"number": 12, "updatedAt": "2026-09-03T12:00:00Z"}, {"number": 13, "updatedAt": "2026-09-04T12:00:00Z"}]}}}}`
+	f.graphql[probeKey] = stacksSupported
+	f.graphql["updatedAt stack { number }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
+		"nodes": [{"number": 12, "updatedAt": "2026-09-03T12:00:00Z", "stack": {"number": 40}},
+			{"number": 13, "updatedAt": "2026-09-04T12:00:00Z", "stack": null}]}}}}`
 	got, err := tokenCollector(t, f).ListOpen(context.Background(), repo)
-	if err != nil || len(got) != 2 || got[1].Number != 13 {
+	if err != nil || len(got) != 2 || got[0].Stack != 40 || got[1].Number != 13 || got[1].Stack != 0 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+// A forge whose schema has no stacks, as an Enterprise Server's may not, is never asked for one: a query that names
+// the field fails as a whole there, as this fake answers it. Its pull requests are in no stack, and the schema is
+// asked once for every call after.
+func TestNoStacks(t *testing.T) {
+	f := newFakeAPI(t)
+	f.graphql[probeKey] = `{"data": {"__type": null}}`
+	f.graphql["stack { number }"] = `{"errors": [{"message": "Field 'stack' doesn't exist on type 'PullRequest'"}]}`
+	f.graphql["baseRefName\n"] = strings.Replace(fixture(t, "pr.json"), `"stack": {"number": 40}, `, "", 1)
+	f.graphql["reviewThreads(first: 100, after: $cursor)"] = fixture(t, "threads_page2.json")
+	f.graphql["nodes { number updatedAt }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
+		"nodes": [{"number": 12, "updatedAt": "2026-09-03T12:00:00Z"}]}}}}`
+	c := tokenCollector(t, f)
+	got, err := c.FetchPR(context.Background(), repo, 12, nil)
+	if err != nil || got.PR.Stack != nil || got.PR.Number != 12 {
+		t.Fatalf("fetched %+v, %v", got.PR, err)
+	}
+	listed, err := c.ListOpen(context.Background(), repo)
+	if err != nil || len(listed) != 1 || listed[0].Stack != 0 {
+		t.Fatalf("listed %+v, %v", listed, err)
+	}
+	if n := strings.Count(strings.Join(f.seen, "\n"), probeKey); n != 1 {
+		t.Fatalf("the schema was asked %d times, want 1", n)
+	}
+}
+
+// A question about stacks that fails fails the call, so that no pull request is read as in no stack for want of an
+// answer, though the forge would answer the listing without stacks; the next call asks again.
+func TestStackProbeFails(t *testing.T) {
+	f := newFakeAPI(t)
+	f.graphql["updatedAt stack { number }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
+		"nodes": [{"number": 12, "updatedAt": "2026-09-03T12:00:00Z", "stack": {"number": 40}}]}}}}`
+	f.graphql["nodes { number updatedAt }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
+		"nodes": [{"number": 12, "updatedAt": "2026-09-03T12:00:00Z"}]}}}}`
+	c := tokenCollector(t, f)
+	if got, err := c.ListOpen(context.Background(), repo); err == nil {
+		t.Fatalf("listed without knowing whether the forge has stacks: %+v", got)
+	}
+	f.mu.Lock()
+	f.graphql[probeKey] = stacksSupported
+	f.mu.Unlock()
+	got, err := c.ListOpen(context.Background(), repo)
+	if err != nil || len(got) != 1 || got[0].Stack != 40 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }

@@ -151,6 +151,13 @@ type prNode struct {
 	} `json:"commits"`
 	Number  int  `json:"number"`
 	IsDraft bool `json:"isDraft"`
+	// Stack is the stack the pull request is in; asked only of a forge with stacks.
+	Stack *stackNode `json:"stack"`
+}
+
+// stackNode is a pull request stack, by its number within its repository.
+type stackNode struct {
+	Number int `json:"number"`
 }
 
 // refTextLimit is how much of a description references are parsed from: later text is often pasted logs.
@@ -198,6 +205,10 @@ func normalize(n *prNode, protection facts.Protection, known bool) facts.Fetched
 	}
 	if n.HeadRepository != nil {
 		p.HeadRepo = n.HeadRepository.DatabaseID
+	}
+	if n.Stack != nil {
+		number := n.Stack.Number
+		p.Stack = &number
 	}
 	for _, l := range n.Labels.Nodes {
 		p.Labels = append(p.Labels, l.Name)

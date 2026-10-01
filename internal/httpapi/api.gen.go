@@ -84,6 +84,7 @@ const (
 	BoardUnitNameSourceIssue    BoardUnitNameSource = "issue"
 	BoardUnitNameSourceManual   BoardUnitNameSource = "manual"
 	BoardUnitNameSourceRefs     BoardUnitNameSource = "refs"
+	BoardUnitNameSourceStack    BoardUnitNameSource = "stack"
 )
 
 // Valid indicates whether the value is a known member of the BoardUnitNameSource enum.
@@ -98,6 +99,8 @@ func (e BoardUnitNameSource) Valid() bool {
 	case BoardUnitNameSourceManual:
 		return true
 	case BoardUnitNameSourceRefs:
+		return true
+	case BoardUnitNameSourceStack:
 		return true
 	default:
 		return false
@@ -225,6 +228,7 @@ const (
 	GroupNameSourceIssue    GroupNameSource = "issue"
 	GroupNameSourceManual   GroupNameSource = "manual"
 	GroupNameSourceRefs     GroupNameSource = "refs"
+	GroupNameSourceStack    GroupNameSource = "stack"
 )
 
 // Valid indicates whether the value is a known member of the GroupNameSource enum.
@@ -239,6 +243,8 @@ func (e GroupNameSource) Valid() bool {
 	case GroupNameSourceManual:
 		return true
 	case GroupNameSourceRefs:
+		return true
+	case GroupNameSourceStack:
 		return true
 	default:
 		return false

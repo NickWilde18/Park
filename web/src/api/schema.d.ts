@@ -1664,7 +1664,7 @@ export interface components {
             id: number;
             name: string;
             /** @enum {string} */
-            name_source: "manual" | "external" | "issue" | "branch" | "refs";
+            name_source: "manual" | "external" | "stack" | "issue" | "branch" | "refs";
             /** @enum {string} */
             state: "active" | "archived";
             /** Format: date-time */
@@ -2048,7 +2048,7 @@ export interface components {
              * @description Where a group's name came from; absent for a pull request in no group.
              * @enum {string}
              */
-            name_source?: "manual" | "external" | "issue" | "branch" | "refs";
+            name_source?: "manual" | "external" | "stack" | "issue" | "branch" | "refs";
             /**
              * @description yours when the caller holds the ball; others when someone else holds it and the caller has a part in the unit; none otherwise.
              * @enum {string}

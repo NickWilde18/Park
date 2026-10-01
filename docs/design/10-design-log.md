@@ -112,7 +112,7 @@ It stays at "changes requested" after the author has answered every comment but 
 
 ### D20. Stacked pull requests are never grouped structurally
 
-Stacked pull requests reference each other constantly, yet are separate pieces of work, each reviewed and merged on its own. Grouped into one row, a group shows only its worst state and hides the rest. People can still group them when they are reviewed together.
+Stacked pull requests reference each other constantly, yet are separate pieces of work, each reviewed and merged on its own. Grouped into one row, a group shows only its worst state and hides the rest. People can still group them when they are reviewed together. A stack that the forge itself records is grouped ([D63](#d63-a-stack-the-forge-records-is-a-group)).
 
 ### D21. External assertions listing many pull requests are not applied
 
@@ -301,3 +301,11 @@ Set aside: Park asking the model, with the thread's text sent along with the ass
 A table of every open unit needs, for each pull request, values that only its own facts hold: the threads waiting on the viewer, the open threads, the viewer's review. Joining the existing lists in the browser would ask for each pull request on its own. `GET /board` answers in one request instead, and reads those values from the current verdict's inputs, so that the board shows what the rules saw when they placed the ball. The table is plain, drawn by the dashboard's own code.
 
 Set aside: joining the lists in the browser, which leaves those columns out or asks once per pull request. Also set aside: a table library, whose resizing, grouping, and multi-column sorting are more than the board needs, for a dependency.
+
+### D63. A stack the forge records is a group
+
+A chain is still not a group (D20): base branches that happen to line up may be refactors that are each reviewed on their own. A stack that the forge records is another matter. Its author made it, putting the pull requests in it in order as one series, and a member who made one expects its pull requests to be one unit of work. So a forge's stack is a structural signal, the strongest, and the only one that pairs pull requests of a chain. Members' placements and bridges' threads still outrank it, and a member can take a pull request out of it.
+
+Joining a stack does not move a pull request's update time: a stack made after its pull requests were last updated leaves their update times as they were. Polling therefore lists each pull request's stack with its update time, and refreshes one whose stack differs from the stored one. A forge of the same kind may record no stacks — an older server's API has no such field, and asking for it fails the whole query — so whether a forge does is asked of it first.
+
+Set aside: grouping every chain, which the predecessor came to do once its board gave each pull request a row of its own; a chain of separate refactors would become one unit, with one ball. Also set aside: binding a stack so that a claim on any of its pull requests moves all of them, which would make it the one claim that unions others.

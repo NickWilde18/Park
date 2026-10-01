@@ -2360,7 +2360,7 @@ components:
           type: string
         name_source:
           type: string
-          enum: [manual, external, issue, branch, refs]
+          enum: [manual, external, stack, issue, branch, refs]
         state:
           type: string
           enum: [active, archived]
@@ -3079,7 +3079,7 @@ components:
           description: The group's name, or the title of a pull request in no group.
         name_source:
           type: string
-          enum: [manual, external, issue, branch, refs]
+          enum: [manual, external, stack, issue, branch, refs]
           description: Where a group's name came from; absent for a pull request in no group.
         ball:
           type: string

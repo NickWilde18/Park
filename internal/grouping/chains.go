@@ -24,6 +24,8 @@ type Node struct {
 	HeadRepo  int64
 	RepoForge int64
 	Number    int
+	// Stack is the number of the stack the forge records the pull request in, 0 for none.
+	Stack int
 }
 
 // RepoInfo is what decides a repository's long-lived branches.

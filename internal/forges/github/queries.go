@@ -1,11 +1,32 @@
 package github
 
+import "fmt"
+
 // The GraphQL queries the collector sends. Each costs a point or two of the hourly limit.
 //
 // A pull request's checks are read only from its head commit: reading them for every commit would expand every
 // check of every commit, and exhaust the limit. Threads, reviews, and conversation comments are paged to the end,
 // since a partial list undercounts what waits on someone. A thread's comments are its first and its latest twenty:
 // the first names who started it, the latest who spoke last and who else took part.
+//
+// A pull request's stack is asked only of a forge whose schema has stacks: an Enterprise Server's may not, and a
+// query that names a field the schema lacks fails as a whole. The queries that ask for it are made in two forms.
+
+// stackField is the stack a pull request is in, put into prQuery and listQuery for a forge with stacks.
+const stackField = " stack { number }"
+
+// stackProbe asks whether the forge's schema has pull request stacks: the answer names the type, or is null.
+const stackProbe = `query { __type(name: "PullRequestStack") { name } }`
+
+// queries are the forms of the queries that ask for a pull request's stack.
+type queries struct {
+	pr, list string
+}
+
+var (
+	withStacks    = queries{pr: fmt.Sprintf(prQuery, stackField), list: fmt.Sprintf(listQuery, stackField)}
+	withoutStacks = queries{pr: fmt.Sprintf(prQuery, ""), list: fmt.Sprintf(listQuery, "")}
+)
 
 const actorFields = `__typename login ... on User { databaseId name } ... on Bot { databaseId }`
 
@@ -17,7 +38,7 @@ const prQuery = `query($owner: String!, $name: String!, $number: Int!) {
       number title state isDraft createdAt updatedAt mergedAt closedAt authorAssociation
       author { ` + actorFields + ` }
       labels(first: 50) { nodes { name } }
-      headRepository { databaseId } headRefName headRefOid baseRefName
+      headRepository { databaseId } headRefName headRefOid baseRefName%s
       mergeable mergeStateStatus reviewDecision
       bodyText
       closingIssuesReferences(first: 25) { nodes { number repository { databaseId } } }
@@ -63,7 +84,7 @@ const (
 const listQuery = `query($owner: String!, $name: String!, $cursor: String) {
   rateLimit { cost remaining resetAt }
   repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, first: 100, after: $cursor) { pageInfo { hasNextPage endCursor } nodes { number updatedAt } }
+    pullRequests(states: OPEN, first: 100, after: $cursor) { pageInfo { hasNextPage endCursor } nodes { number updatedAt%s } }
   }
 }`
 

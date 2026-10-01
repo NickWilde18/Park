@@ -62,6 +62,7 @@ The chapters describe the whole design. The first release builds its core loop i
 | Account | A person's identity on a forge, keyed by the forge and its stable account ID. A member links their accounts; other people's accounts appear too |
 | Fact | An immutable, attributed record: a forge state change, a model judgement, a grouping assertion, a member action |
 | Chain | Pull requests stacked on one another: one's base branch is another's head branch |
+| Stack | Pull requests that the forge itself records as one series, in order. A stack's pull requests are grouped; their base branches usually make them a chain too |
 | Group | Pull requests that form one piece of work, often across repositories |
 | Assertion | A claim, with a source, that pull requests belong together, or that one does or does not belong to a group |
 | Anchor | The stable key a co-membership assertion is filed under: a thread ID, a branch name, an issue ID |

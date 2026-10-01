@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/NickWilde18/Park/internal/facts"
@@ -18,6 +19,33 @@ import (
 type collector struct {
 	api *client
 	app *app // nil for a token
+	// stacks is whether the forge has pull request stacks, nil until it has answered.
+	stacks *bool
+	mu     sync.Mutex
+}
+
+// queries gives the forms of the queries for this forge, asking it once whether it has stacks. A failed question is
+// asked again next time, and fails the call meanwhile: a pull request is never read as in no stack for want of an
+// answer.
+func (c *collector) queries(ctx context.Context) (queries, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stacks == nil {
+		var out struct {
+			Type *struct {
+				Name string `json:"name"`
+			} `json:"__type"`
+		}
+		if err := c.api.query(ctx, stackProbe, map[string]any{}, &out); err != nil {
+			return queries{}, err
+		}
+		has := out.Type != nil
+		c.stacks = &has
+	}
+	if *c.stacks {
+		return withStacks, nil
+	}
+	return withoutStacks, nil
 }
 
 func newCollector(f forges.Forge, c facts.Credential) (facts.Collector, error) {
@@ -58,7 +86,11 @@ func (c *collector) FetchPR(ctx context.Context, r facts.Repo, number int, prote
 			DatabaseID  int64   `json:"databaseId"`
 		} `json:"repository"`
 	}
-	if err := c.api.query(ctx, prQuery, vars(r, number), &out); err != nil {
+	q, err := c.queries(ctx)
+	if err != nil {
+		return facts.Fetched{}, err
+	}
+	if err := c.api.query(ctx, q.pr, vars(r, number), &out); err != nil {
 		return facts.Fetched{}, err
 	}
 	if out.Repository == nil || out.Repository.PullRequest == nil {
@@ -137,6 +169,10 @@ func (c *collector) rest(ctx context.Context, r facts.Repo, number int, n *prNod
 }
 
 func (c *collector) ListOpen(ctx context.Context, r facts.Repo) ([]facts.Listed, error) {
+	q, err := c.queries(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var listed []facts.Listed
 	cursor := ""
 	for {
@@ -144,8 +180,9 @@ func (c *collector) ListOpen(ctx context.Context, r facts.Repo) ([]facts.Listed,
 			Repository *struct {
 				PullRequests struct {
 					Nodes []struct {
-						UpdatedAt time.Time `json:"updatedAt"`
-						Number    int       `json:"number"`
+						UpdatedAt time.Time  `json:"updatedAt"`
+						Stack     *stackNode `json:"stack"`
+						Number    int        `json:"number"`
 					} `json:"nodes"`
 					PageInfo page `json:"pageInfo"`
 				} `json:"pullRequests"`
@@ -155,14 +192,18 @@ func (c *collector) ListOpen(ctx context.Context, r facts.Repo) ([]facts.Listed,
 		if cursor != "" {
 			v["cursor"] = cursor
 		}
-		if err := c.api.query(ctx, listQuery, v, &out); err != nil {
+		if err := c.api.query(ctx, q.list, v, &out); err != nil {
 			return nil, err
 		}
 		if out.Repository == nil {
 			return nil, facts.ErrNotFound
 		}
 		for _, n := range out.Repository.PullRequests.Nodes {
-			listed = append(listed, facts.Listed{Number: n.Number, UpdatedAt: n.UpdatedAt})
+			l := facts.Listed{Number: n.Number, UpdatedAt: n.UpdatedAt}
+			if n.Stack != nil {
+				l.Stack = n.Stack.Number
+			}
+			listed = append(listed, l)
 		}
 		if !out.Repository.PullRequests.PageInfo.HasNextPage {
 			return listed, nil

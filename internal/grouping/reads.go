@@ -82,7 +82,8 @@ func (s *Service) Group(ctx context.Context, id int64) (GroupView, error) {
 	return gs[0], nil
 }
 
-var reasons = map[string]string{KindIssue: "closes the same issue", KindBranch: "same branch name", KindRefs: "mutual references"}
+var reasons = map[string]string{KindStack: "same stack", KindIssue: "closes the same issue", KindBranch: "same branch name",
+	KindRefs: "mutual references"}
 
 func (s *Service) groups(ctx context.Context, where string, args []any) ([]GroupView, error) {
 	chains, err := s.ChainsOf(ctx)
