@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 
 const listeners = new Set<() => void>()
 
-// navigate moves to a path of the dashboard, with a fragment if it names one, without reloading the page.
-export function navigate(to: string) {
+// navigate moves to a path of the dashboard, with a fragment if it names one, without reloading the page. With
+// replace, the path takes the place of the current one in the browser's history, as when a page has moved.
+export function navigate(to: string, { replace = false } = {}) {
   if (to !== window.location.pathname + window.location.hash) {
-    window.history.pushState(null, '', to)
+    if (replace) window.history.replaceState(null, '', to)
+    else window.history.pushState(null, '', to)
     listeners.forEach((listen) => listen())
   }
 }

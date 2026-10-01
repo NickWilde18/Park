@@ -5,8 +5,9 @@ import { prName, unitPath, type PRs } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
 
-// Groups with their pull requests, nested by chain and marked with the source that placed each; and the manual
-// actions: create, move in, take out, merge, split, rename.
+// Groups with their pull requests, nested by chain and marked with the source that placed each, and the open pull
+// requests in none; and the manual actions: create, move in, take out, merge, and split. A group is renamed on its
+// own page.
 export default function Groups() {
   const [error, setError] = useState('')
   const { data, refresh } = useFetch(async () => {
@@ -14,7 +15,7 @@ export default function Groups() {
     const prs: PRs = new Map((p.data?.pull_requests ?? []).map((x) => [x.id, x]))
     return { groups: g.data?.groups, problem: g.error ? problem(g.error) : '', prs }
   })
-  useLive(['group'], refresh)
+  useLive(['group', 'pr'], refresh)
   const done = async (answer: Promise<{ error?: unknown }>) => {
     const { error } = await answer
     if (error) setError(problem(error))

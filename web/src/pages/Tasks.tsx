@@ -1,19 +1,23 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { api, problem } from '../api/client'
+import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
-import { unitPath, words } from '../format'
+import { attemptFailures, unitPath, words } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
 
 const order = ['needs_person', 'leased', 'verifying', 'queued', 'done', 'cancelled', 'dismissed']
 
-// Tasks by state, the inbox of those that need a person first: every item's failures, and retry and dismiss. Opened
-// at #task-N, the page scrolls to that task once the tasks are in.
+// Tasks by state, the inbox of those that need a person first: each item's failures and every attempt's, and retry
+// and dismiss. Opened at #task-N, the page scrolls to that task once the tasks are in.
 export default function Tasks() {
   const [error, setError] = useState('')
   const { data, refresh } = useFetch(async () => {
     const { data, error } = await api.GET('/tasks')
-    return { tasks: data?.tasks, problem: error ? problem(error) : '' }
+    // A task's events, which hold each attempt's failures, come with it alone.
+    const inbox = (data?.tasks ?? []).filter((t) => t.state === 'needs_person')
+    const detailed = await Promise.all(inbox.map((t) => api.GET('/tasks/{id}', { params: { path: { id: t.id } } })))
+    const events = new Map<number, Schemas['TaskEvent'][]>(detailed.flatMap((d) => (d.data ? [[d.data.id, d.data.events ?? []]] : [])))
+    return { tasks: data?.tasks, events, problem: error ? problem(error) : '' }
   })
   useLive(['task'], refresh)
   const loaded = data !== undefined
@@ -63,6 +67,13 @@ export default function Tasks() {
                       </li>
                     ))}
                   </ul>
+                  {state === 'needs_person' && (
+                    <ul aria-label="Every attempt's failures">
+                      {attemptFailures(data.events.get(t.id) ?? []).map((f, n) => (
+                        <li key={n}>{`Attempt ${f.attempt}: ${f.reason}`}</li>
+                      ))}
+                    </ul>
+                  )}
                   {state === 'needs_person' && <button onClick={() => void retry(t.id)}>Retry</button>}
                   {['queued', 'leased', 'needs_person'].includes(state) && (
                     <form onSubmit={(e) => void dismiss(e, t.id)} className="inline">

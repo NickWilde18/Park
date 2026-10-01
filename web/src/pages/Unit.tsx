@@ -1,27 +1,30 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
-import { pathText, prName, since, words, type PRs } from '../format'
+import { pathText, prName, reasonsOf, since, words, type PRs } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
 import { navigate } from '../router'
 
 type Props = { kind: 'group' | 'pull_request'; id: number }
 
-// load fetches what a unit's page shows: its current verdict with its inputs, its pull requests' facts with their
-// timelines, its tasks with their histories, and, for a group, the group.
+// load fetches what a unit's page shows: its current verdict with its inputs, closed out or not; its pull requests'
+// facts with their timelines; its tasks with their histories; and, for a group, the group. A group merged into another
+// is answered as that other group: the page has moved there.
 async function load(kind: Props['kind'], id: number) {
-  const [list, all, t] = await Promise.all([api.GET('/verdicts'), api.GET('/prs'), api.GET('/tasks')])
-  const prs: PRs = new Map((all.data?.pull_requests ?? []).map((x) => [x.id, x]))
-  const listed = (t.data?.tasks ?? []).filter((x) => x.unit.kind === kind && x.unit.id === id)
   let group: Schemas['Group'] | null = null
   let members = kind === 'pull_request' ? [id] : []
   if (kind === 'group') {
     const g = await api.GET('/groups/{id}', { params: { path: { id } } })
+    if (g.data && g.data.id !== id) return { moved: g.data.id }
     group = g.data ?? null
     members = (g.data?.members ?? []).map((m) => m.pull_request)
   }
-  const current = list.data?.verdicts.find((v) => v.unit.kind === kind && v.unit.id === id)
+  const unit = `${kind === 'group' ? 'group' : 'pr'}:${id}`
+  const [list, all, t] = await Promise.all([api.GET('/verdicts', { params: { query: { unit } } }), api.GET('/prs'), api.GET('/tasks')])
+  const prs: PRs = new Map((all.data?.pull_requests ?? []).map((x) => [x.id, x]))
+  const listed = (t.data?.tasks ?? []).filter((x) => x.unit.kind === kind && x.unit.id === id)
+  const current = list.data?.verdicts[0]
   const verdict = current ? ((await api.GET('/verdicts/{id}', { params: { path: { id: current.id } } })).data ?? null) : null
   const got = await Promise.all(
     members.map(async (pr) => {
@@ -30,17 +33,24 @@ async function load(kind: Props['kind'], id: number) {
       return f.data ? [{ ...f.data, timeline: timeline.data?.events ?? [] }] : []
     }),
   )
+  const facts = got.flat()
+  // Merged and closed pull requests are not among the open ones listed; their own facts name them.
+  for (const f of facts) prs.set(f.summary.id, f.summary)
   const tasks = await Promise.all(listed.map(async (x) => (await api.GET('/tasks/{id}', { params: { path: { id: x.id } } })).data ?? x))
-  return { problem: list.error ? problem(list.error) : '', verdict, prs, tasks, group, facts: got.flat() }
+  return { problem: list.error ? problem(list.error) : '', verdict, prs, tasks, group, facts }
 }
 
-// A unit: where its ball is and who holds it, every person's part with its path through the rules, the rule set
-// version, each pull request's facts and the timeline of its fact events, and its tasks with their histories. A group
-// can be renamed, and its pull requests taken out.
+// A unit: where its ball is and who holds it, or how it closed; every person's part with its path through the rules,
+// the rule set version, each pull request's facts and the timeline of its fact events, and its tasks with their
+// histories. A group can be renamed, and its pull requests taken out.
 export default function Unit({ kind, id }: Props) {
   const [error, setError] = useState('')
   const { data, refresh } = useFetch(() => load(kind, id), `${kind}:${id}`)
   useLive(['verdict', 'task', 'pr', 'group'], refresh)
+  const moved = data && 'moved' in data ? data.moved : 0
+  useEffect(() => {
+    if (moved) navigate(`/units/group/${moved}`, { replace: true })
+  }, [moved])
 
   const rename = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -55,7 +65,7 @@ export default function Unit({ kind, id }: Props) {
     else navigate(`/units/pr/${pr}`)
   }
 
-  if (!data) return <p className="quiet">Loading…</p>
+  if (!data || 'moved' in data) return <p className="quiet">Loading…</p>
   const { verdict, prs, tasks, group, facts } = data
   return (
     <section>
@@ -163,6 +173,7 @@ export default function Unit({ kind, id }: Props) {
               {(t.events ?? []).map((e) => (
                 <li key={e.id}>
                   <span className="quiet">{since(e.at)} ago</span> {words(e.kind)}, {words(e.state)}
+                  {reasonsOf(e).length > 0 && ` — ${reasonsOf(e).join('; ')}`}
                   <span className="quiet"> · by {e.actor}</span>
                 </li>
               ))}

@@ -23,6 +23,22 @@ export function unitPath(unit: Schemas['Unit']): string {
   return `/units/${unit.kind === 'pull_request' ? 'pr' : 'group'}/${unit.id}`
 }
 
+// reasonsOf is what a task event gives as its reasons, such as a failed verification's, item by item.
+export function reasonsOf(e: Schemas['TaskEvent']): string[] {
+  const reasons: unknown = e.detail.reasons
+  return Array.isArray(reasons) ? reasons.map(String) : []
+}
+
+// attemptFailures lists each failed verification's reasons with the attempt they were for, from a task's events in
+// order: each claim begins an attempt.
+export function attemptFailures(events: Schemas['TaskEvent'][]): { attempt: number; reason: string }[] {
+  let attempt = 0
+  return events.flatMap((e) => {
+    if (e.kind === 'claimed') attempt++
+    return e.kind === 'verification_failed' ? reasonsOf(e).map((reason) => ({ attempt, reason })) : []
+  })
+}
+
 // words writes an identifier for reading: request_review as "request review".
 export function words(s?: string): string {
   return (s ?? '').replaceAll('_', ' ')
