@@ -53,7 +53,7 @@ There is never a default account or a default password.
 
 1. **Local**: a username and password, checked against the argon2id hash. Failures are rate-limited per account and per client address.
 2. **Forge or OIDC**: the authorization-code flow with PKCE and a state parameter, the state tied to the browser that started the flow by a short-lived cookie, so that nobody can finish a sign-in or a link in someone else's browser. The returned subject, with its provider, is looked up in `member_identity`.
-3. **A known identity** signs its member in. **An unknown one** becomes a new member only if admission allows it — the person holds an invite, or belongs to a forge organization or OIDC group the admin allowed — and is refused otherwise, with "ask an admin for an invite". An invited person may also join with a local account: a username, a password, and a display name.
+3. **A known identity** signs its member in. **An unknown one** becomes a new member only if admission allows it — the person holds an invite, or belongs to a forge organization or OIDC group the admin allowed — and is refused otherwise, with "ask an admin for an invite". An invited person may also join with a local account: a username, a password, and a display name. An invite's link opens the sign-in page ready to join, either way.
 4. A signed-in browser holds a session: a random ID in a cookie that is `HttpOnly`, `Secure`, and `SameSite=Lax`, stored only as a hash on the server, for 30 days. Requests that change state must also carry a CSRF header tied to the session, and send their bodies as JSON, which other sites cannot send without asking first.
 
 ## Flow: link a forge account

@@ -2,16 +2,26 @@ import { useState, type FormEvent } from 'react'
 import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
 import { words } from '../format'
+import { useSession } from '../sessionContext'
+import Administration from './Admin'
 
 const taskActions = ['resolve_conflicts', 'fix_checks', 'address_comments', 'request_review', 'review']
 
 // My settings: which of my actions become tasks, and in which repositories; my API tokens; and my linked accounts,
-// which I can unlink, unless one is my last way in.
+// which I can unlink, unless one is my last way in, or add through a sign-in provider. An admin also keeps Park's
+// members, invites, and sign-in providers here.
 export default function Settings() {
+  const { me } = useSession()
   const [created, setCreated] = useState('')
   const [notice, setNotice] = useState('')
   const { data, refresh } = useFetch(async () => {
-    const [a, t, i, p] = await Promise.all([api.GET('/me/automation'), api.GET('/me/tokens'), api.GET('/me/identities'), api.GET('/prs')])
+    const [a, t, i, p, v] = await Promise.all([
+      api.GET('/me/automation'),
+      api.GET('/me/tokens'),
+      api.GET('/me/identities'),
+      api.GET('/prs'),
+      api.GET('/auth/providers'),
+    ])
     const automation: Schemas['Automation'] = a.data ?? { actions: [] }
     // The repositories to choose from: those of the pull requests Park collects, and any the automation names already.
     const repos = new Map((p.data?.pull_requests ?? []).map((x) => [x.repo.id, `${x.repo.owner}/${x.repo.name}`]))
@@ -21,6 +31,7 @@ export default function Settings() {
       repos: [...repos].sort((x, y) => x[1].localeCompare(y[1])),
       tokens: t.data?.tokens ?? [],
       identities: i.data?.identities ?? [],
+      providers: v.data?.providers ?? [],
     }
   })
   const saveAutomation = async (e: FormEvent<HTMLFormElement>) => {
@@ -52,7 +63,7 @@ export default function Settings() {
     refresh()
   }
   if (!data) return <p className="quiet">Loading…</p>
-  const { automation, repos, tokens, identities } = data
+  const { automation, repos, tokens, identities, providers } = data
   return (
     <section>
       <h1>Settings</h1>
@@ -117,6 +128,12 @@ export default function Settings() {
           </li>
         ))}
       </ul>
+      {providers.map((p) => (
+        <p key={p.id}>
+          <a href={`/api/v1/auth/${encodeURIComponent(p.id)}/start?mode=link`}>Connect an account on {p.name}</a>
+        </p>
+      ))}
+      {me.member.admin && <Administration changed={refresh} />}
     </section>
   )
 }

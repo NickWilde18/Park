@@ -4,6 +4,10 @@ The dashboard is a client of the same API that executors and bridges use; it has
 
 ## Views
 
+### Sign in
+
+A username and password, or a sign-in provider. With an invite, the same page joins Park, with a local account or through a provider that carries the invite; an invite's link opens it ready to join. When a sign-in through a provider fails, the page says why, from the code Park sends back ([Identity](07-identity.md#flow-sign-in)).
+
 ### My queue
 
 Every unit whose ball I hold, as group → chain → pull request, with my actions on each pull request. Each row shows the action, the reason, how long I have held the ball, and badges: the chain position (`3/9`), the state of any task on it, "model" with the confidence when a judgement sharpened the reason, and "stale" when its facts could not be refreshed.
@@ -42,7 +46,7 @@ Each role's list drawn as its first-match tree, with passed-over labels on the e
 
 ### Settings
 
-Mine: automation (which actions become tasks, in which repositories), linked identities, each of which I can unlink unless it is my last way in ([I10](07-identity.md#rules)), tokens. For admins: installations and repositories, members and invites, sign-in providers, the model provider and each question's threshold, and grouping settings.
+Mine: automation (which actions become tasks, in which repositories), linked identities, which I connect through a sign-in provider and can unlink unless one is my last way in ([I10](07-identity.md#rules)), tokens. For admins: installations and repositories; members, with their permissions and the accounts linked to them by hand; invites, whose code and link are shown once; sign-in providers, with the callback address each forge needs; the model provider and each question's threshold; and grouping settings.
 
 ## Live updates
 
