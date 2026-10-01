@@ -45,7 +45,7 @@ Park is built from its design: [the design](docs/design/README.md) says what to 
 | `make build` | Builds the frontend and `bin/park`, with the frontend embedded |
 | `make e2e` | Seeds the empty database `PARK_DATABASE_URL` names with `cmd/seed`, and runs the dashboard's Playwright tests against `bin/park serve` |
 
-A test that needs a database gets an empty one of its own from `internal/store/storetest`. Without `PARK_TEST_DATABASE_URL`, such tests are skipped — except in CI, where they fail; `make test` sets it for `make db`'s Postgres. The dashboard's end-to-end tests in `web/e2e` share one seeded database and run in order; arguments to `scripts/e2e.sh` go to Playwright, so `sh scripts/e2e.sh settings` runs one file's tests.
+A test that needs a database gets an empty one of its own from `internal/store/storetest`. Without `PARK_TEST_DATABASE_URL`, such tests are skipped — except in CI, where they fail; `make test` sets it for `make db`'s Postgres. The dashboard's end-to-end tests in `web/e2e` share one seeded database and run in order; arguments to `scripts/e2e.sh` go to Playwright, so `sh scripts/e2e.sh settings` runs one file's tests. `python3 scripts/local_test.py` answers `scripts/local.sh`'s questions through a pseudo-terminal, in databases of its own on `make db`'s Postgres, with `bin/park`; it is not in CI, so run it after changing `local.sh`.
 
 ## Tests
 
