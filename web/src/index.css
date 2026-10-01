@@ -179,3 +179,149 @@ article.proposal {
 section + section > h2 {
   margin-top: 2rem;
 }
+
+main.wide {
+  max-width: none;
+}
+
+.board-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+
+.board-tools label {
+  margin: 0;
+}
+
+.board-tools input.find {
+  width: 16rem;
+}
+
+details.columns {
+  position: relative;
+}
+
+details.columns[open] > label {
+  display: block;
+}
+
+details.columns[open] {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid #dde1e6;
+  border-radius: 0.3rem;
+  background: #fff;
+}
+
+.board-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 10rem);
+  border: 1px solid #dde1e6;
+  border-radius: 0.3rem;
+  background: #fff;
+}
+
+table.board {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+table.board th,
+table.board td {
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid #edf0f3;
+  background: #fff;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+table.board td.wrap {
+  min-width: 14rem;
+  max-width: 28rem;
+  white-space: normal;
+}
+
+table.board thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f4f6f8;
+  border-bottom: 1px solid #dde1e6;
+}
+
+table.board th:first-child,
+table.board td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 16rem;
+  max-width: 24rem;
+  white-space: normal;
+  border-right: 1px solid #dde1e6;
+}
+
+table.board thead th:first-child {
+  z-index: 3;
+}
+
+table.board tr.unit td {
+  background: #f7f9fb;
+  font-weight: 600;
+}
+
+table.board tr.pr td:first-child {
+  padding-left: 2rem;
+}
+
+table.board tbody tr:hover td {
+  background: #eef4fc;
+}
+
+button.sort,
+button.fold {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0 0.45rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.45rem;
+}
+
+.tag.red {
+  background: #fde3e1;
+  color: #a1271c;
+}
+
+.tag.green {
+  background: #dff3e4;
+  color: #1d6b36;
+}
+
+.tag.yellow {
+  background: #fdf0c8;
+  color: #7a5a00;
+}
+
+.tag.blue {
+  background: #dfeafb;
+  color: #1c4f96;
+}
+
+.tag.gray {
+  background: #eceff2;
+  color: #4c5661;
+}

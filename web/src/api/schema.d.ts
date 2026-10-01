@@ -948,6 +948,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every open unit, as it stands for me
+         * @description One row per open unit: where its ball is from the caller's side, since when, who holds it, and the caller's task on it; and for each of its open pull requests, its facts, the caller's part there with the path that decided it, and what the rules read for the caller in the current verdict.
+         */
+        get: operations["getBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/verdicts": {
         parameters: {
             query?: never;
@@ -2016,6 +2036,56 @@ export interface components {
         Queue: {
             holding: components["schemas"]["Verdict"][];
             waiting: components["schemas"]["Verdict"][];
+        };
+        Board: {
+            units: components["schemas"]["BoardUnit"][];
+        };
+        BoardUnit: {
+            unit: components["schemas"]["Unit"];
+            /** @description The group's name, or the title of a pull request in no group. */
+            name: string;
+            /**
+             * @description Where a group's name came from; absent for a pull request in no group.
+             * @enum {string}
+             */
+            name_source?: "manual" | "external" | "issue" | "branch" | "refs";
+            /**
+             * @description yours when the caller holds the ball; others when someone else holds it and the caller has a part in the unit; none otherwise.
+             * @enum {string}
+             */
+            ball: "yours" | "others" | "none";
+            /** @enum {string} */
+            side?: "author" | "reviewer";
+            /**
+             * Format: date-time
+             * @description Since when the caller has held the ball, or, when others hold it, the longest any of them has.
+             */
+            held_since?: string;
+            holders: components["schemas"]["Account"][];
+            task?: components["schemas"]["Task"];
+            /** @description The unit's open pull requests. */
+            pull_requests: components["schemas"]["BoardPullRequest"][];
+        };
+        BoardPullRequest: {
+            summary: components["schemas"]["PullRequestSummary"];
+            /**
+             * Format: date-time
+             * @description When it last changed on its forge.
+             */
+            updated_at: string;
+            chain: components["schemas"]["ChainPosition"];
+            /** @description Its review threads not resolved. */
+            threads_unresolved: number;
+            part?: components["schemas"]["VerdictPart"];
+            /** @description Unresolved threads waiting on the caller, as the rules read them; absent when the caller has no part. */
+            threads_on_you?: number;
+            /**
+             * @description The caller's decisive review, as the rules read it; absent when the caller has no part.
+             * @enum {string}
+             */
+            your_review?: "approved" | "changes_requested" | "none";
+            /** @description A review is asked of the caller directly; absent when the caller has no part. */
+            requested?: boolean;
         };
         ItemTargets: {
             threads?: string[];
@@ -3707,6 +3777,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Queue"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's units first, by priority and then by how long they have held them; then the units they wait on, longest held first; then the rest. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Board"];
                 };
             };
             default: components["responses"]["Error"];

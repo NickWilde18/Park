@@ -12,6 +12,12 @@ Units are ordered by priority, then by how long I have held them, oldest first. 
 
 From a row, a member can open the pull request on the forge, mark it nudged, or open its task.
 
+### Board
+
+Every open unit in one table, as it stands for me: a row for each unit, which folds open to its pull requests. The unit's row says where its ball is from my side — mine, someone else's, or none of mine — since when, and who holds it, and my task on it, with its state and note. Each pull request's row says my action there and its reason, the path of rules that decided it, its checks, author, chain position, and last activity, the threads waiting on me, the open threads, and my review — read as the rules read them for the current verdict ([D62](10-design-log.md#d62-the-board-is-read-in-one-request-as-the-rules-read-it)).
+
+My units come first, by priority and then by how long I have held them, then the units I wait on, then the rest. Rows sort by any column, and filter by where the ball is and by repository; which columns show is my choice, kept in the browser.
+
 ### Team
 
 Each member's held units and oldest hold, and every group with where its ball is and who holds it. Filters by repository and by member.
@@ -57,7 +63,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 | Area | Endpoints |
 |---|---|
 | Session | `GET /setup` · `POST /setup` · `GET /auth/providers` · `POST /auth/login` · `POST /auth/register` · `GET /auth/{provider}/start` · `GET /auth/{provider}/callback` · `POST /auth/logout` · `GET /me` |
-| Queue and verdicts | `GET /queue` · `GET /verdicts` · `GET /verdicts/{id}` |
+| Queue and verdicts | `GET /queue` · `GET /board` · `GET /verdicts` · `GET /verdicts/{id}` |
 | Pull requests | `GET /prs` · `GET /prs/{id}` · `GET /prs/{id}/timeline` · `POST /prs/{id}/refresh` · `POST /prs/{id}/nudged` |
 | Groups | `GET /groups` · `GET /groups/{id}` · `POST /groups` · `PATCH /groups/{id}` · `POST /groups/{id}/members` · `DELETE /groups/{id}/members/{pr}` · `POST /groups/{id}/merge` · `POST /groups/{id}/split` |
 | Suggestions | `GET /suggestions` · `POST /suggestions/{id}/accept` · `POST /suggestions/{id}/dismiss` |

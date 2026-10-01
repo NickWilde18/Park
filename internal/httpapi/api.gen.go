@@ -35,6 +35,93 @@ func (e AuthProviderKind) Valid() bool {
 	}
 }
 
+// Defines values for BoardPullRequestYourReview.
+const (
+	BoardPullRequestYourReviewApproved         BoardPullRequestYourReview = "approved"
+	BoardPullRequestYourReviewChangesRequested BoardPullRequestYourReview = "changes_requested"
+	BoardPullRequestYourReviewNone             BoardPullRequestYourReview = "none"
+)
+
+// Valid indicates whether the value is a known member of the BoardPullRequestYourReview enum.
+func (e BoardPullRequestYourReview) Valid() bool {
+	switch e {
+	case BoardPullRequestYourReviewApproved:
+		return true
+	case BoardPullRequestYourReviewChangesRequested:
+		return true
+	case BoardPullRequestYourReviewNone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BoardUnitBall.
+const (
+	BoardUnitBallNone   BoardUnitBall = "none"
+	BoardUnitBallOthers BoardUnitBall = "others"
+	BoardUnitBallYours  BoardUnitBall = "yours"
+)
+
+// Valid indicates whether the value is a known member of the BoardUnitBall enum.
+func (e BoardUnitBall) Valid() bool {
+	switch e {
+	case BoardUnitBallNone:
+		return true
+	case BoardUnitBallOthers:
+		return true
+	case BoardUnitBallYours:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BoardUnitNameSource.
+const (
+	BoardUnitNameSourceBranch   BoardUnitNameSource = "branch"
+	BoardUnitNameSourceExternal BoardUnitNameSource = "external"
+	BoardUnitNameSourceIssue    BoardUnitNameSource = "issue"
+	BoardUnitNameSourceManual   BoardUnitNameSource = "manual"
+	BoardUnitNameSourceRefs     BoardUnitNameSource = "refs"
+)
+
+// Valid indicates whether the value is a known member of the BoardUnitNameSource enum.
+func (e BoardUnitNameSource) Valid() bool {
+	switch e {
+	case BoardUnitNameSourceBranch:
+		return true
+	case BoardUnitNameSourceExternal:
+		return true
+	case BoardUnitNameSourceIssue:
+		return true
+	case BoardUnitNameSourceManual:
+		return true
+	case BoardUnitNameSourceRefs:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BoardUnitSide.
+const (
+	BoardUnitSideAuthor   BoardUnitSide = "author"
+	BoardUnitSideReviewer BoardUnitSide = "reviewer"
+)
+
+// Valid indicates whether the value is a known member of the BoardUnitSide enum.
+func (e BoardUnitSide) Valid() bool {
+	switch e {
+	case BoardUnitSideAuthor:
+		return true
+	case BoardUnitSideReviewer:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CheckFactState.
 const (
 	CheckFactStateFailing CheckFactState = "failing"
@@ -914,6 +1001,67 @@ type Automation struct {
 	// Repos The repositories, by ID; every one when absent.
 	Repos *[]int64 `json:"repos,omitempty"`
 }
+
+// Board defines model for Board.
+type Board struct {
+	Units []BoardUnit `json:"units"`
+}
+
+// BoardPullRequest defines model for BoardPullRequest.
+type BoardPullRequest struct {
+	Chain ChainPosition `json:"chain"`
+	Part  *VerdictPart  `json:"part,omitempty"`
+
+	// Requested A review is asked of the caller directly; absent when the caller has no part.
+	Requested *bool              `json:"requested,omitempty"`
+	Summary   PullRequestSummary `json:"summary"`
+
+	// ThreadsOnYou Unresolved threads waiting on the caller, as the rules read them; absent when the caller has no part.
+	ThreadsOnYou *int `json:"threads_on_you,omitempty"`
+
+	// ThreadsUnresolved Its review threads not resolved.
+	ThreadsUnresolved int `json:"threads_unresolved"`
+
+	// UpdatedAt When it last changed on its forge.
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// YourReview The caller's decisive review, as the rules read it; absent when the caller has no part.
+	YourReview *BoardPullRequestYourReview `json:"your_review,omitempty"`
+}
+
+// BoardPullRequestYourReview The caller's decisive review, as the rules read it; absent when the caller has no part.
+type BoardPullRequestYourReview string
+
+// BoardUnit defines model for BoardUnit.
+type BoardUnit struct {
+	// Ball yours when the caller holds the ball; others when someone else holds it and the caller has a part in the unit; none otherwise.
+	Ball BoardUnitBall `json:"ball"`
+
+	// HeldSince Since when the caller has held the ball, or, when others hold it, the longest any of them has.
+	HeldSince *time.Time `json:"held_since,omitempty"`
+	Holders   []Account  `json:"holders"`
+
+	// Name The group's name, or the title of a pull request in no group.
+	Name string `json:"name"`
+
+	// NameSource Where a group's name came from; absent for a pull request in no group.
+	NameSource *BoardUnitNameSource `json:"name_source,omitempty"`
+
+	// PullRequests The unit's open pull requests.
+	PullRequests []BoardPullRequest `json:"pull_requests"`
+	Side         *BoardUnitSide     `json:"side,omitempty"`
+	Task         *Task              `json:"task,omitempty"`
+	Unit         Unit               `json:"unit"`
+}
+
+// BoardUnitBall yours when the caller holds the ball; others when someone else holds it and the caller has a part in the unit; none otherwise.
+type BoardUnitBall string
+
+// BoardUnitNameSource Where a group's name came from; absent for a pull request in no group.
+type BoardUnitNameSource string
+
+// BoardUnitSide defines model for BoardUnit.Side.
+type BoardUnitSide string
 
 // Bridge defines model for Bridge.
 type Bridge struct {
@@ -2310,6 +2458,9 @@ type ServerInterface interface {
 	// StartSignIn Begin signing in, or connecting an account, through a forge
 	// (GET /auth/{provider}/start)
 	StartSignIn(w http.ResponseWriter, r *http.Request, provider ProviderID, params StartSignInParams)
+	// GetBoard Every open unit, as it stands for me
+	// (GET /board)
+	GetBoard(w http.ResponseWriter, r *http.Request)
 	// ListFields The field catalog, every field a condition or a reason can read
 	// (GET /fields)
 	ListFields(w http.ResponseWriter, r *http.Request)
@@ -3075,6 +3226,20 @@ func (siw *ServerInterfaceWrapper) StartSignIn(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.StartSignIn(w, r, provider, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBoard operation middleware
+func (siw *ServerInterfaceWrapper) GetBoard(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBoard(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4392,6 +4557,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/rulesets/drafts/{id}", wrapper.UpdateRuleSetDraft)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts/{id}/publish", wrapper.PublishRuleSetDraft)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/queue", wrapper.GetQueue)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/board", wrapper.GetBoard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verdicts", wrapper.ListVerdicts)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verdicts/{id}", wrapper.GetVerdict)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/prs/{id}/nudged", wrapper.MarkNudged)
@@ -5494,6 +5660,44 @@ type StartSignIndefaultJSONResponse struct {
 }
 
 func (response StartSignIndefaultJSONResponse) VisitStartSignInResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBoardRequestObject struct {
+}
+
+type GetBoardResponseObject interface {
+	VisitGetBoardResponse(w http.ResponseWriter) error
+}
+
+type GetBoard200JSONResponse Board
+
+func (response GetBoard200JSONResponse) VisitGetBoardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBoarddefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetBoarddefaultJSONResponse) VisitGetBoardResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7459,6 +7663,9 @@ type StrictServerInterface interface {
 	// StartSignIn Begin signing in, or connecting an account, through a forge
 	// (GET /auth/{provider}/start)
 	StartSignIn(ctx context.Context, request StartSignInRequestObject) (StartSignInResponseObject, error)
+	// GetBoard Every open unit, as it stands for me
+	// (GET /board)
+	GetBoard(ctx context.Context, request GetBoardRequestObject) (GetBoardResponseObject, error)
 	// ListFields The field catalog, every field a condition or a reason can read
 	// (GET /fields)
 	ListFields(ctx context.Context, request ListFieldsRequestObject) (ListFieldsResponseObject, error)
@@ -8465,6 +8672,30 @@ func (sh *strictHandler) StartSignIn(w http.ResponseWriter, r *http.Request, pro
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(StartSignInResponseObject); ok {
 		if err := validResponse.VisitStartSignInResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBoard operation middleware
+func (sh *strictHandler) GetBoard(w http.ResponseWriter, r *http.Request) {
+	var request GetBoardRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBoard(ctx, request.(GetBoardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBoard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBoardResponseObject); ok {
+		if err := validResponse.VisitGetBoardResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

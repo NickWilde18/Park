@@ -1185,6 +1185,25 @@ paths:
                 $ref: "#/components/schemas/Queue"
         default:
           $ref: "#/components/responses/Error"
+  /board:
+    get:
+      operationId: getBoard
+      summary: Every open unit, as it stands for me
+      description: >-
+        One row per open unit: where its ball is from the caller's side, since when, who holds it, and the caller's
+        task on it; and for each of its open pull requests, its facts, the caller's part there with the path that
+        decided it, and what the rules read for the caller in the current verdict.
+      tags: [verdicts]
+      responses:
+        "200":
+          description: The caller's units first, by priority and then by how long they have held them; then the units
+            they wait on, longest held first; then the rest.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Board"
+        default:
+          $ref: "#/components/responses/Error"
   /verdicts:
     get:
       operationId: listVerdicts
@@ -3041,6 +3060,78 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Verdict"
+    Board:
+      type: object
+      required: [units]
+      properties:
+        units:
+          type: array
+          items:
+            $ref: "#/components/schemas/BoardUnit"
+    BoardUnit:
+      type: object
+      required: [unit, name, ball, holders, pull_requests]
+      properties:
+        unit:
+          $ref: "#/components/schemas/Unit"
+        name:
+          type: string
+          description: The group's name, or the title of a pull request in no group.
+        name_source:
+          type: string
+          enum: [manual, external, issue, branch, refs]
+          description: Where a group's name came from; absent for a pull request in no group.
+        ball:
+          type: string
+          enum: [yours, others, none]
+          description: >-
+            yours when the caller holds the ball; others when someone else holds it and the caller has a part in the
+            unit; none otherwise.
+        side:
+          type: string
+          enum: [author, reviewer]
+        held_since:
+          type: string
+          format: date-time
+          description: Since when the caller has held the ball, or, when others hold it, the longest any of them has.
+        holders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+        task:
+          $ref: "#/components/schemas/Task"
+        pull_requests:
+          type: array
+          description: The unit's open pull requests.
+          items:
+            $ref: "#/components/schemas/BoardPullRequest"
+    BoardPullRequest:
+      type: object
+      required: [summary, updated_at, chain, threads_unresolved]
+      properties:
+        summary:
+          $ref: "#/components/schemas/PullRequestSummary"
+        updated_at:
+          type: string
+          format: date-time
+          description: When it last changed on its forge.
+        chain:
+          $ref: "#/components/schemas/ChainPosition"
+        threads_unresolved:
+          type: integer
+          description: Its review threads not resolved.
+        part:
+          $ref: "#/components/schemas/VerdictPart"
+        threads_on_you:
+          type: integer
+          description: Unresolved threads waiting on the caller, as the rules read them; absent when the caller has no part.
+        your_review:
+          type: string
+          enum: [approved, changes_requested, none]
+          description: The caller's decisive review, as the rules read it; absent when the caller has no part.
+        requested:
+          type: boolean
+          description: A review is asked of the caller directly; absent when the caller has no part.
     ItemTargets:
       type: object
       properties:
