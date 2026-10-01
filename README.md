@@ -38,6 +38,14 @@ go run ./cmd/seed
 bin/park serve
 ```
 
+To try Park on your own repositories before it is deployed, `scripts/local.sh` runs it at `http://localhost:8080`, in a database of its own:
+
+```sh
+scripts/local.sh owner/api owner/web
+```
+
+The first run asks for the admin's username and password, a GitHub token that can read the repositories, and your GitHub login. It sets Park up, watches the repositories, and links your account. It also makes a token for [park-executor](https://github.com/NickWilde18/park-executor) in `~/.config/park-executor/token`; with `--bridge NAME --bridge-token FILE`, it registers a bridge and makes its token too. Later runs only serve Park.
+
 Park publishes its [default rule set](internal/rules/default.json) when it first starts. A member with the rules permission changes the rules by importing a rule-set file as a draft, `POST /api/v1/rulesets/drafts` with `{"rules": …}`, which lists any problems, and publishing it, `POST /api/v1/rulesets/drafts/{id}/publish`.
 
 | Command | Does |
