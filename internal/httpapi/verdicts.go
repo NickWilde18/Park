@@ -106,9 +106,20 @@ func (s *server) GetQueue(ctx context.Context, _ GetQueueRequestObject) (GetQueu
 	return GetQueue200JSONResponse{Holding: verdictsOut(holding), Waiting: verdictsOut(waiting)}, nil
 }
 
-func (s *server) ListVerdicts(ctx context.Context, _ ListVerdictsRequestObject) (ListVerdictsResponseObject, error) {
+func (s *server) ListVerdicts(ctx context.Context, req ListVerdictsRequestObject) (ListVerdictsResponseObject, error) {
 	if _, err := requireCaller(ctx); err != nil {
 		return nil, err
+	}
+	if req.Params.Unit != nil {
+		v, err := s.verdicts.CurrentOf(ctx, *req.Params.Unit)
+		if err != nil {
+			return nil, err
+		}
+		var vs []verdicts.Verdict
+		if v != nil {
+			vs = append(vs, *v)
+		}
+		return ListVerdicts200JSONResponse{Verdicts: verdictsOut(vs)}, nil
 	}
 	vs, err := s.verdicts.Current(ctx)
 	if err != nil {

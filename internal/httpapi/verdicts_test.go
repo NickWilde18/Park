@@ -92,6 +92,26 @@ func TestVerdictsOverHTTP(t *testing.T) {
 	}
 	wantStatus(t, admin.call(t, "GET", "/api/v1/verdicts/999", nil, nil), http.StatusNotFound, "not_found")
 
+	// One unit's current verdict, closed out or not: the open units' list leaves a closed one out.
+	var one Verdicts
+	wantStatus(t, admin.call(t, "GET", "/api/v1/verdicts?unit=pr:"+strconv.FormatInt(v.Unit.Id, 10), nil, &one), http.StatusOK, "")
+	if len(one.Verdicts) != 1 || one.Verdicts[0].Id != v.Id {
+		t.Fatalf("the unit's verdict: %+v", one)
+	}
+	if _, err := pool.Exec(context.Background(), `INSERT INTO verdict (unit, closed, holders, parts, reminders, inputs, seqs, rule_version,
+		evaluated_at) VALUES ('pr:777', 'merged', '[]', '[]', '[]', '[]', '{}', 1, now())`); err != nil {
+		t.Fatal(err)
+	}
+	wantStatus(t, admin.call(t, "GET", "/api/v1/verdicts?unit=pr:777", nil, &one), http.StatusOK, "")
+	if len(one.Verdicts) != 1 || one.Verdicts[0].Closed == nil || *one.Verdicts[0].Closed != "merged" {
+		t.Fatalf("a closed unit's verdict: %+v", one)
+	}
+	wantStatus(t, admin.call(t, "GET", "/api/v1/verdicts", nil, &list), http.StatusOK, "")
+	wantStatus(t, admin.call(t, "GET", "/api/v1/verdicts?unit=pr:999", nil, &one), http.StatusOK, "")
+	if len(list.Verdicts) != 1 || len(one.Verdicts) != 0 {
+		t.Fatalf("open units' verdicts: %d; a unit with none: %+v", len(list.Verdicts), one)
+	}
+
 	pr := strconv.FormatInt(v.Unit.Id, 10)
 	var token NewToken
 	admin.call(t, "POST", "/api/v1/me/tokens", map[string]any{"name": "reader", "scopes": []string{"read"}}, &token)

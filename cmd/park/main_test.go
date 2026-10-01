@@ -123,3 +123,72 @@ func TestServe(t *testing.T) {
 		t.Fatal("serve did not stop")
 	}
 }
+
+// park serve stops at once, and cleanly, while a dashboard's event stream is open: shutting down ends the stream,
+// which would otherwise be waited for until the shutdown's deadline.
+func TestServeEndsStreams(t *testing.T) {
+	vars := env(map[string]string{
+		"PARK_DATABASE_URL": storetest.Database(t), "PARK_SECRET_KEY": key, "PARK_HTTP_ADDR": "127.0.0.1:0",
+		"PARK_SETUP_CODE": "AAAA-BBBB-CCCC",
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	listening := make(chan string, 1)
+	done := make(chan error, 1)
+	go func() { done <- run(ctx, []string{"serve"}, vars, io.Discard, io.Discard, listening) }()
+	var addr string
+	select {
+	case addr = <-listening:
+	case err := <-done:
+		t.Fatalf("serve stopped: %v", err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("serve did not start listening")
+	}
+
+	// Setting Park up signs its first admin in, with a session cookie.
+	setup := `{"code": "AAAA-BBBB-CCCC", "username": "admin", "password": "a long enough password", "display_name": "Admin"}`
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "http://"+addr+"/api/v1/setup", strings.NewReader(setup))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	var session *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == "park_session" {
+			session = c
+		}
+	}
+	if resp.StatusCode != http.StatusCreated || session == nil {
+		t.Fatalf("setup: %d, session %v", resp.StatusCode, session)
+	}
+	req, err = http.NewRequestWithContext(context.Background(), http.MethodGet, "http://"+addr+"/api/v1/events", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(session)
+	stream, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = stream.Body.Close() }()
+	if stream.StatusCode != http.StatusOK {
+		t.Fatalf("stream: %d", stream.StatusCode)
+	}
+
+	stopping := time.Now()
+	cancel()
+	select {
+	case err := <-done:
+		took := time.Since(stopping).Round(time.Millisecond)
+		if err != nil || took > 3*time.Second {
+			t.Fatalf("serve returned %v after %s", err, took)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("serve did not stop")
+	}
+}

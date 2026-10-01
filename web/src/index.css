@@ -1,11 +1,171 @@
 :root {
   font-family: system-ui, sans-serif;
-  line-height: 1.5;
-  color-scheme: light dark;
+  line-height: 1.45;
+  color: #1d2125;
+  background: #fafbfc;
 }
 
 body {
+  margin: 0;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1.2rem;
+  background: #fff;
+  border-bottom: 1px solid #dde1e6;
+}
+
+nav a {
+  margin-right: 1.1rem;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+main {
+  max-width: 64rem;
   margin: 0 auto;
-  max-width: 48rem;
-  padding: 2rem;
+  padding: 1rem 1.2rem 3rem;
+}
+
+a {
+  color: #0b5cad;
+}
+
+ul {
+  padding-left: 1.2rem;
+}
+
+.units > li {
+  margin-bottom: 0.9rem;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 0.6rem;
+  background: #e8ecf0;
+  font-size: 0.8rem;
+}
+
+.badge.stale {
+  background: #fde2c8;
+}
+
+.badge.task {
+  background: #dbe8f7;
+}
+
+.quiet {
+  color: #5f6b77;
+}
+
+.error {
+  color: #b3261e;
+}
+
+.notice {
+  padding: 0.5rem 0.8rem;
+  background: #eef6ee;
+}
+
+.parts {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.parts th,
+.parts td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid #e3e6ea;
+  text-align: left;
+  vertical-align: top;
+}
+
+.parts th {
+  white-space: nowrap;
+}
+
+.path {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+
+ol.timeline {
+  margin: 0.3rem 0;
+  padding-left: 1.4rem;
+  font-size: 0.9rem;
+}
+
+.tree {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tree .rule {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #dde1e6;
+  border-radius: 0.3rem;
+  background: #fff;
+}
+
+.tree .edge {
+  padding: 0.15rem 1.2rem;
+  color: #5f6b77;
+  font-size: 0.85rem;
+}
+
+form.inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.3rem 0.6rem 0.3rem 0;
+}
+
+label {
+  display: block;
+  margin: 0.2rem 0;
+}
+
+form.inline label {
+  display: inline;
+}
+
+fieldset {
+  margin: 0 0 0.6rem;
+  padding: 0;
+  border: none;
+}
+
+legend {
+  padding: 0;
+  margin-bottom: 0.2rem;
+  font-weight: 600;
+}
+
+label.nested {
+  margin-left: 1.5rem;
+}
+
+.sign-in {
+  max-width: 22rem;
+}
+
+.sign-in input {
+  display: block;
+  width: 100%;
+}
+
+article.pr,
+article.group {
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #dde1e6;
+  border-radius: 0.3rem;
+  background: #fff;
 }

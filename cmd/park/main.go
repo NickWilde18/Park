@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/NickWilde18/Park/internal/config"
+	"github.com/NickWilde18/Park/internal/events"
 	"github.com/NickWilde18/Park/internal/facts"
 	_ "github.com/NickWilde18/Park/internal/forges/github" // the forge kinds Park supports
 	"github.com/NickWilde18/Park/internal/grouping"
@@ -129,11 +130,16 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	groups.Register(runner)
 	balls.Register(runner)
 	taskStage.Register(runner)
+	notices := events.New(pool, log)
+	notices.Register(runner)
 	if err := collected.Start(ctx); err != nil {
 		return fmt.Errorf("schedule collection: %w", err)
 	}
 	if err := balls.Start(ctx); err != nil {
 		return fmt.Errorf("schedule verdicts: %w", err)
+	}
+	if err := notices.Start(ctx); err != nil {
+		return fmt.Errorf("schedule the notices' cleanup: %w", err)
 	}
 	worked := make(chan error, 1)
 	go func() { worked <- runner.Run(ctx) }()
@@ -160,6 +166,8 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		log.InfoContext(ctx, "Park has no members yet: set it up within an hour, with the setup code from the configuration")
 	}
 
+	// closing ends the event streams as the server shuts down; it is closed by srv.Shutdown, below.
+	closing := make(chan struct{})
 	handler, err := httpapi.New(httpapi.Options{
 		Ready: func(ctx context.Context) error {
 			pending, err := store.Pending(ctx, pool, migrations)
@@ -179,6 +187,8 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		Rules:    ruleSets,
 		Verdicts: balls,
 		Tasks:    taskStage,
+		Events:   notices,
+		Closing:  closing,
 		Pool:     pool,
 	})
 	if err != nil {
@@ -194,6 +204,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		IdleTimeout:       2 * time.Minute,
 		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 	}
+	srv.RegisterOnShutdown(func() { close(closing) })
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
 	log.InfoContext(ctx, "listening", "addr", ln.Addr().String(), "version", fullVersion())

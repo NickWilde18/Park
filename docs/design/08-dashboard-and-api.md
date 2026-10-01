@@ -38,7 +38,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 
 ## Live updates
 
-`GET /events` streams Server-Sent Events: small notices — `verdict` (a unit's ball or parts changed), `task`, `group`, `pr` — naming what changed. The client fetches what it needs again. Notices are filtered by visibility, numbered, and can be resumed with `Last-Event-ID` for an hour; a client that falls further behind reloads. A comment line every 30 seconds keeps proxies from closing the stream.
+`GET /events` streams Server-Sent Events: small notices — `verdict` (a unit's ball or parts changed), `task`, `group`, `pr` — naming what changed. The client fetches what it needs again, and fetches what it shows each time its stream opens. Notices are filtered by visibility, numbered, and can be resumed with `Last-Event-ID` for an hour; a client that falls further behind reloads. A stream ends when the credential it was opened with stops working — a token revoked, a session ended, a member disabled — and when Park shuts down; the dashboard opens it again, or signs in. A comment line every 30 seconds keeps proxies from closing the stream.
 
 ## Conventions
 

@@ -275,3 +275,11 @@ The budget is kept per member, unit, and action, and a task can hold several act
 A dismissed task is final, but the work behind it is the verdict's: when the unit's verdict next changes and its member still holds the action, it becomes a task again. A member who does not want an action done by an executor turns it off in their automation.
 
 Set aside: remembering dismissals to hold back the same work, which would leave a member's ball with nobody to act on it.
+
+### D59. Notices are written by the changes themselves
+
+A trigger on each table the dashboard shows writes the event stream's notice in the transaction that makes the change. A notice is therefore sent only for a change that was committed, every change has one whichever code path made it, and a change that alters nothing a page shows — a refresh that found nothing new, a lease extended — has none. Streams read the notices table, so a stream on one process hears the changes made on another.
+
+A stream resumes after the last notice it saw, which is sound only if notices become visible in the order they are numbered. Numbers taken as changes are made are not: a change made first and committed last becomes visible after a stream has passed its number. The triggers are therefore deferred to the commit, where each transaction takes one lock before it numbers its notices and holds it until its commit is visible. Committing transactions that write notices wait for one another, briefly; nothing else does. For the same reason a fresh stream begins after the newest notice committed, not the newest numbered, and the dashboard fetches again when its stream opens, since a change committed between its fetch and the stream's start has no notice it will be sent.
+
+Set aside: waking streams with `LISTEN/NOTIFY`, as the work queue's workers are woken. Each stream reads once a second, which is soon enough for a page, and holds no connection of its own between reads. Also set aside: reading by snapshot — the notices whose transactions committed since the stream's last read — which needs no lock, but makes the resume point a snapshot rather than a number.

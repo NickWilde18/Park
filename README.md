@@ -16,7 +16,7 @@ export PARK_SECRET_KEY="$(openssl rand -base64 32)"
 bin/park serve
 ```
 
-Park applies its migrations and listens on port 8080. With no members yet, it prints a setup code to its log; create the first administrator with it, within an hour, through the API — the dashboard's own pages come later:
+Park applies its migrations and listens on port 8080, where the dashboard is. With no members yet, it prints a setup code to its log; within an hour, create the first administrator with it on the dashboard, or through the API:
 
 ```sh
 curl -c cookies -H 'Content-Type: application/json' http://localhost:8080/api/v1/setup \
@@ -25,9 +25,16 @@ curl -c cookies -H 'Content-Type: application/json' http://localhost:8080/api/v1
 
 To collect pull requests, an admin adds a forge, an installation — a token, or a GitHub App's credentials — and the repositories to watch, through `/api/v1/admin/forges`, `/api/v1/admin/installations`, and `/api/v1/admin/repos`. The forge sends deliveries to `/hooks/{installation}`; without them, polling keeps Park correct, only slower.
 
-Executors work a member's tasks with an API token scoped to `tasks:work`: `POST /api/v1/tasks/claim`, then heartbeats and a report under the lease; the member chooses which actions become tasks at `PUT /api/v1/me/automation`.
+Executors work a member's tasks with an API token scoped to `tasks:work`: `POST /api/v1/tasks/claim`, then heartbeats and a report under the lease; the member chooses which actions become tasks, and where, in the dashboard's settings or at `PUT /api/v1/me/automation`.
 
-Each member's queue — the units whose ball they hold — and waiting list are at `GET /api/v1/queue`, once an admin links their forge account, `POST /api/v1/admin/members/{id}/identities`, or they sign in through the forge.
+Each member's queue — the units whose ball they hold — and waiting list are the dashboard's first page, and `GET /api/v1/queue`, once an admin links their forge account, `POST /api/v1/admin/members/{id}/identities`, or they sign in through the forge.
+
+To try the dashboard without a forge, fill an empty database with a small team's pull requests, then start Park on it and sign in as `ana` or `ben`, with the password the seed prints:
+
+```sh
+go run ./cmd/seed
+bin/park serve
+```
 
 Park publishes its [default rule set](internal/rules/default.json) when it first starts. A member with the rules permission changes the rules by importing a rule-set file as a draft, `POST /api/v1/rulesets/drafts` with `{"rules": …}`, which lists any problems, and publishing it, `POST /api/v1/rulesets/drafts/{id}/publish`.
 
@@ -58,6 +65,7 @@ A YAML file, named by `-config` or `PARK_CONFIG`, and environment variables, whi
 | `make test` | Runs the Go tests, with the race detector |
 | `make lint` | Runs golangci-lint, oxlint, and the TypeScript type check |
 | `make build` | Builds the frontend and `bin/park` |
+| `make e2e` | Runs the dashboard's end-to-end tests against a seeded database; `PARK_DATABASE_URL` names an empty one |
 
 [AGENTS.md](AGENTS.md) is how to work on Park.
 

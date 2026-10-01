@@ -22,6 +22,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/NickWilde18/Park/api"
+	"github.com/NickWilde18/Park/internal/events"
 	"github.com/NickWilde18/Park/internal/facts"
 	"github.com/NickWilde18/Park/internal/fail"
 	"github.com/NickWilde18/Park/internal/grouping"
@@ -44,7 +45,11 @@ type Options struct {
 	Rules    *rules.Service
 	Verdicts *verdicts.Service
 	Tasks    *tasks.Service
-	Pool     *pgxpool.Pool
+	Events   *events.Service
+	// Closing is closed when the server begins to shut down. Event streams end then, since a stream ends only when
+	// its client leaves, and shutting down waits for every request to end.
+	Closing <-chan struct{}
+	Pool    *pgxpool.Pool
 }
 
 // timeNow is the clock errors that carry a wait read.
@@ -70,13 +75,18 @@ func New(opts Options) (http.Handler, error) {
 		log.InfoContext(r.Context(), "bad request", "path", r.URL.Path, "error", err)
 		writeError(w, http.StatusBadRequest, "bad_request", "The request is not valid.")
 	}
-	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, rules: opts.Rules, verdicts: opts.Verdicts, tasks: opts.Tasks, pool: opts.Pool,
-		log: log}
+	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, rules: opts.Rules, verdicts: opts.Verdicts, tasks: opts.Tasks, events: opts.Events, pool: opts.Pool,
+		eventPoll: time.Second,
+		closing:   opts.Closing,
+		log:       log}
 	strict := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  badRequest,
 		ResponseErrorHandlerFunc: srv.respondError,
 	})
 	HandlerWithOptions(strict, StdHTTPServerOptions{BaseURL: "/api/v1", BaseRouter: mux, ErrorHandlerFunc: badRequest})
+	if opts.Events != nil {
+		mux.HandleFunc("GET /api/v1/events", srv.streamEvents)
+	}
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "There is no such endpoint.")
 	})
@@ -95,8 +105,13 @@ type server struct {
 	rules    *rules.Service
 	verdicts *verdicts.Service
 	tasks    *tasks.Service
+	events   *events.Service
 	pool     *pgxpool.Pool
 	log      *slog.Logger
+	// closing ends the event streams when the server shuts down; nil when it never does.
+	closing <-chan struct{}
+	// eventPoll is how often an event stream looks for new notices.
+	eventPoll time.Duration
 }
 
 // statuses maps each kind of error the caller can act on to its HTTP status.

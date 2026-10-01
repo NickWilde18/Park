@@ -70,6 +70,18 @@ func (s *Service) list(ctx context.Context, where string, args ...any) ([]Verdic
 // Current lists the current verdicts of the open units.
 func (s *Service) Current(ctx context.Context) ([]Verdict, error) { return s.list(ctx, "") }
 
+// CurrentOf returns a unit's current verdict, closed out or not, or nil when it has none.
+func (s *Service) CurrentOf(ctx context.Context, unit string) (*Verdict, error) {
+	v, err := scanVerdict(s.pool.QueryRow(ctx, "SELECT "+verdictColumns+" FROM verdict WHERE current AND unit = $1", unit))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
 // Queue returns a member's queue — the open units whose ball they hold — and their waiting list — the open units they
 // have a part in, where the ball is with someone else (V10).
 func (s *Service) Queue(ctx context.Context, member int64) (holding, waiting []Verdict, err error) {
