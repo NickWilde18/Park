@@ -73,7 +73,7 @@ test('a page fetches again when its stream opens', async ({ page, browser }) => 
   })
   await signIn(page, 'ana')
   await page.getByRole('link', { name: 'Groups' }).click()
-  await expect(page.locator('article.group h2')).toBeVisible()
+  await expect(page.locator('article.group h3')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Ledger', exact: true })).toHaveCount(0)
   const bens = await browser.newContext()
   const ben = await bens.newPage()
@@ -99,7 +99,7 @@ test('a page opens its stream again when the browser gives it up', async ({ page
   })
   await signIn(page, 'ana')
   await page.getByRole('link', { name: 'Groups' }).click()
-  await expect(page.locator('article.group h2')).toBeVisible()
+  await expect(page.locator('article.group h3')).toBeVisible()
   await expect.poll(() => streams).toBeGreaterThanOrEqual(2)
   const bens = await browser.newContext()
   const ben = await bens.newPage()
@@ -125,7 +125,7 @@ test('a page fetches again when a fetch fails', async ({ page }) => {
 test('a page keeps up with changes that come faster than it fetches', async ({ page, browser }) => {
   await signIn(page, 'ana')
   await page.getByRole('link', { name: 'Groups' }).click()
-  await expect(page.locator('article.group h2')).toBeVisible()
+  await expect(page.locator('article.group h3')).toBeVisible()
   await page.route('**/api/v1/groups', async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 1500))
     await route.continue()

@@ -170,3 +170,12 @@ article.proposal {
   border-radius: 0.3rem;
   background: #fff;
 }
+
+article.proposal {
+  border: 1px dashed #c9a24a;
+  background: #fffaeb;
+}
+
+section + section > h2 {
+  margin-top: 2rem;
+}

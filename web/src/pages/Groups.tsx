@@ -41,80 +41,84 @@ export default function Groups() {
       <h1>Groups</h1>
       {error && <p className="error">{error}</p>}
       {proposals.length > 0 && <Proposed proposals={proposals} prs={prs} done={done} />}
-      {groups.map((g) => (
-        <article key={g.id} className="group">
-          <h2>
-            <Link to={unitPath({ kind: 'group', id: g.id })}>{g.name}</Link>
-          </h2>
-          <ul>
-            {[...g.members]
-              .sort((a, b) => (a.chain.id ?? a.pull_request) - (b.chain.id ?? b.pull_request) || a.chain.position - b.chain.position)
-              .map((m) => (
-                <li key={m.pull_request}>
-                  {prName(prs, m.pull_request)} {prs.get(m.pull_request)?.title}
-                  {m.chain.length > 1 && <span className="badge">{`${m.chain.position}/${m.chain.length}`}</span>}
-                  <span className="quiet"> — {m.reason}</span>{' '}
-                  <button onClick={() => void done(api.DELETE('/groups/{id}/members/{pr}', { params: { path: { id: g.id, pr: m.pull_request } } }))}>
-                    Take out
-                  </button>
-                </li>
-              ))}
-          </ul>
-          {loose.length > 0 && (
-            <form
-              className="inline"
-              onSubmit={(e) => {
-                const { form } = picked(e)
-                void done(api.POST('/groups/{id}/members', { params: { path: { id: g.id } }, body: { pull_request: Number(form.get('into')) } }))
-              }}
-            >
-              <select name="into" aria-label={`Move a pull request into ${g.name}`}>
-                {loose.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {prName(prs, p.id)}
-                  </option>
+      <section aria-label="Current groups">
+        <h2>Current groups</h2>
+        {groups.length === 0 && <p className="quiet">No groups yet.</p>}
+        {groups.map((g) => (
+          <article key={g.id} className="group">
+            <h3>
+              <Link to={unitPath({ kind: 'group', id: g.id })}>{g.name}</Link>
+            </h3>
+            <ul>
+              {[...g.members]
+                .sort((a, b) => (a.chain.id ?? a.pull_request) - (b.chain.id ?? b.pull_request) || a.chain.position - b.chain.position)
+                .map((m) => (
+                  <li key={m.pull_request}>
+                    {prName(prs, m.pull_request)} {prs.get(m.pull_request)?.title}
+                    {m.chain.length > 1 && <span className="badge">{`${m.chain.position}/${m.chain.length}`}</span>}
+                    <span className="quiet"> — {m.reason}</span>{' '}
+                    <button onClick={() => void done(api.DELETE('/groups/{id}/members/{pr}', { params: { path: { id: g.id, pr: m.pull_request } } }))}>
+                      Take out
+                    </button>
+                  </li>
                 ))}
-              </select>
-              <button type="submit">Move in</button>
-            </form>
-          )}
-          {groups.length > 1 && (
-            <form
-              className="inline"
-              onSubmit={(e) => {
-                const { form } = picked(e)
-                void done(api.POST('/groups/{id}/merge', { params: { path: { id: g.id } }, body: { from: Number(form.get('from')) } }))
-              }}
-            >
-              <select name="from" aria-label={`Merge a group into ${g.name}`}>
-                {groups
-                  .filter((o) => o.id !== g.id)
-                  .map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
+            </ul>
+            {loose.length > 0 && (
+              <form
+                className="inline"
+                onSubmit={(e) => {
+                  const { form } = picked(e)
+                  void done(api.POST('/groups/{id}/members', { params: { path: { id: g.id } }, body: { pull_request: Number(form.get('into')) } }))
+                }}
+              >
+                <select name="into" aria-label={`Move a pull request into ${g.name}`}>
+                  {loose.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {prName(prs, p.id)}
                     </option>
                   ))}
-              </select>
-              <button type="submit">Merge into this</button>
+                </select>
+                <button type="submit">Move in</button>
+              </form>
+            )}
+            {groups.length > 1 && (
+              <form
+                className="inline"
+                onSubmit={(e) => {
+                  const { form } = picked(e)
+                  void done(api.POST('/groups/{id}/merge', { params: { path: { id: g.id } }, body: { from: Number(form.get('from')) } }))
+                }}
+              >
+                <select name="from" aria-label={`Merge a group into ${g.name}`}>
+                  {groups
+                    .filter((o) => o.id !== g.id)
+                    .map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                </select>
+                <button type="submit">Merge into this</button>
+              </form>
+            )}
+            <form
+              className="inline"
+              onSubmit={(e) => {
+                const { form, prs: chosen } = picked(e)
+                void done(api.POST('/groups/{id}/split', { params: { path: { id: g.id } }, body: { name: String(form.get('name')), pull_requests: chosen } }))
+              }}
+            >
+              {g.members.map((m) => (
+                <label key={m.pull_request}>
+                  <input type="checkbox" name="pr" value={m.pull_request} /> {prName(prs, m.pull_request)}
+                </label>
+              ))}
+              <input name="name" placeholder="New group's name" aria-label={`Split ${g.name} into`} required />
+              <button type="submit">Split</button>
             </form>
-          )}
-          <form
-            className="inline"
-            onSubmit={(e) => {
-              const { form, prs: chosen } = picked(e)
-              void done(api.POST('/groups/{id}/split', { params: { path: { id: g.id } }, body: { name: String(form.get('name')), pull_requests: chosen } }))
-            }}
-          >
-            {g.members.map((m) => (
-              <label key={m.pull_request}>
-                <input type="checkbox" name="pr" value={m.pull_request} /> {prName(prs, m.pull_request)}
-              </label>
-            ))}
-            <input name="name" placeholder="New group's name" aria-label={`Split ${g.name} into`} required />
-            <button type="submit">Split</button>
-          </form>
-        </article>
-      ))}
+          </article>
+        ))}
+      </section>
       <h2>New group</h2>
       <form
         onSubmit={(e) => {
