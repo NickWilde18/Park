@@ -111,7 +111,7 @@ func (a *app) authorization(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("get an installation token: GitHub answered %d", resp.StatusCode)
+		return "", fmt.Errorf("get an installation token: %w", statusError(resp.StatusCode, req.URL.Path))
 	}
 	var out struct {
 		ExpiresAt time.Time `json:"expires_at"`

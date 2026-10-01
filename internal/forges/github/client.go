@@ -176,11 +176,10 @@ func resetTime(h http.Header) time.Time {
 	return time.Now().Add(time.Minute)
 }
 
-var errRefused = errors.New("GitHub refused the credential")
-
+// statusError is GitHub's answer of an unexpected status to what: a 401 is facts.ErrRefused.
 func statusError(status int, what string) error {
 	if status == http.StatusUnauthorized {
-		return errRefused
+		return facts.ErrRefused
 	}
 	return fmt.Errorf("GitHub answered %d to %s", status, what)
 }

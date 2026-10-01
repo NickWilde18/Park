@@ -290,6 +290,10 @@ func (e *RateLimited) Error() string {
 // ErrNotFound is returned by a collector for a pull request or repository the forge does not have.
 var ErrNotFound = errors.New("the forge has no such thing")
 
+// ErrRefused is returned by a collector when the forge refuses the installation's credential: a token it no longer
+// takes, or an app key it cannot verify.
+var ErrRefused = errors.New("the forge refused the installation's credential")
+
 // ErrBadSignature is returned for a delivery whose signature does not match the installation's secret.
 var ErrBadSignature = errors.New("the delivery's signature does not match")
 

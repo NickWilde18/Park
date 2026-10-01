@@ -96,7 +96,7 @@ if [ "$(curl -fsS "$URL/api/v1/setup" | field '["needed"]')" = "True" ]; then
   csrf="$(printf '%s' "$me" | field '["csrf_token"]')"
   member="$(printf '%s' "$me" | field '["member"]["id"]')"
   call() {
-    curl -fsS -X "$1" -H "Cookie: $cookie" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' -d "$3" "$URL/api/v1$2"
+    curl -sS --fail-with-body -X "$1" -H "Cookie: $cookie" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' -d "$3" "$URL/api/v1$2"
   }
 
   token="$(hidden "A GitHub token that can read the repositories: ")"
@@ -107,10 +107,11 @@ if [ "$(curl -fsS "$URL/api/v1/setup" | field '["needed"]')" = "True" ]; then
   for repo in "$@"; do
     owner="${repo%%/*}"
     name="${repo#*/}"
-    if call POST /admin/repos "{\"installation_id\": $installation, \"owner\": \"$owner\", \"name\": \"$name\"}" > /dev/null; then
+    if answer="$(call POST /admin/repos "{\"installation_id\": $installation, \"owner\": \"$owner\", \"name\": \"$name\"}")"; then
       echo "Watching $repo."
     else
-      echo "Park could not watch $repo: can the token read it? Add it later at /api/v1/admin/repos." >&2
+      why="$(printf '%s' "$answer" | field '["error"]["message"]' 2>/dev/null || true)"
+      echo "Park could not watch $repo. ${why:-Can the token read it?} Add it later at /api/v1/admin/repos." >&2
     fi
   done
 

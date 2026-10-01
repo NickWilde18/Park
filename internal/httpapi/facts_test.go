@@ -3,8 +3,14 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
+	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -165,5 +171,66 @@ func TestFactsOverHTTP(t *testing.T) {
 	wantStatus(t, anonymous.call(t, "GET", "/api/v1/prs", nil, nil), http.StatusUnauthorized, "unauthenticated")
 	if strings.Contains(logs.String(), "the-token") || strings.Contains(logs.String(), "hook-secret") {
 		t.Fatal("the log holds an installation's secret")
+	}
+}
+
+// A GitHub that refuses every credential, as it answers a revoked token, or an app whose key it cannot verify: the
+// admin who watches a repository through either installation is told the forge refused its credential, with a 400
+// they can act on rather than a server failure, and nothing is watched.
+func TestWatchThroughARefusedCredential(t *testing.T) {
+	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(w, `{"message": "Bad credentials"}`)
+	}))
+	t.Cleanup(refusing.Close)
+	pool := storetest.MigratedPool(t)
+	logs := &syncBuffer{}
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("log:\n%s", logs.String())
+		}
+	})
+	log := slog.New(slog.NewJSONHandler(logs, nil))
+	box, _ := secret.New(secretKey)
+	ids, err := identity.New(pool, box, log, identity.Options{SecretKey: secretKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := New(Options{Ready: ready, UI: built, Logger: log, Identity: ids, Facts: facts.New(pool, box, log), Pool: pool})
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin := (&harness{h: h, ids: ids, pool: pool, logs: logs}).admin(t)
+	var f Forge
+	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/forges", map[string]string{"kind": "github", "name": "GitHub",
+		"base_address": refusing.URL}, &f), http.StatusCreated, "")
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pemKey := string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}))
+
+	for _, c := range []struct {
+		credential map[string]any
+		name       string
+	}{
+		{name: "token", credential: map[string]any{"kind": "token", "token": "a-revoked-token"}},
+		{name: "app", credential: map[string]any{"kind": "app", "app": map[string]any{"app_id": 7, "installation_id": 55,
+			"private_key": pemKey}}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			body := map[string]any{"forge_id": f.Id, "name": c.name}
+			maps.Copy(body, c.credential)
+			var inst Installation
+			wantStatus(t, admin.call(t, "POST", "/api/v1/admin/installations", body, &inst), http.StatusCreated, "")
+			wantStatus(t, admin.call(t, "POST", "/api/v1/admin/repos", map[string]any{"installation_id": inst.Id, "owner": "acme",
+				"name": "api"}, nil), http.StatusBadRequest, "credential_refused")
+		})
+	}
+	var repos Repos
+	wantStatus(t, admin.call(t, "GET", "/api/v1/admin/repos", nil, &repos), http.StatusOK, "")
+	if len(repos.Repos) != 0 {
+		t.Fatalf("watching %+v", repos.Repos)
 	}
 }
