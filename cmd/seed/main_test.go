@@ -11,14 +11,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/NickWilde18/Park/internal/facts"
+	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/secret"
 	"github.com/NickWilde18/Park/internal/store/storetest"
 )
 
 // Seeding an empty database stores each pull request as a refresh would have: its fact events, numbered from 1 up to
 // its sequence number, replay to its stored state (F1). The merged pull request's verdict is closed out. Ben's task
-// was tried three times, failed verification each time, and needs a person; his other one is dismissed. Seeding the
-// database again is refused.
+// was tried three times, failed verification each time, and needs a person; his other one is dismissed. The bridge's
+// two proposals are open, as members see them: each with one group of two pull requests, the first named and the
+// second not. Seeding the database again is refused.
 func TestSeed(t *testing.T) {
 	ctx := context.Background()
 	url := storetest.Database(t)
@@ -96,6 +98,19 @@ func TestSeed(t *testing.T) {
 	}
 	if states != "needs_person 3, dismissed 0" || failures != "3" {
 		t.Fatalf("Ben's tasks: %s, with %s failed verifications", states, failures)
+	}
+	proposals, err := grouping.New(pool, slog.New(slog.NewTextHandler(io.Discard, nil))).Proposals(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(proposals) != 2 || proposals[0].Title != "Exports and statement emails" || proposals[1].Title != "Invoice follow-ups" ||
+		proposals[0].Bridge != "Review threads" || proposals[0].LinkTemplate == "" {
+		t.Fatalf("the proposals: %+v", proposals)
+	}
+	for i, name := range []string{"Exports and statements", ""} {
+		if g := proposals[i].Groups; len(g) != 1 || g[0].Name != name || len(g[0].PRs) != 2 {
+			t.Fatalf("proposal %d's groups: %+v", i, g)
+		}
 	}
 	if err := seed(ctx, getenv, io.Discard); err == nil {
 		t.Fatal("a second seed was not refused")
