@@ -309,3 +309,9 @@ A chain is still not a group (D20): base branches that happen to line up may be 
 Joining a stack does not move a pull request's update time: a stack made after its pull requests were last updated leaves their update times as they were. Polling therefore lists each pull request's stack with its update time, and refreshes one whose stack differs from the stored one. A forge of the same kind may record no stacks — an older server's API has no such field, and asking for it fails the whole query — so whether a forge does is asked of it first.
 
 Set aside: grouping every chain, which the predecessor came to do once its board gave each pull request a row of its own; a chain of separate refactors would become one unit, with one ball. Also set aside: binding a stack so that a claim on any of its pull requests moves all of them, which would make it the one claim that unions others.
+
+### D64. A member can ask for a poll now
+
+The scheduled poll comes every ten minutes, and a change that does not move a pull request's update time otherwise waits for the sweep. A member who has just made a stack, pushed, or retargeted a base wants Park to look now. So the dashboard asks for the scheduled poll early, of every watched repository or of one, and refreshes a unit's pull requests one by one. A poll costs one listing per repository. Asking again while one waits costs nothing more, since a waiting item only moves earlier; and one waiting out a failure's backoff keeps it, so repeated clicks do not press a forge that limits Park. Only sessions may ask: no token scope allows it.
+
+Set aside: a sweep on demand, which refreshes every open pull request in full and costs a team's repositories hundreds of points of the hourly limit each time.

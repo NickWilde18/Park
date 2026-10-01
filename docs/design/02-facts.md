@@ -88,6 +88,8 @@ Less often, a full sweep refreshes every open pull request regardless of update 
 
 Pull requests that are about to change without moving their update time are polled on a short period instead: those whose required checks are pending, those whose mergeability is unknown, and those a verifying task touches ([Tasks](06-tasks.md)). A short poll is a cheap look at the head, the checks, and mergeability, and calls for a full refresh only when they changed. This keeps Park correct without webhooks, and quick to notice checks finishing.
 
+A member can also ask for a poll now, of every watched repository or of one ([D64](10-design-log.md#d64-a-member-can-ask-for-a-poll-now)). It is the scheduled poll, run early: a poll already waiting moves earlier rather than running twice, and one waiting out a failure's backoff keeps it.
+
 Collection obeys the forge's rate-limit signals. While limited, collection through that installation waits until the limit resets, and a failure is retried with a backoff; neither counts against anything else.
 
 ## Flow: repository refresh

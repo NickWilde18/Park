@@ -282,6 +282,19 @@ table.board tbody tr:hover td {
   background: #eef4fc;
 }
 
+button.refresh {
+  padding: 0 0.2rem;
+  border: none;
+  background: none;
+  color: #57606a;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.refresh:hover {
+  color: #0b5cad;
+}
+
 button.sort,
 button.fold {
   padding: 0;

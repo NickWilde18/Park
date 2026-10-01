@@ -48,3 +48,41 @@ test('the board shows every open unit as it stands for me', async ({ page }) => 
   await page.getByRole('checkbox', { name: 'Author' }).check()
   await expect(page.getByRole('button', { name: 'Author', exact: true })).toBeVisible()
 })
+
+// Asking the forge now. From the board: about every repository; with the board filtered to one, about that one; and
+// from the Billing group's row, about its two pull requests. From the group's page, which says when Park last
+// checked each pull request: about its open ones, the same two. Park's answers are recorded here, so that the seeded forge, where
+// nothing listens, is never asked, and the database the other tests share stays as it was.
+test('the board and a unit ask the forge now', async ({ page }) => {
+  const asked: string[] = []
+  await page.route(
+    (url) => /^\/api\/v1\/prs\/(\d+\/)?refresh$/.test(url.pathname),
+    async (route) => {
+      const url = new URL(route.request().url())
+      asked.push(url.pathname.replace('/api/v1', '') + url.search)
+      await route.fulfill({ status: 202 })
+    },
+  )
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Board' }).click()
+  const status = page.getByRole('status')
+  await page.getByRole('button', { name: 'Refresh all repositories' }).click()
+  await expect(status).toContainText('Asked the forge about every repository')
+  await page.getByRole('combobox', { name: 'Repository' }).selectOption('acme/api')
+  await page.getByRole('button', { name: 'Refresh acme/api' }).click()
+  await expect(status).toContainText('Asked the forge about acme/api')
+  await page.getByRole('button', { name: 'Refresh Billing', exact: true }).click()
+  await expect(status).toContainText('Asked the forge about Billing')
+  expect(asked.slice(0, 2)).toEqual(['/prs/refresh', expect.stringMatching(/^\/prs\/refresh\?repo=\d+$/)])
+  expect(asked.slice(2)).toHaveLength(2)
+  expect(asked.slice(2).every((a) => /^\/prs\/\d+\/refresh$/.test(a))).toBe(true)
+
+  asked.length = 0
+  await page.getByRole('link', { name: 'Billing', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Billing', exact: true })).toBeVisible()
+  await expect(page.locator('article.pr h3', { hasText: /checked .+ ago/ })).toHaveCount(2)
+  await page.getByRole('button', { name: 'Refresh from the forge' }).click()
+  await expect(page.getByRole('status')).toContainText('Asked the forge about its 2 open pull requests')
+  expect(asked).toHaveLength(2)
+  expect(asked.every((a) => /^\/prs\/\d+\/refresh$/.test(a))).toBe(true)
+})

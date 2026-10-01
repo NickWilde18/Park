@@ -414,6 +414,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/prs/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Poll the watched repositories now
+         * @description Runs the scheduled poll now, of every watched repository or of the one repo names: it lists the repository's open pull requests and refreshes those that are new, updated, or in another stack, and those no longer open. A poll already waiting moves earlier rather than running twice, and one waiting out a failure's backoff keeps it.
+         */
+        post: operations["refreshPullRequests"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/prs/{id}": {
         parameters: {
             query?: never;
@@ -2914,6 +2934,28 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PullRequests"];
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    refreshPullRequests: {
+        parameters: {
+            query?: {
+                /** @description Only this repository, which must be watched. */
+                repo?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The polls are queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };

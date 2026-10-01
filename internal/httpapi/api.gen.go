@@ -2262,6 +2262,12 @@ type ListPullRequestsParams struct {
 // ListPullRequestsParamsState defines parameters for ListPullRequests.
 type ListPullRequestsParamsState string
 
+// RefreshPullRequestsParams defines parameters for RefreshPullRequests.
+type RefreshPullRequestsParams struct {
+	// Repo Only this repository, which must be watched.
+	Repo *int64 `form:"repo,omitempty" json:"repo,omitempty"`
+}
+
 // ListTasksParams defines parameters for ListTasks.
 type ListTasksParams struct {
 	// All Every member's tasks; only for an admin.
@@ -2536,6 +2542,9 @@ type ServerInterface interface {
 	// ListPullRequests Pull requests Park collects
 	// (GET /prs)
 	ListPullRequests(w http.ResponseWriter, r *http.Request, params ListPullRequestsParams)
+	// RefreshPullRequests Poll the watched repositories now
+	// (POST /prs/refresh)
+	RefreshPullRequests(w http.ResponseWriter, r *http.Request, params RefreshPullRequestsParams)
 	// GetPullRequest A pull request's facts
 	// (GET /prs/{id})
 	GetPullRequest(w http.ResponseWriter, r *http.Request, id ID)
@@ -3757,6 +3766,39 @@ func (siw *ServerInterfaceWrapper) ListPullRequests(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// RefreshPullRequests operation middleware
+func (siw *ServerInterfaceWrapper) RefreshPullRequests(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RefreshPullRequestsParams
+
+	// ------------- Optional query parameter "repo" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "repo", r.URL.Query(), &params.Repo, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "repo"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "repo", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RefreshPullRequests(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetPullRequest operation middleware
 func (siw *ServerInterfaceWrapper) GetPullRequest(w http.ResponseWriter, r *http.Request) {
 
@@ -4526,6 +4568,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/providers/{provider}", wrapper.DeleteProvider)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/admin/providers/{provider}", wrapper.UpdateProvider)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/prs", wrapper.ListPullRequests)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/prs/refresh", wrapper.RefreshPullRequests)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/prs/{id}", wrapper.GetPullRequest)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/prs/{id}/timeline", wrapper.GetPullRequestTimeline)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/prs/{id}/refresh", wrapper.RefreshPullRequest)
@@ -6581,6 +6624,39 @@ func (response ListPullRequestsdefaultJSONResponse) VisitListPullRequestsRespons
 	return err
 }
 
+type RefreshPullRequestsRequestObject struct {
+	Params RefreshPullRequestsParams
+}
+
+type RefreshPullRequestsResponseObject interface {
+	VisitRefreshPullRequestsResponse(w http.ResponseWriter) error
+}
+
+type RefreshPullRequests202Response struct {
+}
+
+func (response RefreshPullRequests202Response) VisitRefreshPullRequestsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(202)
+	return nil
+}
+
+type RefreshPullRequestsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RefreshPullRequestsdefaultJSONResponse) VisitRefreshPullRequestsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetPullRequestRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -7741,6 +7817,9 @@ type StrictServerInterface interface {
 	// ListPullRequests Pull requests Park collects
 	// (GET /prs)
 	ListPullRequests(ctx context.Context, request ListPullRequestsRequestObject) (ListPullRequestsResponseObject, error)
+	// RefreshPullRequests Poll the watched repositories now
+	// (POST /prs/refresh)
+	RefreshPullRequests(ctx context.Context, request RefreshPullRequestsRequestObject) (RefreshPullRequestsResponseObject, error)
 	// GetPullRequest A pull request's facts
 	// (GET /prs/{id})
 	GetPullRequest(ctx context.Context, request GetPullRequestRequestObject) (GetPullRequestResponseObject, error)
@@ -9342,6 +9421,32 @@ func (sh *strictHandler) ListPullRequests(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListPullRequestsResponseObject); ok {
 		if err := validResponse.VisitListPullRequestsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RefreshPullRequests operation middleware
+func (sh *strictHandler) RefreshPullRequests(w http.ResponseWriter, r *http.Request, params RefreshPullRequestsParams) {
+	var request RefreshPullRequestsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RefreshPullRequests(ctx, request.(RefreshPullRequestsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RefreshPullRequests")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RefreshPullRequestsResponseObject); ok {
+		if err := validResponse.VisitRefreshPullRequestsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

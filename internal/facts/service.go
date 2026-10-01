@@ -587,6 +587,31 @@ func (s *Service) RequestRefresh(ctx context.Context, prID int64) error {
 	return work.Enqueue(ctx, s.pool, KindRefreshPR, prKey(p.Repo.ID, p.State.Number), time.Time{})
 }
 
+// RequestPoll runs the scheduled poll of a watched repository at once, or of every watched one for 0. A poll already
+// waiting moves earlier rather than running twice, and one waiting out a failure's backoff keeps it (work.Enqueue).
+// A repository that is not watched, or not known, is not found.
+func (s *Service) RequestPoll(ctx context.Context, repoID int64) error {
+	rows, err := s.pool.Query(ctx, "SELECT id FROM repo WHERE watched AND ($1::bigint = 0 OR id = $1::bigint) ORDER BY id", repoID)
+	if err != nil {
+		return err
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+	if err != nil {
+		return err
+	}
+	if repoID != 0 && len(ids) == 0 {
+		return errNoRepo
+	}
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		for _, id := range ids {
+			if err := work.Enqueue(ctx, tx, KindPollRepo, strconv.FormatInt(id, 10), time.Time{}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // PullURL is the address of a pull request on its forge, built when it is shown and never stored.
 func (s *Service) PullURL(ctx context.Context, r RepoRecord, number int) string {
 	f, err := forges.Get(ctx, s.pool, r.ForgeID)

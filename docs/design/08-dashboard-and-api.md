@@ -18,6 +18,8 @@ Every open unit in one table, as it stands for me: a row for each unit, which fo
 
 My units come first, by priority and then by how long I have held them, then the units I wait on, then the rest. Rows sort by any column, and filter by where the ball is and by repository; which columns show is my choice, kept in the browser.
 
+From the board, I can ask the forge now: for every repository, or the one the board is filtered to, and for one unit's pull requests ([D64](10-design-log.md#d64-a-member-can-ask-for-a-poll-now)).
+
 ### Team
 
 Each member's held units and oldest hold, and every group with where its ball is and who holds it. Filters by repository and by member.
@@ -28,7 +30,7 @@ Groups with their pull requests, nested by chain, each pull request marked with 
 
 ### Unit
 
-A group, or a pull request in no group, showing only the pull requests the viewer can read ([Identity](07-identity.md#visibility)). Where its ball is and who holds it, and every person's part with its path — `author → not a draft → no conflicts → checks not failing → Changes requested, all answered` — the judgements used, and the rule set version. For each pull request: its facts — checks, reviews, and threads — and the timeline of its fact events. Its tasks, with their history.
+A group, or a pull request in no group, showing only the pull requests the viewer can read ([Identity](07-identity.md#visibility)). Where its ball is and who holds it, and every person's part with its path — `author → not a draft → no conflicts → checks not failing → Changes requested, all answered` — the judgements used, and the rule set version. For each pull request: its facts — checks, reviews, and threads — when Park last checked them on the forge, and the timeline of its fact events. Its tasks, with their history. A member can refresh its open pull requests from the forge.
 
 ### Tasks
 
@@ -64,7 +66,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 |---|---|
 | Session | `GET /setup` · `POST /setup` · `GET /auth/providers` · `POST /auth/login` · `POST /auth/register` · `GET /auth/{provider}/start` · `GET /auth/{provider}/callback` · `POST /auth/logout` · `GET /me` |
 | Queue and verdicts | `GET /queue` · `GET /board` · `GET /verdicts` · `GET /verdicts/{id}` |
-| Pull requests | `GET /prs` · `GET /prs/{id}` · `GET /prs/{id}/timeline` · `POST /prs/{id}/refresh` · `POST /prs/{id}/nudged` |
+| Pull requests | `GET /prs` · `POST /prs/refresh` · `GET /prs/{id}` · `GET /prs/{id}/timeline` · `POST /prs/{id}/refresh` · `POST /prs/{id}/nudged` |
 | Groups | `GET /groups` · `GET /groups/{id}` · `POST /groups` · `PATCH /groups/{id}` · `POST /groups/{id}/members` · `DELETE /groups/{id}/members/{pr}` · `POST /groups/{id}/merge` · `POST /groups/{id}/split` |
 | Suggestions | `GET /suggestions` · `POST /suggestions/{id}/accept` · `POST /suggestions/{id}/dismiss` |
 | Assertions | `POST /assertions` · `DELETE /assertions?anchor=…` |

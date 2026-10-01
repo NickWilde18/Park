@@ -4,6 +4,7 @@ import { useFetch } from '../fetch'
 import { pathText, prName, reasonsOf, since, words, type PRs } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
+import { asked, refreshPRs } from '../refresh'
 import { navigate } from '../router'
 
 type Props = { kind: 'group' | 'pull_request'; id: number }
@@ -41,16 +42,25 @@ async function load(kind: Props['kind'], id: number) {
 }
 
 // A unit: where its ball is and who holds it, or how it closed; every person's part with its path through the rules,
-// the rule set version, each pull request's facts and the timeline of its fact events, and its tasks with their
-// histories. A group can be renamed, and its pull requests taken out.
+// the rule set version, each pull request's facts, when Park last checked them, and the timeline of its fact events,
+// and its tasks with their histories. A group can be renamed, and its pull requests taken out. Its open pull requests
+// can be refreshed from the forge.
 export default function Unit({ kind, id }: Props) {
   const [error, setError] = useState('')
+  const [status, setStatus] = useState('')
+  const [rechecks, setRechecks] = useState(0)
   const { data, refresh } = useFetch(() => load(kind, id), `${kind}:${id}`)
   useLive(['verdict', 'task', 'pr', 'group'], refresh)
   const moved = data && 'moved' in data ? data.moved : 0
   useEffect(() => {
     if (moved) navigate(`/units/group/${moved}`, { replace: true })
   }, [moved])
+  // A refresh that finds nothing new sends no notice, so the page looks again a little later, to show the check.
+  useEffect(() => {
+    if (!rechecks) return
+    const t = window.setTimeout(refresh, 4000)
+    return () => window.clearTimeout(t)
+  }, [rechecks, refresh])
 
   const rename = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -64,9 +74,19 @@ export default function Unit({ kind, id }: Props) {
     if (error) setError(problem(error))
     else navigate(`/units/pr/${pr}`)
   }
+  const refreshOpen = async (open: number[]) => {
+    const failed = await refreshPRs(open)
+    if (failed) {
+      setError(failed)
+      return
+    }
+    setStatus(asked(open.length === 1 ? 'its pull request' : `its ${open.length} open pull requests`))
+    setRechecks((n) => n + 1)
+  }
 
   if (!data || 'moved' in data) return <p className="quiet">Loading…</p>
   const { verdict, prs, tasks, group, facts } = data
+  const open = facts.filter((f) => f.summary.state === 'open' || f.summary.state === 'draft').map((f) => f.summary.id)
   return (
     <section>
       <h1>{group ? group.name : prName(prs, id)}</h1>
@@ -76,6 +96,14 @@ export default function Unit({ kind, id }: Props) {
           <input name="name" defaultValue={group.name} aria-label="Group name" />
           <button type="submit">Rename</button>
         </form>
+      )}
+      {open.length > 0 && (
+        <p>
+          <button onClick={() => void refreshOpen(open)}>Refresh from the forge</button>{' '}
+          <span role="status" className="quiet">
+            {status}
+          </span>
+        </p>
       )}
       {!verdict ? (
         <p className="quiet">No verdict yet.</p>
@@ -131,6 +159,7 @@ export default function Unit({ kind, id }: Props) {
           <h3>
             <a href={f.summary.url}>{prName(prs, f.summary.id)}</a> {f.summary.title}
             {f.summary.stale && <span className="badge stale">stale</span>}
+            <span className="quiet"> · checked {since(f.summary.refreshed_at)} ago</span>
           </h3>
           <p>
             Checks: {f.facts.checks.map((c) => `${c.name} ${c.state}`).join(', ') || 'none'}. Reviews:{' '}
