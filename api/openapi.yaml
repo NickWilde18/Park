@@ -1095,6 +1095,13 @@ paths:
       operationId: listVerdicts
       summary: The current verdicts of the open units
       tags: [verdicts]
+      parameters:
+        - name: unit
+          in: query
+          description: >-
+            Only this unit's current verdict, as group:<id> or pr:<id>, closed out or not; none when it has none.
+          schema:
+            type: string
       responses:
         "200":
           description: The verdicts, without their inputs.

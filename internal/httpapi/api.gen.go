@@ -2016,6 +2016,12 @@ type ClaimTaskParams struct {
 	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
 }
 
+// ListVerdictsParams defines parameters for ListVerdicts.
+type ListVerdictsParams struct {
+	// Unit Only this unit's current verdict, as group:<id> or pr:<id>, closed out or not; none when it has none.
+	Unit *string `form:"unit,omitempty" json:"unit,omitempty"`
+}
+
 // CreateBridgeJSONRequestBody defines body for CreateBridge for application/json ContentType.
 type CreateBridgeJSONRequestBody = BridgeRequest
 
@@ -2323,7 +2329,7 @@ type ServerInterface interface {
 	RetryTask(w http.ResponseWriter, r *http.Request, id ID)
 	// ListVerdicts The current verdicts of the open units
 	// (GET /verdicts)
-	ListVerdicts(w http.ResponseWriter, r *http.Request)
+	ListVerdicts(w http.ResponseWriter, r *http.Request, params ListVerdictsParams)
 	// GetVerdict A verdict, current or superseded, with the inputs it read
 	// (GET /verdicts/{id})
 	GetVerdict(w http.ResponseWriter, r *http.Request, id ID)
@@ -3908,8 +3914,27 @@ func (siw *ServerInterfaceWrapper) RetryTask(w http.ResponseWriter, r *http.Requ
 // ListVerdicts operation middleware
 func (siw *ServerInterfaceWrapper) ListVerdicts(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListVerdictsParams
+
+	// ------------- Optional query parameter "unit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "unit", r.URL.Query(), &params.Unit, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "unit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "unit", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListVerdicts(w, r)
+		siw.Handler.ListVerdicts(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6843,6 +6868,7 @@ func (response RetryTaskdefaultJSONResponse) VisitRetryTaskResponse(w http.Respo
 }
 
 type ListVerdictsRequestObject struct {
+	Params ListVerdictsParams
 }
 
 type ListVerdictsResponseObject interface {
@@ -9173,8 +9199,10 @@ func (sh *strictHandler) RetryTask(w http.ResponseWriter, r *http.Request, id ID
 }
 
 // ListVerdicts operation middleware
-func (sh *strictHandler) ListVerdicts(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListVerdicts(w http.ResponseWriter, r *http.Request, params ListVerdictsParams) {
 	var request ListVerdictsRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListVerdicts(ctx, request.(ListVerdictsRequestObject))

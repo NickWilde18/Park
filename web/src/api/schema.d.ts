@@ -3480,7 +3480,10 @@ export interface operations {
     };
     listVerdicts: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Only this unit's current verdict, as group:<id> or pr:<id>, closed out or not; none when it has none. */
+                unit?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
