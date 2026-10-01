@@ -264,16 +264,39 @@ func (s *Service) Identities(ctx context.Context, memberID int64) ([]Identity, e
 	})
 }
 
-// Unlink removes one of a member's forge accounts.
+// Unlink removes one of a member's forge accounts, unless it is their last way in (I10). A way in is a local
+// password, or a linked account on a forge with a sign-in provider: without one, the next sign-in through the forge
+// would find no member for the account. The member's row is locked, so that two unlinks at once cannot each leave the
+// other the last way in and both go.
 func (s *Service) Unlink(ctx context.Context, memberID, id int64) error {
-	tag, err := s.pool.Exec(ctx, "DELETE FROM member_identity WHERE id = $1 AND member_id = $2", id, memberID)
-	if err != nil {
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SELECT 1 FROM member WHERE id = $1 FOR UPDATE", memberID); err != nil {
+			return err
+		}
+		var signsIn bool
+		err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM sign_in_provider p WHERE p.forge_id = i.forge_id)
+			FROM member_identity i WHERE i.id = $1 AND i.member_id = $2`, id, memberID).Scan(&signsIn)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fail.New(fail.NotFound, "not_found", "There is no such linked account.")
+		}
+		if err != nil {
+			return err
+		}
+		if signsIn {
+			var ways int
+			if err := tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM local_credential WHERE member_id = $1) +
+				(SELECT count(*) FROM member_identity i WHERE i.member_id = $1
+					AND EXISTS (SELECT 1 FROM sign_in_provider p WHERE p.forge_id = i.forge_id))`, memberID).Scan(&ways); err != nil {
+				return err
+			}
+			if ways <= 1 {
+				return fail.New(fail.Conflict, "last_sign_in",
+					"You sign in with this account, and have no other way in; connect another account first.")
+			}
+		}
+		_, err = tx.Exec(ctx, "DELETE FROM member_identity WHERE id = $1", id)
 		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fail.New(fail.NotFound, "not_found", "There is no such linked account.")
-	}
-	return nil
+	})
 }
 
 // LinkByAdmin links a forge account to a member by hand, for an admin, and records who did it. The account is

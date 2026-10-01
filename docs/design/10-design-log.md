@@ -315,3 +315,7 @@ Set aside: grouping every chain, which the predecessor came to do once its board
 The scheduled poll comes every ten minutes, and a change that does not move a pull request's update time otherwise waits for the sweep. A member who has just made a stack, pushed, or retargeted a base wants Park to look now. So the dashboard asks for the scheduled poll early, of every watched repository or of one, and refreshes a unit's pull requests one by one. A poll costs one listing per repository. Asking again while one waits costs nothing more, since a waiting item only moves earlier; and one waiting out a failure's backoff keeps it, so repeated clicks do not press a forge that limits Park. Only sessions may ask: no token scope allows it.
 
 Set aside: a sweep on demand, which refreshes every open pull request in full and costs a team's repositories hundreds of points of the hourly limit each time.
+
+### D65. A member keeps a way in
+
+Forge sign-in finds a member by the account they linked, and a member who joined through the forge has no password. Unlinking that account left them no way in: the next sign-in found no member for the account, and was refused, or, where admission allowed it, made a new member. This came to light when Settings gained an unlink button, which would have put it one click away. So the last way in cannot be unlinked, as the last admin cannot be demoted; a member connects another account first.

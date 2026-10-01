@@ -64,6 +64,8 @@ There is never a default account or a default password.
 
 An admin can also link an account by hand, and the link records who made it. Typing in a username is never enough: if it were, anyone could read anyone's queue. For the same reason, an OIDC claim is trusted for linking only if it carries the forge's numeric account ID, never a login.
 
+A member can unlink an account, unless it is their last way in: a local password, or an account on a forge with a sign-in provider. A member who joined through forge sign-in has no password, and forge sign-in finds members only by their linked accounts, so unlinking that account would leave the next sign-in finding no one ([D65](10-design-log.md#d65-a-member-keeps-a-way-in)).
+
 ## Flow: API tokens
 
 1. A member creates a token with a name, its scopes, and an optional expiry — for themselves, or for a bridge they registered ([Grouping](03-grouping.md#data)).
@@ -98,3 +100,4 @@ Disabling a member revokes their tokens and sessions, and ends their leases. The
 - **I7. Visibility follows the forge**, pull request by pull request, for reads and writes alike.
 - **I8. Members are disabled, never deleted.**
 - **I9. Secrets stay out of logs and events**: passwords, tokens, session IDs, and provider credentials.
+- **I10. A member keeps a way in.** Their last way to sign in cannot be unlinked.

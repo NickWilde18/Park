@@ -5,7 +5,8 @@ import { words } from '../format'
 
 const taskActions = ['resolve_conflicts', 'fix_checks', 'address_comments', 'request_review', 'review']
 
-// My settings: which of my actions become tasks, and in which repositories; my API tokens; and my linked accounts.
+// My settings: which of my actions become tasks, and in which repositories; my API tokens; and my linked accounts,
+// which I can unlink, unless one is my last way in.
 export default function Settings() {
   const [created, setCreated] = useState('')
   const [notice, setNotice] = useState('')
@@ -43,6 +44,11 @@ export default function Settings() {
   const revoke = async (id: string) => {
     const { error } = await api.DELETE('/me/tokens/{token}', { params: { path: { token: id } } })
     setNotice(error ? problem(error) : 'Token revoked.')
+    refresh()
+  }
+  const unlink = async (id: number) => {
+    const { error } = await api.DELETE('/me/identities/{id}', { params: { path: { id } } })
+    setNotice(error ? problem(error) : 'Account unlinked.')
     refresh()
   }
   if (!data) return <p className="quiet">Loading…</p>
@@ -104,7 +110,10 @@ export default function Settings() {
       <ul>
         {identities.map((i) => (
           <li key={i.id}>
-            {i.login} on {i.forge_name}
+            {i.login} on {i.forge_name}{' '}
+            <button aria-label={`Unlink ${i.login} on ${i.forge_name}`} onClick={() => void unlink(i.id)}>
+              Unlink
+            </button>
           </li>
         ))}
       </ul>

@@ -3,6 +3,36 @@ import { call, signIn } from './session.ts'
 
 // These tests change the groups, so they run after the others: files run in order of name.
 
+// The suggestions inbox. Each suggestion names its pull request, the signal's reason, and the group it is suggested
+// for, under that group's name now: an earlier file renames it. Accepting and dismissing each send their request, and
+// the inbox asks again, until none is left and it goes. Park's suggestions and answers are given here, so that the
+// groups are left as they were.
+test('the groups page lists suggestions, to accept or dismiss', async ({ page }) => {
+  let open = [
+    { id: 7, pull_request: 3, group: 1, reason: 'is in the same stack', created_at: '2026-10-01T12:00:00Z' },
+    { id: 8, pull_request: 6, group: 1, reason: 'refers to them, and they to it', created_at: '2026-10-01T12:00:00Z' },
+  ]
+  const sent: string[] = []
+  await page.route('**/api/v1/suggestions', (route) => route.fulfill({ json: { suggestions: open } }))
+  await page.route(/\/api\/v1\/suggestions\/\d+\/(accept|dismiss)$/, async (route) => {
+    const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
+    sent.push(path)
+    open = open.filter((s) => s.id !== Number(path.split('/')[2]))
+    await route.fulfill({ status: 204 })
+  })
+  await signIn(page, 'ana')
+  const group = ((await call(page, 'GET', '/groups/1')).body as { name: string }).name
+  await page.getByRole('link', { name: 'Groups' }).click()
+  const inbox = page.getByRole('region', { name: 'Suggested' })
+  await expect(inbox.getByRole('listitem')).toHaveCount(2)
+  await expect(inbox.getByRole('listitem').first()).toContainText(`api#13 Invoice layout is in the same stack — suggested for ${group}`)
+  await inbox.getByRole('button', { name: `Accept api#13 into ${group}` }).click()
+  await expect(inbox.getByRole('listitem')).toHaveCount(1)
+  await inbox.getByRole('button', { name: `Dismiss api#16 for ${group}` }).click()
+  await expect(page.getByRole('region', { name: 'Suggested' })).toHaveCount(0)
+  expect(sent).toEqual(['/suggestions/7/accept', '/suggestions/8/dismiss'])
+})
+
 // Ana's pull request 11 merged yesterday: its page names it, and says how its unit closed.
 test('a closed unit shows how it closed', async ({ page }) => {
   await signIn(page, 'ana')
