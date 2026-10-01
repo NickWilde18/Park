@@ -14,7 +14,7 @@ test('saving automation keeps the repositories it is limited to', async ({ page 
 
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.getByLabel('review', { exact: true }).check()
-  await page.getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByText('Automation saved.')).toBeVisible()
   const saved = (await call(page, 'GET', '/me/automation')).body as Automation
   expect([...saved.actions].sort()).toEqual(['address_comments', 'fix_checks', 'review'])
@@ -115,4 +115,68 @@ test('the sign-in page says why a sign-in through a provider failed', async ({ p
   await expect(page.getByText('This forge account is not a member of Park. Ask an admin for an invite.')).toBeVisible()
   await page.goto('/?sign_in_error=something_new')
   await expect(page.getByText('The sign-in did not work. Try again.')).toBeVisible()
+})
+
+// Ana, an admin, connects Park from Settings. She adds a forge and renames it, and adds an installation on it with a
+// token, which is never shown back: the installation says where its webhooks go, and once she sets a secret, that it
+// has one. Stopping watching the seeded repository, refreshing it, and watching another each send their request,
+// answered here, so that the seeded repository stays watched and no forge is asked. She registers a bridge she owns,
+// and gets its token, shown once.
+test('an admin connects forges, installations, repositories, and bridges', async ({ page }) => {
+  const sent: string[] = []
+  await page.route(/\/api\/v1\/(admin\/repos(\/\d+)?|prs\/refresh)(\?.*)?$/, async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') return route.continue()
+    const url = new URL(request.url())
+    sent.push(`${request.method()} ${url.pathname.replace('/api/v1', '')}${url.search} ${request.postData() ?? ''}`.trim())
+    await route.fulfill(url.pathname.endsWith('/prs/refresh') ? { status: 202 } : { status: request.method() === 'POST' ? 201 : 200, json: {} })
+  })
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Settings' }).click()
+  const connections = page.getByRole('region', { name: 'Connections' })
+
+  await connections.getByLabel("New forge's name").fill('Other')
+  await connections.getByLabel("New forge's base address").fill('https://forge.example.test')
+  await connections.getByRole('button', { name: 'Add a forge' }).click()
+  await expect(connections.getByText('Other added.')).toBeVisible()
+  const renamed = connections.getByRole('textbox', { name: /^Name of forge \d+$/ }).last()
+  await expect(renamed).toHaveValue('Other')
+  await renamed.fill('Other forge')
+  await renamed.locator('xpath=..').getByRole('button', { name: 'Save forge Other' }).click()
+  await expect(connections.getByText('Other forge: saved.')).toBeVisible()
+
+  await connections.getByLabel("New installation's forge").selectOption({ label: 'Other forge' })
+  await connections.getByLabel("New installation's name").fill('others')
+  await connections.getByLabel("New installation's token").fill('a-secret-token')
+  await connections.getByRole('button', { name: 'Add an installation' }).click()
+  const installed = connections.getByRole('listitem').filter({ hasText: 'others on Other forge' })
+  await expect(installed).toContainText('with a token')
+  await expect(installed).toContainText(/Webhooks go to \S+\/hooks\/\d+, with no secret/)
+  await expect(page.getByText('a-secret-token')).toHaveCount(0)
+  await installed.getByLabel('New webhook secret of others').fill('hook-secret')
+  await installed.getByRole('button', { name: 'Save installation others' }).click()
+  await expect(installed).toContainText('with a secret')
+
+  const watched = connections.getByRole('checkbox', { name: 'Watch acme/api' })
+  await expect(watched).toBeChecked()
+  await watched.click()
+  await expect(connections.getByText('acme/api: saved.')).toBeVisible()
+  await connections.getByRole('button', { name: 'Refresh acme/api' }).click()
+  await expect(connections.getByText('Asked the forge about acme/api.')).toBeVisible()
+  await connections.getByLabel('Repository owner').fill('acme')
+  await connections.getByLabel('Repository name').fill('web')
+  await connections.getByRole('button', { name: 'Watch', exact: true }).click()
+  await expect(connections.getByText('acme/web is watched.')).toBeVisible()
+  await expect(watched).toBeChecked()
+  expect(sent).toHaveLength(3)
+  expect(sent[0]).toMatch(/^PATCH \/admin\/repos\/\d+ \{"watched":false\}$/)
+  expect(sent[1]).toMatch(/^POST \/prs\/refresh\?repo=\d+$/)
+  expect(sent[2]).toMatch(/^POST \/admin\/repos \{"installation_id":\d+,"owner":"acme","name":"web"\}$/)
+
+  await connections.getByLabel("New bridge's name").fill('Threads')
+  await connections.getByLabel("New bridge's link template").fill('https://chat.example.test/t/{id}')
+  await connections.getByRole('button', { name: 'Register a bridge' }).click()
+  await expect(connections.getByRole('listitem').filter({ hasText: /^Threads, owned by Ana/ })).toContainText('https://chat.example.test/t/{id}')
+  await connections.getByRole('button', { name: 'Create a token for Threads' }).click()
+  await expect(connections.locator('.notice code')).toHaveText(/^park_/)
 })
