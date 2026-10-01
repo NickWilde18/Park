@@ -4,16 +4,18 @@
 #
 #   scripts/local.sh [--executor-token FILE] [--bridge NAME --bridge-token FILE] owner/name...
 #
-# The first run sets Park up. It asks for the admin's username and password, a GitHub token that can read the
-# repositories, and your GitHub login, which it links to the admin. It adds the GitHub forge, the token as an
-# installation, and the repositories, and makes a token for park-executor, scoped to read and tasks:work, in
+# The first run sets Park up. It asks for the admin's username and password, a classic GitHub token with the repo and
+# read:org scopes, which must read the repositories, and your GitHub login, which it links to the admin. An answer
+# Park or GitHub refuses is explained and asked for again. It adds the GitHub forge, the token as an installation, and
+# the repositories, and makes a token for park-executor, scoped to read and tasks:work, in
 # ~/.config/park-executor/token, or the file --executor-token names. With --bridge, it registers a bridge of that name
 # and makes its token, scoped to assertions:write, in the file --bridge-token names. Later runs only serve Park;
 # Ctrl-C stops it.
 #
 # The secret key that encrypts the credentials Park stores is kept in ~/.config/park-local/secret_key, so that a
 # restarted Park can read them; Park's log is there too. $PARK_LOCAL_DIR, $PARK_LOCAL_DB, and $PARK_LOCAL_PORT choose
-# another directory, database, and port.
+# another directory, database, and port, and $PARK_LOCAL_GITHUB_API another address for GitHub's API, which
+# scripts/local_test.py fakes.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -64,10 +66,11 @@ trap 'kill $park 2>/dev/null || true' EXIT INT TERM
 for _ in $(seq 60); do curl -fsS -o /dev/null "$URL/readyz" 2>/dev/null && break; sleep 0.5; done
 curl -fsS -o /dev/null "$URL/readyz"
 
-# field reads one field of a JSON answer.
+# field reads one field of a JSON answer; reason reads the message of an error answer, as curl -i prints it.
 field() { python3 -c "import json, sys; print(json.load(sys.stdin)$1)"; }
+reason() { tr -d '\r' | sed '1,/^$/d' | field '["error"]["message"]' 2>/dev/null || echo "It gave no reason."; }
 
-# ask reads a line; hidden asks without echoing it.
+# ask reads a line; hidden asks without echoing it, and keeps the line as typed, spaces at its ends too.
 ask() {
   printf '%s' "$1" >&2
   read -r answer || { echo "no answer" >&2; exit 1; }
@@ -76,33 +79,65 @@ ask() {
 hidden() {
   printf '%s' "$1" >&2
   if [ -t 0 ]; then stty -echo; fi
-  read -r answer || answer=""
+  IFS= read -r answer || answer=""
   if [ -t 0 ]; then stty echo; fi
   echo >&2
   [ -n "$answer" ] || { echo "no answer" >&2; exit 1; }
   printf '%s' "$answer"
 }
 
+# The password and the token reach python3 and curl through the environment and standard input, never a command line,
+# which every user of this machine can read.
+github="${PARK_LOCAL_GITHUB_API:-https://api.github.com}"
 if [ "$(curl -fsS "$URL/api/v1/setup" | field '["needed"]')" = "True" ]; then
   echo "Setting Park up."
-  username="$(ask "The admin's username [$USER]: ")"
-  username="${username:-$USER}"
-  password="$(hidden "The admin's password, at least 12 characters: ")"
-  body="$(python3 -c 'import json, sys; print(json.dumps({"code": sys.argv[1], "username": sys.argv[2], "password": sys.argv[3], "display_name": sys.argv[2]}))' \
-    "$PARK_SETUP_CODE" "$username" "$password")"
-  cookie="$(curl -fsS -D - -o /dev/null -H 'Content-Type: application/json' -d "$body" "$URL/api/v1/setup" |
-    sed -n 's/^[Ss]et-[Cc]ookie: \(park_session=[^;]*\).*/\1/p')"
+  while :; do
+    username="$(ask "The admin's username [$USER]: ")"
+    username="${username:-$USER}"
+    password="$(hidden "The admin's password, at least 12 characters: ")"
+    reply="$(code="$PARK_SETUP_CODE" username="$username" password="$password" python3 -c 'import json, os; e = os.environ
+print(json.dumps({"code": e["code"], "username": e["username"], "password": e["password"], "display_name": e["username"]}))' |
+      curl -sS -i -H 'Content-Type: application/json' --data-binary @- "$URL/api/v1/setup")"
+    cookie="$(printf '%s\n' "$reply" | sed -n 's/^[Ss]et-[Cc]ookie: \(park_session=[^;]*\).*/\1/p')"
+    [ -z "$cookie" ] || break
+    echo "Park refused that. $(printf '%s\n' "$reply" | reason)" >&2
+  done
+  # Park keeps a username in lower case.
+  username="$(printf '%s' "$username" | tr '[:upper:]' '[:lower:]')"
+  echo "Created the admin $username."
   me="$(curl -fsS -H "Cookie: $cookie" "$URL/api/v1/me")"
   csrf="$(printf '%s' "$me" | field '["csrf_token"]')"
   member="$(printf '%s' "$me" | field '["member"]["id"]')"
   call() {
-    curl -sS --fail-with-body -X "$1" -H "Cookie: $cookie" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' -d "$3" "$URL/api/v1$2"
+    printf '%s' "$3" | curl -sS --fail-with-body -X "$1" -H "Cookie: $cookie" -H "X-CSRF-Token: $csrf" \
+      -H 'Content-Type: application/json' --data-binary @- "$URL/api/v1$2"
   }
 
-  token="$(hidden "A GitHub token that can read the repositories: ")"
+  # GitHub names a classic token's scopes in X-OAuth-Scopes; a fine-grained token's answer has no such header to check.
+  while :; do
+    token="$(hidden "A classic GitHub token with the repo and read:org scopes: ")"
+    reply="$(printf 'Authorization: Bearer %s\n' "$token" | curl -sS -o /dev/null -D - -H @- "$github/user" | tr -d '\r')"
+    status="$(printf '%s\n' "$reply" | sed -n '1s/^HTTP[^ ]* \([0-9]*\).*/\1/p')"
+    case "$status" in
+      200) ;;
+      401) echo "GitHub refused that token." >&2; continue ;;
+      "") echo "GitHub did not answer; is this machine online?" >&2; continue ;;
+      *) echo "GitHub answered $status to that token." >&2; continue ;;
+    esac
+    printf '%s\n' "$reply" | grep -qi '^x-oauth-scopes:' || break
+    scopes=", $(printf '%s\n' "$reply" | grep -i '^x-oauth-scopes:' | sed 's/^[^:]*: *//'),"
+    missing=""
+    case "$scopes" in *", repo,"*) ;; *) missing="repo" ;; esac
+    case "$scopes" in *", read:org,"* | *", write:org,"* | *", admin:org,"*) ;; *) missing="${missing:+$missing and }read:org" ;; esac
+    [ -n "$missing" ] || break
+    case "$missing" in
+      *" and "*) echo "That token lacks the $missing scopes." >&2 ;;
+      *) echo "That token lacks the $missing scope." >&2 ;;
+    esac
+  done
   forge="$(call POST /admin/forges '{"kind": "github", "name": "GitHub", "base_address": "https://github.com"}' | field '["id"]')"
-  body="$(python3 -c 'import json, sys; print(json.dumps({"forge_id": int(sys.argv[1]), "name": "github", "kind": "token", "token": sys.argv[2]}))' \
-    "$forge" "$token")"
+  body="$(forge="$forge" token="$token" python3 -c 'import json, os; e = os.environ
+print(json.dumps({"forge_id": int(e["forge"]), "name": "github", "kind": "token", "token": e["token"]}))')"
   installation="$(call POST /admin/installations "$body" | field '["id"]')"
   for repo in "$@"; do
     owner="${repo%%/*}"
@@ -116,7 +151,7 @@ if [ "$(curl -fsS "$URL/api/v1/setup" | field '["needed"]')" = "True" ]; then
   done
 
   login="$(ask "Your GitHub login: ")"
-  account="$(curl -fsS "https://api.github.com/users/$login" | field '["id"]')"
+  account="$(curl -fsS "$github/users/$login" | field '["id"]')"
   call POST "/admin/members/$member/identities" "{\"forge_id\": $forge, \"account_id\": $account}" > /dev/null
   echo "Linked $login to $username."
 
