@@ -45,6 +45,8 @@ Work moves through a queue table in Postgres. Each entry names a kind and a key 
 
 A stage writes its output and the entries for the stages after it in the same transaction, so a change is never recorded without its follow-up work, or the other way round.
 
+The event stream's notices are written the same way: a trigger on each table the dashboard shows — verdicts, tasks, groups and their pull requests, and pull requests' facts — adds a notice as the transaction that makes the change commits, one transaction at a time, so notices are numbered in the order their changes commit. Each stream reads the notices after the last one it sent, once a second; a fresh stream begins after the newest committed, and the dashboard fetches what it shows again each time its stream opens ([D59](10-design-log.md#d59-notices-are-written-by-the-changes-themselves)).
+
 All coordination goes through Postgres, so several `park serve` processes can run side by side. One is enough for most teams.
 
 ## Layout
@@ -52,6 +54,7 @@ All coordination goes through Postgres, so several `park serve` processes can ru
 ```
 Park/
   cmd/park/            entry point: serve, migrate, version
+  cmd/seed/            a small team's pull requests, for the dashboard's end-to-end tests
   api/openapi.yaml     the contract
   internal/
     facts/             refresh, webhook intake, polling, fact events, and the collector interface it calls
@@ -62,6 +65,7 @@ Park/
     rules/             rule sets, the field catalog, compilation to CEL
     tasks/             creation, leases, verification
     identity/          members, identities, sign-in providers, tokens, sessions
+    events/            the event stream's notices
     httpapi/           handlers generated from the contract, and middleware
     store/             Postgres access and migrations
     work/              the work queue and notifications
