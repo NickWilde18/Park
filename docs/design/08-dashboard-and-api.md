@@ -46,7 +46,7 @@ Each role's list drawn as its first-match tree, with passed-over labels on the e
 
 ### Settings
 
-Mine: automation (which actions become tasks, in which repositories), linked identities, which I connect through a sign-in provider and can unlink unless one is my last way in ([I10](07-identity.md#rules)), tokens. For admins: installations and repositories; members, with their permissions and the accounts linked to them by hand; invites, whose code and link are shown once; sign-in providers, with the callback address each forge needs; the model provider and each question's threshold; and grouping settings.
+Mine: automation (which actions become tasks, in which repositories), linked identities, which I connect through a sign-in provider and can unlink unless one is my last way in ([I10](07-identity.md#rules)), tokens. For admins: forges; installations, with the address each forge delivers webhooks to, and credentials typed in and never shown back; repositories, to watch, stop watching, or refresh now; bridges, with a token for one the admin owns, shown once; members, with their permissions and the accounts linked to them by hand; invites, whose code and link are shown once; sign-in providers, with the callback address each forge needs; the model provider and each question's threshold; and grouping settings.
 
 ## Live updates
 

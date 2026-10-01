@@ -2,12 +2,13 @@ import { useState, type FormEvent } from 'react'
 import { api, problem } from '../api/client'
 import { useFetch } from '../fetch'
 import { since } from '../format'
+import Connections from './Connections'
 
 type Answer = Promise<{ error?: unknown }>
 
 // Administration is what an admin keeps in Settings: the members, with their permissions and the accounts linked to
-// them by hand; the invites, whose code is shown once; and the sign-in providers, with the callback address each
-// forge needs. Park keeps at least one active admin, and says so when a change would leave none. After each change it
+// them by hand; the invites, whose code is shown once; the sign-in providers, with the callback address each forge
+// needs; and what Park connects to (Connections). Park keeps at least one active admin, and says so when a change would leave none. After each change it
 // tells Settings, whose own parts, such as the providers to connect an account through, may have changed with it.
 export default function Administration({ changed }: { changed: () => void }) {
   const [notice, setNotice] = useState('')
@@ -153,7 +154,9 @@ export default function Administration({ changed }: { changed: () => void }) {
             <input name="name" defaultValue={p.name} aria-label={`Name of ${p.id}`} />
             <input name="client_id" defaultValue={p.client_id} aria-label={`Client ID of ${p.id}`} />
             <input name="client_secret" type="password" autoComplete="off" placeholder="New client secret" aria-label={`New client secret of ${p.id}`} />
-            <button type="submit">Save</button>
+            <button type="submit" aria-label={`Save provider ${p.name}`}>
+              Save
+            </button>
           </form>{' '}
           <button onClick={() => void done(api.DELETE('/admin/providers/{provider}', { params: { path: { provider: p.id } } }), `${p.name} removed.`)}>
             Remove {p.name}
@@ -185,6 +188,7 @@ export default function Administration({ changed }: { changed: () => void }) {
         <input name="client_secret" type="password" autoComplete="off" placeholder="Client secret" aria-label="Provider client secret" required />
         <button type="submit">Add a provider</button>
       </form>
+      <Connections members={members} />
     </section>
   )
 }
