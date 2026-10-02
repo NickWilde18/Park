@@ -31,7 +31,7 @@ Park learns about the world through facts: immutable, attributed records. This c
 | Stack | The number of the stack the forge records the pull request in, unique within its repository; none for a pull request in no stack, and on a forge that records no stacks |
 | Merge | Mergeability: clean, conflicting, or unknown; and the forge's own merge verdict: whether it can be merged now, and what blocks it — reviews, code owners, checks, being behind the base, conflicts, or something else |
 | Review requests | Each requested account or team, with the time of the request, and whether it was made to a code owner |
-| Reviews | Each review: ID, author, state (approved, changes requested, or commented), the commit it was on, time, whether it was dismissed, whether it has a written body, and whether its author's approval counts toward the forge's requirement |
+| Reviews | Each review: ID, author, state (approved, changes requested, or commented), the commit it was on, time, whether it was dismissed, whether it has a written body, whether its author's approval counts toward the forge's requirement, and whether a bot submitted it |
 | Threads | Each review thread: ID, resolved, outdated, and the ID, author, time, and last edit time of its first comment and its latest twenty ([D49](10-design-log.md#d49-collecting-within-the-forges-limits)) |
 | Conversation | The ID, author, and time of each comment on the pull request itself |
 | Checks | Each check on the head commit: name, state, and whether it is required; the required checks that have not reported on it yet |

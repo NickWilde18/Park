@@ -95,6 +95,8 @@ type Review struct {
 	HasBody bool      `json:"has_body"`
 	// Counts is whether the author's approval counts toward the forge's requirement.
 	Counts bool `json:"counts"`
+	// Bot is whether a bot submitted it: its body waits for no answer.
+	Bot bool `json:"bot,omitempty"`
 }
 
 // Review states. A dismissed review keeps nothing of its decision.
