@@ -3384,7 +3384,7 @@ components:
             $ref: "#/components/schemas/BoardPullRequest"
     BoardPullRequest:
       type: object
-      required: [summary, updated_at, chain, threads_unresolved]
+      required: [summary, updated_at, chain, threads_unresolved, holders]
       properties:
         summary:
           $ref: "#/components/schemas/PullRequestSummary"
@@ -3409,6 +3409,13 @@ components:
         requested:
           type: boolean
           description: A review is asked of the caller directly; absent when the caller has no part.
+        holders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Holder"
+          description: >-
+            The unit's holders, each with what they hold on this pull request; empty when none of them holds anything
+            here.
     ItemTargets:
       type: object
       properties:

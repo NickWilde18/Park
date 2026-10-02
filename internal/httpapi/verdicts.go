@@ -51,8 +51,7 @@ func verdictOut(v verdicts.Verdict, inputs bool) Verdict {
 	for _, h := range v.Holders {
 		holder := Holder{Account: accountOut(h.Account, h.Login, h.Name), Since: h.Since, Parts: []HeldPart{}}
 		for _, p := range h.Parts {
-			holder.Parts = append(holder.Parts, HeldPart{PullRequest: p.PR, Kind: HeldPartKind(p.Kind), Action: optional(p.Action),
-				Targets: listOf(p.Targets), Priority: HeldPartPriority(p.Priority), Reason: p.Reason})
+			holder.Parts = append(holder.Parts, heldPartOut(p))
 		}
 		out.Holders = append(out.Holders, holder)
 	}
@@ -71,6 +70,12 @@ func verdictOut(v verdicts.Verdict, inputs bool) Verdict {
 		out.Inputs = &list
 	}
 	return out
+}
+
+// heldPartOut is what a holder holds on one pull request.
+func heldPartOut(p verdicts.HeldPart) HeldPart {
+	return HeldPart{PullRequest: p.PR, Kind: HeldPartKind(p.Kind), Action: optional(p.Action), Targets: listOf(p.Targets),
+		Priority: HeldPartPriority(p.Priority), Reason: p.Reason}
 }
 
 // partOut is one person's part on one pull request, with the path of rules that decided it.

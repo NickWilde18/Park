@@ -78,15 +78,34 @@ const columns: Column[] = [
     key: 'todo',
     label: 'To do',
     wrap: true,
-    pr: (p) =>
-      p.part ? (
+    pr: (p) => {
+      const mine = p.part
+      if (mine && mine.kind !== 'idle') {
+        return (
+          <>
+            <strong>{words(mine.action ?? mine.kind)}</strong> — {mine.reason}
+          </>
+        )
+      }
+      // With nothing to do of my own, the holders' parts on this pull request say what the ball waits for.
+      const held = p.holders.flatMap((h) => h.parts.map((hp) => `${h.account.login}: ${words(hp.action ?? hp.kind)} — ${hp.reason}`))
+      if (held.length > 0) return <span className="quiet">{held.join('; ')}</span>
+      return mine ? (
         <>
-          <strong>{words(p.part.action ?? p.part.kind)}</strong> — {p.part.reason}
+          <strong>{words(mine.kind)}</strong> — {mine.reason}
         </>
       ) : (
         quietDash
-      ),
-    sort: (u) => first(u, (p) => p.part?.action ?? p.part?.kind ?? '~'),
+      )
+    },
+    // My own parts first, then the holders', then my waiting, then nothing.
+    sort: (u) =>
+      first(u, (p) => {
+        if (p.part && p.part.kind !== 'idle') return '0' + (p.part.action ?? p.part.kind)
+        const hp = p.holders[0]?.parts[0]
+        if (hp) return '1' + (hp.action ?? hp.kind)
+        return p.part ? '2' + p.part.kind : '~'
+      }),
   },
   {
     key: 'task',
