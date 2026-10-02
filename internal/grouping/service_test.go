@@ -416,6 +416,122 @@ func TestArchive(t *testing.T) {
 	}
 }
 
+// No open suggestion names an archived group, which nobody can accept a pull request into (#51):
+//
+//   - Moved by hand: a member puts a branch's two pull requests in a group of their own. The branch claim loses for
+//     both, and the branch's group, left with no open pull request, is archived in the same resolution; no
+//     suggestion back to it is left open.
+//   - Archived later: web#4's branch claim loses to its issue claim, and suggests the branch's group, where api#3 is.
+//     Once api#3 merges, that group is archived, and the suggestion goes.
+//   - Left from before: an open suggestion an earlier Park left naming an archived group goes at the next resolution;
+//     a dismissed one stays recorded.
+//   - Merged away: the same suggestion, for a branch group a member then merges into another. The suggestion names
+//     the group it joined instead, and accepting it puts web#4 there.
+func TestNoSuggestionForAnArchivedGroup(t *testing.T) {
+	naming := func(t *testing.T, e *env, group int64) []SuggestionView {
+		t.Helper()
+		sugs, err := e.s.Suggestions(e.ctx)
+		must(t, err)
+		var out []SuggestionView
+		for _, s := range sugs {
+			if s.Group == group {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	archived := func(t *testing.T, e *env, group int64) bool {
+		t.Helper()
+		var state string
+		must(t, e.pool.QueryRow(e.ctx, "SELECT state FROM pr_group WHERE id = $1", group).Scan(&state))
+		return state == "archived"
+	}
+	// issued sets up the second and third cases: web#4's branch claim lost to its issue claim, and suggests the branch's
+	// group.
+	issued := func(t *testing.T) (*env, int64) {
+		t.Helper()
+		e := newEnv(t)
+		e.pr(t, "api", 3, "feat/b", "main", nil)
+		e.pr(t, "web", 4, "feat/b", "main", nil)
+		e.pr(t, "mobile", 5, "feat/c", "main", func(p *facts.PR) { p.ClosesIssues = []facts.Ref{{Repo: 101, Number: 50}} })
+		e.resolve(t)
+		branch, _, _ := e.group(t, "api#3")
+		e.pr(t, "web", 4, "feat/b", "main", func(p *facts.PR) { p.ClosesIssues = []facts.Ref{{Repo: 101, Number: 50}} })
+		e.resolve(t)
+		if sugs := naming(t, e, branch); branch == 0 || len(sugs) != 1 || sugs[0].PR != e.prs["web#4"] {
+			t.Fatalf("web#4's suggestion for the branch's group %d: %+v", branch, sugs)
+		}
+		return e, branch
+	}
+
+	t.Run("moved by hand", func(t *testing.T) {
+		e := newEnv(t)
+		a := e.pr(t, "api", 1, "feat/a", "main", nil)
+		b := e.pr(t, "web", 2, "feat/a", "main", nil)
+		e.resolve(t)
+		branch, _, _ := e.group(t, "api#1")
+		mine, err := e.s.Create(e.ctx, e.actor, "Config", []int64{a, b})
+		must(t, err)
+		if g, _, _ := e.group(t, "web#2"); branch == 0 || g != mine || !archived(t, e, branch) {
+			t.Fatalf("web#2 in %d, want %d; the branch's group %d archived: %v", g, mine, branch, archived(t, e, branch))
+		}
+		if sugs := naming(t, e, branch); len(sugs) != 0 {
+			t.Fatalf("open suggestions for the archived group %d: %+v", branch, sugs)
+		}
+	})
+
+	t.Run("archived later", func(t *testing.T) {
+		e, branch := issued(t)
+		e.pr(t, "api", 3, "feat/b", "main", func(p *facts.PR) { p.State = facts.StateMerged })
+		e.resolve(t)
+		if !archived(t, e, branch) {
+			t.Fatalf("the branch's group %d is not archived", branch)
+		}
+		if sugs := naming(t, e, branch); len(sugs) != 0 {
+			t.Fatalf("open suggestions for the archived group %d: %+v", branch, sugs)
+		}
+	})
+
+	t.Run("left from before", func(t *testing.T) {
+		e, branch := issued(t)
+		e.pr(t, "api", 3, "feat/b", "main", func(p *facts.PR) { p.State = facts.StateMerged })
+		e.resolve(t)
+		// As an earlier Park left them: an open suggestion naming the group archived since, and a dismissed one.
+		_, err := e.pool.Exec(e.ctx, `INSERT INTO suggestion (pr_id, group_id, reason, source, key, state) VALUES
+			($1, $2, 'left behind', 'structural', 'left:open', 'open'), ($1, $2, 'left behind', 'structural', 'left:dismissed', 'dismissed')`,
+			e.prs["web#4"], branch)
+		must(t, err)
+		e.resolve(t)
+		if sugs := naming(t, e, branch); len(sugs) != 0 {
+			t.Fatalf("open suggestions for the archived group %d, from before: %+v", branch, sugs)
+		}
+		var dismissed int
+		must(t, e.pool.QueryRow(e.ctx, "SELECT count(*) FROM suggestion WHERE key = 'left:dismissed' AND state = 'dismissed'").Scan(&dismissed))
+		if dismissed != 1 {
+			t.Fatalf("the dismissed suggestion was dropped: %d left", dismissed)
+		}
+	})
+
+	t.Run("merged away", func(t *testing.T) {
+		e, branch := issued(t)
+		other := e.pr(t, "mobile", 6, "feat/d", "main", nil)
+		joined, err := e.s.Create(e.ctx, e.actor, "Billing", []int64{other})
+		must(t, err)
+		must(t, e.s.Merge(e.ctx, e.actor, joined, branch))
+		if sugs := naming(t, e, branch); len(sugs) != 0 {
+			t.Fatalf("open suggestions for the group %d, merged into %d: %+v", branch, joined, sugs)
+		}
+		sugs := naming(t, e, joined)
+		if len(sugs) != 1 || sugs[0].PR != e.prs["web#4"] {
+			t.Fatalf("web#4's suggestion for the group %d it joined: %+v", joined, sugs)
+		}
+		must(t, e.s.Accept(e.ctx, e.actor, sugs[0].ID))
+		if g, _, _ := e.group(t, "web#4"); g != joined {
+			t.Fatalf("accepted, web#4 is in %d, want %d", g, joined)
+		}
+	})
+}
+
 // Stacked pull requests are never paired by a structural signal (G9), even when both close the issue a third one
 // closes; the chain's root is the one grouped.
 func TestNeverWithinAChain(t *testing.T) {

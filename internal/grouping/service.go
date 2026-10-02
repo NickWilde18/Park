@@ -582,7 +582,10 @@ func (s *Service) suggest(ctx context.Context, tx pgx.Tx, res result, weak []Wea
 }
 
 // archive archives the active groups left with no open pull request, and releases their anchors: a later claim
-// under the same anchor starts a new group. A closed pull request keeps the group it had (G2).
+// under the same anchor starts a new group. A closed pull request keeps the group it had (G2). It then drops the open
+// suggestions that name any archived group, which nobody can accept a pull request into: those opened in this
+// resolution for a group it emptied, and those left from before. A group merged into another is archived too; its
+// claims' anchors now point to the group it joined, so a claim that still loses suggests that group instead.
 func (s *Service) archive(ctx context.Context, tx pgx.Tx, now time.Time) error {
 	rows, err := tx.Query(ctx, `UPDATE pr_group g SET state = 'archived', archived_at = $1
 		WHERE g.state = 'active' AND NOT EXISTS (
@@ -592,9 +595,15 @@ func (s *Service) archive(ctx context.Context, tx pgx.Tx, now time.Time) error {
 		return err
 	}
 	archived, err := pgx.CollectRows(rows, pgx.RowTo[int64])
-	if err != nil || len(archived) == 0 {
+	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, "UPDATE anchor SET group_id = NULL WHERE group_id = ANY($1)", archived)
+	if len(archived) > 0 {
+		if _, err := tx.Exec(ctx, "UPDATE anchor SET group_id = NULL WHERE group_id = ANY($1)", archived); err != nil {
+			return err
+		}
+	}
+	_, err = tx.Exec(ctx, `DELETE FROM suggestion s USING pr_group g
+		WHERE s.state = 'open' AND g.id = s.group_id AND g.state = 'archived'`)
 	return err
 }
