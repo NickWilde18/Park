@@ -264,7 +264,7 @@ func normalize(n *prNode, protection facts.Protection, known bool) facts.Fetched
 			continue
 		}
 		rv := facts.Review{ID: r.DatabaseID, Author: seen.see(r.Author), At: *r.SubmittedAt,
-			HasBody: strings.TrimSpace(r.Body) != "", Counts: r.CanPush}
+			HasBody: strings.TrimSpace(r.Body) != "", Counts: r.CanPush, Bot: r.Author != nil && r.Author.Typename == "Bot"}
 		if r.Commit != nil {
 			rv.Commit = r.Commit.OID
 		}

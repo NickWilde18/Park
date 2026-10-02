@@ -78,7 +78,7 @@ Everything a condition can read. Fields are computed for one person on one pull 
 | `pr.requested` | list of accounts and teams | Pending review requests: accounts, and teams with at least one member other than the author |
 | `pr.hours_requested` | optional number | Hours since the oldest pending review request |
 | `pr.reviewed` | boolean | Someone other than the author has submitted a review |
-| `pr.unanswered_reviews` | number | Reviews with a written body that request changes or only comment, after which the author has neither commented on the pull request nor pushed |
+| `pr.unanswered_reviews` | number | Reviews with a written body that request changes or only comment, written by someone other than a bot, after which the author has neither commented on the pull request nor pushed |
 | `pr.threads_on_reviewers` | number | Unresolved threads whose latest comment is the author's, and whose other participants include someone who has not approved |
 | `pr.awaited_reviewers` | list of accounts | Those participants: the ones who have not approved |
 | `pr.awaited_rerequested` | boolean | Everyone in `pr.awaited_reviewers` has a pending direct review request |
