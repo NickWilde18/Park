@@ -26,6 +26,8 @@ import (
 
 	"github.com/NickWilde18/Park/internal/facts"
 	"github.com/NickWilde18/Park/internal/forges"
+	"github.com/NickWilde18/Park/internal/rules"
+	"github.com/NickWilde18/Park/internal/verdicts"
 )
 
 // fakeAPI is GitHub's API at an Enterprise Server's address: GraphQL answers chosen by a piece of text only their
@@ -186,6 +188,49 @@ func TestFetchPR(t *testing.T) {
 	}
 	if logins[501] != "ana" || logins[502] != "ben" || logins[900] != "ci-bot" {
 		t.Fatalf("accounts %v", logins)
+	}
+}
+
+// A review a bot submitted waits for no answer (#59). The pull request's one review is a bot's note, with a body,
+// that it could not review; the author has neither pushed nor commented since, its one required check passes, and
+// Carol is asked to review. Collected from the forge's answer and evaluated with the default rules, the author is not
+// asked to address the note, and Carol still has her first review to do: the ball is hers, not the author's.
+func TestBotReviewWaitsForNoAnswer(t *testing.T) {
+	f := newFakeAPI(t)
+	f.graphql[probeKey] = stacksSupported
+	f.graphql["baseRefName stack { number }"] = fixture(t, "bot_review.json")
+	c := tokenCollector(t, f)
+	got, err := c.FetchPR(context.Background(), repo, 12, map[string]facts.Protection{
+		"main": {RequiredChecks: []string{"build"}, RequiredApprovals: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rs := got.PR.Reviews; len(rs) != 1 || !rs[0].Bot || !rs[0].HasBody || rs[0].State != facts.ReviewCommented {
+		t.Fatalf("the bot's review: %+v", rs)
+	}
+	compiled, problems := rules.Compile(rules.Default())
+	if len(problems) > 0 {
+		t.Fatalf("the default rules: %+v", problems)
+	}
+	logins := map[int64]string{}
+	for _, a := range got.Accounts {
+		logins[a.ID] = a.Login
+	}
+	now := time.Date(2026, 9, 3, 13, 0, 0, 0, time.UTC)
+	parts := map[string]rules.Part{}
+	for _, p := range verdicts.People(got.PR, verdicts.Context{Now: now, Logins: logins, Teams: map[int64]verdicts.Team{},
+		Nudged: map[int64]time.Time{}, MinimumApprovals: 1}) {
+		parts[logins[p.Account]] = compiled.Evaluate(p.Role, p.Input)
+		if p.Role == rules.Author && p.Input.Fields["pr.unanswered_reviews"] != int64(0) {
+			t.Errorf("the author has %v reviews to answer", p.Input.Fields["pr.unanswered_reviews"])
+		}
+	}
+	if a := parts["ana"]; a.Action == "address_comments" {
+		t.Errorf("the author is asked to answer the bot: %s, %q", a.Action, a.Reason)
+	}
+	if c := parts["carol"]; c.Kind != rules.KindAct || c.Action != "review" {
+		t.Errorf("Carol's part: %s %s, %q", c.Kind, c.Action, c.Reason)
 	}
 }
 
