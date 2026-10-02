@@ -86,7 +86,7 @@ When a pull request's branches change, or a pull request opens or closes:
 
 ## Flow: resolve memberships
 
-Runs when a pull request's facts change, when an assertion that names it is added or retracted, or when a member acts on it. It resolves the whole **component** — every open pull request connected to the changed ones through live assertions — as one batch, in one transaction, in a canonical order: by authority, then by when the claim was first seen, then by key. The outcome therefore does not depend on the order in which events arrived. In the first release one resolution covers every open pull request, which contains every component ([D50](10-design-log.md#d50-an-anchor-takes-only-a-group-no-other-claim-keeps)).
+Runs when a pull request's facts change, when an assertion that names it is added or retracted, or when a member acts on it; and once when Park starts, so that a release's changes to what resolution derives apply without waiting for any of those. It resolves the whole **component** — every open pull request connected to the changed ones through live assertions — as one batch, in one transaction, in a canonical order: by authority, then by when the claim was first seen, then by key. The outcome therefore does not depend on the order in which events arrived. In the first release one resolution covers every open pull request, which contains every component ([D50](10-design-log.md#d50-an-anchor-takes-only-a-group-no-other-claim-keeps)).
 
 1. **Refresh structural assertions** for the component: recompute its signals, retract assertions whose signal is gone, and add new ones.
 2. **Collect live claims** for each pull request: placements that name it, and co-membership assertions that include it.

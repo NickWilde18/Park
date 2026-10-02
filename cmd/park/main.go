@@ -135,6 +135,9 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	if err := collected.Start(ctx); err != nil {
 		return fmt.Errorf("schedule collection: %w", err)
 	}
+	if err := groups.Start(ctx); err != nil {
+		return fmt.Errorf("schedule grouping: %w", err)
+	}
 	if err := balls.Start(ctx); err != nil {
 		return fmt.Errorf("schedule verdicts: %w", err)
 	}

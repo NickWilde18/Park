@@ -125,6 +125,83 @@ func TestServe(t *testing.T) {
 	}
 }
 
+// park serve resolves the groups once as it starts, so that what a release changes in what resolution derives
+// applies without waiting for a change resolution reads (#53). An earlier Park left an open suggestion naming an
+// archived group, which resolution now drops; nothing changes after serve starts — its pull request is in a
+// repository Park does not watch, so nothing is polled either — and the suggestion is gone within seconds.
+func TestServeResolvesGroups(t *testing.T) {
+	url := storetest.Database(t)
+	vars := env(map[string]string{"PARK_DATABASE_URL": url, "PARK_SECRET_KEY": key, "PARK_HTTP_ADDR": "127.0.0.1:0"})
+	if err := run(context.Background(), []string{"migrate"}, vars, io.Discard, io.Discard, nil); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := pgxpool.New(context.Background(), url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	var forge, inst, repo, pr, group, suggestion int64
+	for _, step := range []struct {
+		sql  string
+		args []any
+		into *int64
+	}{
+		{"INSERT INTO forge (kind, name, base_address) VALUES ('github', 'GitHub', 'https://github.com') RETURNING id", nil, &forge},
+		{"INSERT INTO installation (forge_id, name, credential_kind, credential) VALUES ($1, 'acme', 'token', '') RETURNING id",
+			[]any{&forge}, &inst},
+		{`INSERT INTO repo (forge_id, forge_repo_id, installation_id, owner, name, default_branch, watched)
+			VALUES ($1, 101, $2, 'acme', 'api', 'main', false) RETURNING id`, []any{&forge, &inst}, &repo},
+		{`INSERT INTO pr_fact (repo_id, number, state, open, head_sha, head_branch, head_repo_id, base_branch, forge_updated_at,
+			fetched_at, refreshed_at) VALUES ($1, 1, '{}', true, '', 'feat/a', 101, 'main', now(), now(), now()) RETURNING id`,
+			[]any{&repo}, &pr},
+		{"INSERT INTO pr_group (name, name_source, state, archived_at) VALUES ('Gone', 'branch', 'archived', now()) RETURNING id", nil, &group},
+		{"INSERT INTO suggestion (pr_id, group_id, reason, source, key) VALUES ($1, $2, 'left behind', 'structural', 'left') RETURNING id",
+			[]any{&pr, &group}, &suggestion},
+	} {
+		args := make([]any, len(step.args))
+		for i, a := range step.args {
+			args[i] = *a.(*int64)
+		}
+		if err := pool.QueryRow(context.Background(), step.sql, args...).Scan(step.into); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	listening := make(chan string, 1)
+	done := make(chan error, 1)
+	log := &logs{}
+	go func() { done <- run(ctx, []string{"serve"}, vars, io.Discard, log, listening) }()
+	defer func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(15 * time.Second):
+			t.Error("serve did not stop")
+		}
+	}()
+	select {
+	case <-listening:
+	case err := <-done:
+		t.Fatalf("serve stopped: %v\n%s", err, log.String())
+	case <-time.After(30 * time.Second):
+		t.Fatal("serve did not start listening")
+	}
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		var left int
+		if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM suggestion WHERE id = $1 AND state = 'open'",
+			suggestion).Scan(&left); err != nil {
+			t.Fatal(err)
+		}
+		if left == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("10s after serve started, the suggestion naming the archived group %d is still open; log:\n%s", group, log.String())
+		}
+	}
+}
+
 // logs collects what serve logs, and can be read while serve still runs.
 type logs struct {
 	b  bytes.Buffer
