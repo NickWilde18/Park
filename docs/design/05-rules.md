@@ -310,7 +310,7 @@ Passed-over labels: 1 "not a draft", 2 "checks not running", 6 "reviewed before"
 
 ## Editing and publishing
 
-1. **Draft.** A member with the rules permission starts a draft from the published version. Several drafts can exist at once; those not yet published are listed, each with its problems.
+1. **Draft.** A member with the rules permission starts a draft from the published version. Several drafts can exist at once; those not yet published are listed, each with its problems, and any of them can be discarded. A published draft is kept, as the record of how its version was made.
 2. **Edit.** Add, remove, and reorder rules; edit conditions in the structured editor or as expressions; edit conclusions.
 3. **Check on save.** Every condition and reason template is compiled and type-checked against the field catalog, and errors are shown on the rule. A draft with errors can be saved, but not published.
 4. **Preview.** The draft is evaluated against the current facts of every open unit, using recorded judgements only — the preview never calls the model, and shows a judgement with no recorded answer as "would ask the model". The version in force is evaluated beside it, from the same facts at the same moment, so that every change listed is the draft's own: a unit's stored verdict can be older than its facts, or than the clock the fields of elapsed time read. The dashboard lists every verdict that would change, before and after, and every unit whose ball the draft would leave to the fallback. The preview stores nothing. A draft with problems is not previewed, since its rules cannot be evaluated; one started from an older version is, against the version in force.

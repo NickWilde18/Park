@@ -274,3 +274,13 @@ func (s *server) PublishRuleSetDraft(ctx context.Context, req PublishRuleSetDraf
 	out, err := versionOut(v)
 	return PublishRuleSetDraft201JSONResponse(out), err
 }
+
+func (s *server) DeleteRuleSetDraft(ctx context.Context, req DeleteRuleSetDraftRequestObject) (DeleteRuleSetDraftResponseObject, error) {
+	if _, err := requireRules(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.rules.DeleteDraft(ctx, req.Id); err != nil {
+		return nil, err
+	}
+	return DeleteRuleSetDraft204Response{}, nil
+}

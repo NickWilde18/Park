@@ -974,7 +974,11 @@ export interface paths {
         /** Replace a draft's rules, and with base_version, bring it up to date */
         put: operations["updateRuleSetDraft"];
         post?: never;
-        delete?: never;
+        /**
+         * Discard a draft not yet published
+         * @description Needs the rules permission; any member who holds it may discard any draft. A published draft is kept, as the record of how its version was made: discarding it is refused with draft_published.
+         */
+        delete: operations["deleteRuleSetDraft"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4036,6 +4040,27 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RuleSetDraft"];
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteRuleSetDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The draft is gone. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };

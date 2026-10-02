@@ -1256,6 +1256,20 @@ paths:
                 $ref: "#/components/schemas/RuleSetDraft"
         default:
           $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteRuleSetDraft
+      summary: Discard a draft not yet published
+      description: >-
+        Needs the rules permission; any member who holds it may discard any draft. A published draft is kept, as the
+        record of how its version was made: discarding it is refused with draft_published.
+      tags: [rules]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: The draft is gone.
+        default:
+          $ref: "#/components/responses/Error"
   /rulesets/drafts/{id}/preview:
     post:
       operationId: previewRuleSetDraft

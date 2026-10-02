@@ -44,7 +44,7 @@ Tasks by state. The inbox of tasks that need a person, with every attempt's fail
 
 ### Rules
 
-Each role's list drawn as its first-match tree, with passed-over labels on the edges; the editor, structured or expression; drafts, previews with the verdicts they would change, pinned examples, and every published version with its differences from the one before. Drafts and the editor are for members with the rules permission, who also start a draft from a rule-set file.
+Each role's list drawn as its first-match tree, with passed-over labels on the edges; the editor, structured or expression; drafts, previews with the verdicts they would change, pinned examples, and every published version with its differences from the one before. Drafts and the editor are for members with the rules permission, who also start a draft from a rule-set file, and discard one.
 
 ### Settings
 
@@ -77,7 +77,7 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 | Suggestions | `GET /suggestions` · `POST /suggestions/{id}/accept` · `POST /suggestions/{id}/dismiss` |
 | Assertions | `POST /assertions` · `DELETE /assertions?anchor=…` |
 | Proposals | `POST /proposals` · `DELETE /proposals?anchor=…` · `GET /proposals` · `POST /proposals/{id}/accept` · `POST /proposals/{id}/dismiss` |
-| Rules | `GET /fields` · `GET /questions` · `GET /actions` · `GET /rulesets` · `GET /rulesets/{version}` · `GET /rulesets/drafts` · `POST /rulesets/drafts` · `GET /rulesets/drafts/{id}` · `PUT /rulesets/drafts/{id}` · `POST /rulesets/drafts/{id}/preview` · `POST /rulesets/drafts/{id}/publish` · `POST /examples` · `DELETE /examples/{id}` |
+| Rules | `GET /fields` · `GET /questions` · `GET /actions` · `GET /rulesets` · `GET /rulesets/{version}` · `GET /rulesets/drafts` · `POST /rulesets/drafts` · `GET /rulesets/drafts/{id}` · `PUT /rulesets/drafts/{id}` · `DELETE /rulesets/drafts/{id}` · `POST /rulesets/drafts/{id}/preview` · `POST /rulesets/drafts/{id}/publish` · `POST /examples` · `DELETE /examples/{id}` |
 | Tasks | `GET /tasks` · `GET /tasks/{id}` · `POST /tasks/claim` · `POST /tasks/{id}/heartbeat` · `POST /tasks/{id}/report` · `POST /tasks/{id}/release` · `POST /tasks/{id}/retry` · `POST /tasks/{id}/dismiss` |
 | My settings | `GET /me/automation` · `PUT /me/automation` · `GET /me/identities` · `DELETE /me/identities/{id}` · `GET /me/tokens` · `POST /me/tokens` · `DELETE /me/tokens/{id}` |
 | Administration | `/admin/forges` · `/admin/installations` · `/admin/repos` · `/admin/members` · `/admin/invites` · `/admin/providers` · `/admin/bridges` · `/admin/grouping` · `/admin/model` |
