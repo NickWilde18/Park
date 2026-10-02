@@ -278,3 +278,59 @@ func TestRulesOverHTTP(t *testing.T) {
 		t.Fatalf("versions %+v", versions)
 	}
 }
+
+// Discarding drafts over HTTP. A draft not yet published is discarded by any member with the rules permission — Ana,
+// once given it, discards one Root started — and is gone: neither listed nor read. A published draft is kept, as the
+// record of its version. A member without the permission, a read token, and an unknown draft are refused.
+func TestDiscardRuleSetDraftOverHTTP(t *testing.T) {
+	a := newAPI(t)
+	if _, err := a.rules.Bootstrap(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	admin := a.admin(t)
+	var inv NewInvite
+	wantStatus(t, admin.call(t, "POST", "/api/v1/admin/invites", map[string]any{}, &inv), http.StatusCreated, "")
+	ana := a.browser()
+	wantStatus(t, ana.call(t, "POST", "/api/v1/auth/register", map[string]string{"invite": inv.Code, "username": "ana",
+		"password": "a long enough password", "display_name": "Ana"}, nil), http.StatusCreated, "")
+	ana.refreshCSRF(t)
+	var token NewToken
+	wantStatus(t, admin.call(t, "POST", "/api/v1/me/tokens", map[string]any{"name": "reader", "scopes": []string{"read"}}, &token),
+		http.StatusCreated, "")
+	reader := a.browser()
+	reader.bearer = token.Token
+
+	var kept, left RuleSetDraft
+	wantStatus(t, admin.call(t, "POST", "/api/v1/rulesets/drafts", map[string]any{}, &kept), http.StatusCreated, "")
+	keptPath := "/api/v1/rulesets/drafts/" + strconv.FormatInt(kept.Id, 10)
+	wantStatus(t, admin.call(t, "POST", keptPath+"/publish", nil, nil), http.StatusCreated, "")
+	wantStatus(t, admin.call(t, "POST", "/api/v1/rulesets/drafts", map[string]any{}, &left), http.StatusCreated, "")
+	leftPath := "/api/v1/rulesets/drafts/" + strconv.FormatInt(left.Id, 10)
+
+	wantStatus(t, ana.call(t, "DELETE", leftPath, nil, nil), http.StatusForbidden, "forbidden")
+	wantStatus(t, reader.call(t, "DELETE", leftPath, nil, nil), http.StatusForbidden, "insufficient_scope")
+	wantStatus(t, admin.call(t, "DELETE", "/api/v1/rulesets/drafts/999", nil, nil), http.StatusNotFound, "not_found")
+	wantStatus(t, admin.call(t, "DELETE", keptPath, nil, nil), http.StatusConflict, "draft_published")
+
+	var members Members
+	wantStatus(t, admin.call(t, "GET", "/api/v1/admin/members", nil, &members), http.StatusOK, "")
+	for _, m := range members.Members {
+		if m.DisplayName == "Ana" {
+			wantStatus(t, admin.call(t, "PATCH", "/api/v1/admin/members/"+strconv.FormatInt(m.Id, 10), map[string]any{"rules": true}, nil),
+				http.StatusOK, "")
+		}
+	}
+	wantStatus(t, ana.call(t, "DELETE", leftPath, nil, nil), http.StatusNoContent, "")
+	wantStatus(t, admin.call(t, "GET", leftPath, nil, nil), http.StatusNotFound, "not_found")
+	wantStatus(t, admin.call(t, "DELETE", leftPath, nil, nil), http.StatusNotFound, "not_found")
+	var ds RuleSetDrafts
+	wantStatus(t, admin.call(t, "GET", "/api/v1/rulesets/drafts", nil, &ds), http.StatusOK, "")
+	if len(ds.Drafts) != 0 {
+		t.Fatalf("drafts after discarding: %+v", ds.Drafts)
+	}
+	var read RuleSetDraft
+	wantStatus(t, admin.call(t, "GET", keptPath, nil, &read), http.StatusOK, "")
+	if read.PublishedVersion == nil || *read.PublishedVersion != 2 {
+		t.Fatalf("the published draft %+v", read)
+	}
+}

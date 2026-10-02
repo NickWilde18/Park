@@ -36,11 +36,12 @@ export function RuleTree({ rules }: { rules: Schemas['RuleSet'] }) {
 }
 
 // The rule set in force, drawn as its trees. A member with the rules permission also sees the drafts not yet
-// published, and starts one, from the version in force or from a rule-set file.
+// published, starts one, from the version in force or from a rule-set file, and discards one, after asking once more.
 export default function Rules() {
   const { me } = useSession()
   const [notice, setNotice] = useState('')
-  const { data } = useFetch(async () => {
+  const [discarding, setDiscarding] = useState<number | null>(null)
+  const { data, refresh } = useFetch(async () => {
     const list = await api.GET('/rulesets')
     const latest = list.data?.versions[0]
     if (!latest) return { problem: problem(list.error) }
@@ -54,6 +55,12 @@ export default function Rules() {
     const { data, error } = await api.POST('/rulesets/drafts', { body: rules ? { rules } : {} })
     if (error) setNotice(problem(error))
     else navigate(`/rules/drafts/${data.id}`)
+  }
+  const discard = async (id: number) => {
+    const { error } = await api.DELETE('/rulesets/drafts/{id}', { params: { path: { id } } })
+    setDiscarding(null)
+    setNotice(error ? problem(error) : '')
+    refresh()
   }
   const importFile = async (file: File) => {
     let rules: unknown
@@ -91,7 +98,22 @@ export default function Rules() {
                       {d.base_version ? `, from version ${d.base_version}` : ''}, started by {d.created_by_name}, changed {since(d.updated_at)} ago
                     </span>
                     {d.problems.some((p) => p.code === 'stale_draft') && <span className="badge stale">behind version {version.version}</span>}
-                    {n > 0 && <span className="badge stale">{n === 1 ? '1 problem' : `${n} problems`}</span>}
+                    {n > 0 && <span className="badge stale">{n === 1 ? '1 problem' : `${n} problems`}</span>}{' '}
+                    {discarding === d.id ? (
+                      <>
+                        <span>Discard it? It cannot be brought back.</span>{' '}
+                        <button type="button" onClick={() => void discard(d.id)}>
+                          Yes, discard draft {d.id}
+                        </button>{' '}
+                        <button type="button" onClick={() => setDiscarding(null)}>
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button type="button" className="link" aria-label={`Discard draft ${d.id}`} onClick={() => setDiscarding(d.id)}>
+                        Discard
+                      </button>
+                    )}
                   </li>
                 )
               })}

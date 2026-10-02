@@ -53,7 +53,8 @@ function title(role: Role): string {
 // draft's rules, and shows each problem on the rule it is about, even after the rules move. A draft that another
 // version was published after is brought up to date, once its editor has taken that version's changes in, so that
 // publishing does not undo them. The preview runs on the draft as saved, saving it first. Publishing asks once
-// more, and needs a draft saved with no problems.
+// more, and needs a draft saved with no problems. Discarding asks once more too, and drops the draft with any
+// changes not saved.
 function Editor({ initial, catalog, prs }: { initial: Draft; catalog: Catalog; prs: PRs }) {
   const keyed = (rules: Schemas['Rule'][]) => rules.map((rule) => ({ key: newKey(), rule }))
   const [lists, setLists] = useState<Lists>(() => ({ author: keyed(initial.rules.author), reviewer: keyed(initial.rules.reviewer) }))
@@ -68,14 +69,15 @@ function Editor({ initial, catalog, prs }: { initial: Draft; catalog: Catalog; p
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [preview, setPreview] = useState<Schemas['RuleSetPreview'] | null>(null)
-  const [confirming, setConfirming] = useState(false)
+  // confirming is the step asked once more about: publishing, or discarding.
+  const [confirming, setConfirming] = useState<'publish' | 'discard' | null>(null)
   const dirty = edits !== savedEdits
   const path = { params: { path: { id: saved.id } } }
 
   const edit = (role: Role, change: (items: Item[]) => Item[]) => {
     setLists((l) => ({ ...l, [role]: change(l[role]) }))
     setEdits((n) => n + 1)
-    setConfirming(false)
+    setConfirming(null)
   }
   const save = async (base?: number): Promise<Draft | null> => {
     const at = edits
@@ -122,7 +124,16 @@ function Editor({ initial, catalog, prs }: { initial: Draft; catalog: Catalog; p
     const { error } = await api.POST('/rulesets/drafts/{id}/publish', path)
     if (error) {
       setNotice(problem(error))
-      setConfirming(false)
+      setConfirming(null)
+      return
+    }
+    navigate('/rules')
+  }
+  const discard = async () => {
+    const { error } = await api.DELETE('/rulesets/drafts/{id}', path)
+    if (error) {
+      setNotice(problem(error))
+      setConfirming(null)
       return
     }
     navigate('/rules')
@@ -231,20 +242,37 @@ function Editor({ initial, catalog, prs }: { initial: Draft; catalog: Catalog; p
         <button type="button" disabled={busy} onClick={() => void run(runPreview)}>
           Preview
         </button>
-        {confirming ? (
+        {confirming === 'publish' && (
           <>
             <span>Publish this draft as version {upcoming}? Every open unit is evaluated again with it.</span>
             <button type="button" disabled={busy} onClick={() => void run(publish)}>
               Publish version {upcoming}
             </button>
-            <button type="button" onClick={() => setConfirming(false)}>
+            <button type="button" onClick={() => setConfirming(null)}>
               Cancel
             </button>
           </>
-        ) : (
-          <button type="button" disabled={busy || dirty || saved.problems.length > 0} onClick={() => setConfirming(true)}>
-            Publish
-          </button>
+        )}
+        {confirming === 'discard' && (
+          <>
+            <span>Discard this draft? It cannot be brought back.</span>
+            <button type="button" disabled={busy} onClick={() => void run(discard)}>
+              Yes, discard draft {saved.id}
+            </button>
+            <button type="button" onClick={() => setConfirming(null)}>
+              Cancel
+            </button>
+          </>
+        )}
+        {!confirming && (
+          <>
+            <button type="button" disabled={busy || dirty || saved.problems.length > 0} onClick={() => setConfirming('publish')}>
+              Publish
+            </button>
+            <button type="button" disabled={busy} onClick={() => setConfirming('discard')}>
+              Discard
+            </button>
+          </>
         )}
         <span className="quiet">
           {dirty ? 'Unsaved changes.' : saved.problems.length > 0 ? 'Fix the problems to publish.' : ''}

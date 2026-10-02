@@ -2726,6 +2726,9 @@ type ServerInterface interface {
 	// CreateRuleSetDraft Start a draft of the next version, from the published one or from an imported rule-set file
 	// (POST /rulesets/drafts)
 	CreateRuleSetDraft(w http.ResponseWriter, r *http.Request)
+	// DeleteRuleSetDraft Discard a draft not yet published
+	// (DELETE /rulesets/drafts/{id})
+	DeleteRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID)
 	// GetRuleSetDraft A draft, published or not
 	// (GET /rulesets/drafts/{id})
 	GetRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID)
@@ -4202,6 +4205,32 @@ func (siw *ServerInterfaceWrapper) CreateRuleSetDraft(w http.ResponseWriter, r *
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteRuleSetDraft operation middleware
+func (siw *ServerInterfaceWrapper) DeleteRuleSetDraft(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteRuleSetDraft(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetRuleSetDraft operation middleware
 func (siw *ServerInterfaceWrapper) GetRuleSetDraft(w http.ResponseWriter, r *http.Request) {
 
@@ -4902,6 +4931,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rulesets/{version}", wrapper.GetRuleSet)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rulesets/drafts", wrapper.ListRuleSetDrafts)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts", wrapper.CreateRuleSetDraft)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/rulesets/drafts/{id}", wrapper.DeleteRuleSetDraft)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rulesets/drafts/{id}", wrapper.GetRuleSetDraft)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/rulesets/drafts/{id}", wrapper.UpdateRuleSetDraft)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/rulesets/drafts/{id}/preview", wrapper.PreviewRuleSetDraft)
@@ -7404,6 +7434,39 @@ func (response CreateRuleSetDraftdefaultJSONResponse) VisitCreateRuleSetDraftRes
 	return err
 }
 
+type DeleteRuleSetDraftRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteRuleSetDraftResponseObject interface {
+	VisitDeleteRuleSetDraftResponse(w http.ResponseWriter) error
+}
+
+type DeleteRuleSetDraft204Response struct {
+}
+
+func (response DeleteRuleSetDraft204Response) VisitDeleteRuleSetDraftResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteRuleSetDraftdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteRuleSetDraftdefaultJSONResponse) VisitDeleteRuleSetDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetRuleSetDraftRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -8384,6 +8447,9 @@ type StrictServerInterface interface {
 	// CreateRuleSetDraft Start a draft of the next version, from the published one or from an imported rule-set file
 	// (POST /rulesets/drafts)
 	CreateRuleSetDraft(ctx context.Context, request CreateRuleSetDraftRequestObject) (CreateRuleSetDraftResponseObject, error)
+	// DeleteRuleSetDraft Discard a draft not yet published
+	// (DELETE /rulesets/drafts/{id})
+	DeleteRuleSetDraft(ctx context.Context, request DeleteRuleSetDraftRequestObject) (DeleteRuleSetDraftResponseObject, error)
 	// GetRuleSetDraft A draft, published or not
 	// (GET /rulesets/drafts/{id})
 	GetRuleSetDraft(ctx context.Context, request GetRuleSetDraftRequestObject) (GetRuleSetDraftResponseObject, error)
@@ -10302,6 +10368,32 @@ func (sh *strictHandler) CreateRuleSetDraft(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateRuleSetDraftResponseObject); ok {
 		if err := validResponse.VisitCreateRuleSetDraftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteRuleSetDraft operation middleware
+func (sh *strictHandler) DeleteRuleSetDraft(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteRuleSetDraftRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteRuleSetDraft(ctx, request.(DeleteRuleSetDraftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteRuleSetDraft")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteRuleSetDraftResponseObject); ok {
+		if err := validResponse.VisitDeleteRuleSetDraftResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
