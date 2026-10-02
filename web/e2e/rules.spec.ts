@@ -134,6 +134,33 @@ test('publishing a draft puts it in force, and an older draft is brought up to d
   await expect(tree.getByText('pr.approvals < 0')).toBeVisible()
 })
 
+// Ana discards drafts: Draft 1, still a draft, from the Rules page's list, once she confirms — cancelling first keeps
+// it — and a draft just started, from its own page. Each is gone afterwards, and the version in force stays.
+test('a member with the rules permission discards drafts', async ({ page }) => {
+  await signIn(page, 'ana')
+  await page.goto('/rules')
+  await expect(page.getByRole('heading', { name: 'Rules, version 3' })).toBeVisible()
+  const drafts = page.getByRole('region', { name: 'Drafts' })
+  await expect(drafts.getByRole('listitem')).toHaveCount(1)
+  await drafts.getByRole('button', { name: 'Discard draft 1' }).click()
+  await drafts.getByRole('button', { name: 'Cancel' }).click()
+  await expect(drafts.getByRole('button', { name: 'Discard draft 1' })).toBeVisible()
+  expect((await call(page, 'GET', '/rulesets/drafts/1')).status).toBe(200)
+  await drafts.getByRole('button', { name: 'Discard draft 1' }).click()
+  await drafts.getByRole('button', { name: 'Yes, discard draft 1' }).click()
+  await expect(drafts.getByText('No drafts.')).toBeVisible()
+  expect((await call(page, 'GET', '/rulesets/drafts/1')).status).toBe(404)
+
+  await drafts.getByRole('button', { name: 'Start a draft from version 3' }).click()
+  await expect(page.getByRole('heading', { name: 'Draft 4, from version 3' })).toBeVisible()
+  await page.getByRole('button', { name: 'Discard', exact: true }).click()
+  await expect(page.getByText('Discard this draft? It cannot be brought back.')).toBeVisible()
+  await page.getByRole('button', { name: 'Yes, discard draft 4' }).click()
+  await expect(page.getByRole('heading', { name: 'Rules, version 3' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Drafts' }).getByText('No drafts.')).toBeVisible()
+  expect((await call(page, 'GET', '/rulesets/drafts/4')).status).toBe(404)
+})
+
 // Ben, who does not publish rules, reads the rules in force, and sees no drafts, nor any way to start one.
 test('a member without the rules permission reads the rules and edits none', async ({ page }) => {
   await signIn(page, 'ben')

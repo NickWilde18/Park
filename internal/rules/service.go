@@ -96,6 +96,7 @@ var (
 	errNoVersion      = fail.New(fail.NotFound, "not_found", "There is no such rule set version.")
 	errNoDraft        = fail.New(fail.NotFound, "not_found", "There is no such draft.")
 	errDraftPublished = fail.New(fail.Conflict, "draft_published", "This draft is published already; start a new one.")
+	errKeptDraft      = fail.New(fail.Conflict, "draft_published", "This draft is published: it is kept, as the record of its version.")
 )
 
 // lock serializes publishing, so that a draft's base is compared with the version current when it is published.
@@ -243,6 +244,26 @@ func (s *Service) UpdateDraft(ctx context.Context, id int64, base *int, rs RuleS
 		return Draft{}, err
 	}
 	return s.Draft(ctx, id)
+}
+
+// DeleteDraft discards a draft not yet published. A published draft is kept, as the record of how its version was
+// made. The draft's row is locked first, as Publish locks it, so that a draft is either published or discarded, never
+// both.
+func (s *Service) DeleteDraft(ctx context.Context, id int64) error {
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var published bool
+		err := tx.QueryRow(ctx, "SELECT published_version IS NOT NULL FROM rule_draft WHERE id = $1 FOR UPDATE", id).Scan(&published)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			return errNoDraft
+		case err != nil:
+			return err
+		case published:
+			return errKeptDraft
+		}
+		_, err = tx.Exec(ctx, "DELETE FROM rule_draft WHERE id = $1", id)
+		return err
+	})
 }
 
 // versionExists refuses a base version that was never published.
