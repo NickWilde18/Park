@@ -2257,6 +2257,8 @@ export interface components {
             your_review?: "approved" | "changes_requested" | "none";
             /** @description A review is asked of the caller directly; absent when the caller has no part. */
             requested?: boolean;
+            /** @description The unit's holders, each with what they hold on this pull request; empty when none of them holds anything here. */
+            holders: components["schemas"]["Holder"][];
         };
         ItemTargets: {
             threads?: string[];

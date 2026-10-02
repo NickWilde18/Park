@@ -2,8 +2,9 @@ import { expect, test } from '@playwright/test'
 import { signIn } from './session.ts'
 
 // Ana's board: her units first — the Billing group, its pull requests each with her action, and her draft — then the
-// unit she waits on, with who holds it, then the one she has no part in. She filters by the ball, folds the group,
-// sorts by a column, both ways, and hides a column, which stays hidden after a reload.
+// unit she waits on, with who holds it, then the one she has no part in; on those two, To do says what the holder is to
+// do. Sorting by To do puts her own first. She filters by the ball, folds the group, sorts by a column, both ways, and
+// hides a column, which stays hidden after a reload.
 test('the board shows every open unit as it stands for me', async ({ page }) => {
   await signIn(page, 'ana')
   await page.getByRole('link', { name: 'Board' }).click()
@@ -19,6 +20,16 @@ test('the board shows every open unit as it stands for me', async ({ page }) => 
   await expect(row('api#16 Statement emails').locator('.tag', { hasText: "Others'" })).toBeVisible()
   await expect(row('api#16 Statement emails')).toContainText('ben')
   await expect(row('api#13 Invoice layout').locator('.tag', { hasText: 'Not yours' })).toBeVisible()
+  // Where Ana has nothing to do — waiting on her own pull request, or with no part at all — To do shows, quietly, what
+  // the holder holds there.
+  for (const name of ['api#16 Statement emails', 'api#13 Invoice layout']) {
+    await expect(row(name).getByText('ben: review — First review', { exact: true })).toHaveClass(/quiet/)
+  }
+  await page.getByRole('button', { name: 'To do', exact: true }).click()
+  await expect(rows.first()).toContainText('Billing')
+  await expect(rows.last()).toContainText('ben: review — First review')
+  await page.getByRole('button', { name: 'To do', exact: true }).click()
+  await expect(rows.first()).toContainText('ben: review — First review')
 
   await page.getByRole('combobox', { name: 'Ball' }).selectOption('yours')
   await expect(rows).toHaveCount(4)
@@ -47,6 +58,20 @@ test('the board shows every open unit as it stands for me', async ({ page }) => 
   await page.getByText('Columns').click()
   await page.getByRole('checkbox', { name: 'Author' }).check()
   await expect(page.getByRole('button', { name: 'Author', exact: true })).toBeVisible()
+})
+
+// Ben reviews the Billing group's two pull requests. On api#12 his first review is his own to do. On api#14 he waits
+// for Ana to answer his request for changes, so To do says what she holds there, and only there: not her failing
+// checks, which are on api#12.
+test('where I only wait, To do says what the holder holds on that pull request', async ({ page }) => {
+  await signIn(page, 'ben')
+  await page.getByRole('link', { name: 'Board' }).click()
+  const rows = page.getByRole('table').locator('tbody tr')
+  const row = (name: string) => rows.filter({ hasText: name })
+  await expect(row('api#12 Billing export')).toContainText('review — First review')
+  await expect(row('api#14 Retry failed payments').getByText(/^ana: /)).toHaveText(
+    'ana: address comments — ben requested changes; 2 items wait on you',
+  )
 })
 
 // Asking the forge now. From the board: about every repository; with the board filtered to one, about that one; and

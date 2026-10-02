@@ -1072,7 +1072,10 @@ type Board struct {
 // BoardPullRequest defines model for BoardPullRequest.
 type BoardPullRequest struct {
 	Chain ChainPosition `json:"chain"`
-	Part  *VerdictPart  `json:"part,omitempty"`
+
+	// Holders The unit's holders, each with what they hold on this pull request; empty when none of them holds anything here.
+	Holders []Holder     `json:"holders"`
+	Part    *VerdictPart `json:"part,omitempty"`
 
 	// Requested A review is asked of the caller directly; absent when the caller has no part.
 	Requested *bool              `json:"requested,omitempty"`

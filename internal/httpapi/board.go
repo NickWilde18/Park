@@ -171,7 +171,18 @@ func (s *server) GetBoard(ctx context.Context, _ GetBoardRequestObject) (GetBoar
 			}
 			chain := chains[pr]
 			bp := BoardPullRequest{Summary: summary(p, accounts[p.Repo.ForgeID][p.State.Author], links.pull(ctx, p.Repo, p.State.Number)),
-				UpdatedAt: p.State.UpdatedAt, Chain: chainOut(chain), ThreadsUnresolved: unresolved(p.State.Threads)}
+				UpdatedAt: p.State.UpdatedAt, Chain: chainOut(chain), ThreadsUnresolved: unresolved(p.State.Threads), Holders: []Holder{}}
+			for _, h := range v.Holders {
+				var parts []HeldPart
+				for _, hp := range h.Parts {
+					if hp.PR == pr {
+						parts = append(parts, heldPartOut(hp))
+					}
+				}
+				if len(parts) > 0 {
+					bp.Holders = append(bp.Holders, Holder{Account: accountOut(h.Account, h.Login, h.Name), Since: h.Since, Parts: parts})
+				}
+			}
 			for _, part := range v.Parts {
 				if part.PR == pr && mine[accountKey(part.Forge, part.Account)] {
 					out := partOut(part)

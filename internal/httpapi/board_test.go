@@ -23,7 +23,8 @@ import (
 // is asked of ben, and carol has requested changes in a thread still open. Linked to ana, the author, the ball is
 // theirs, with their action, its reason and path, the thread waiting on them, and the task their automation queued.
 // Linked to carol instead, the ball is someone else's — ana's — and carol's review is changes requested. Linked to an
-// account with no part, the ball is none of theirs, and nothing of a part is shown. A read token sees the board too.
+// account with no part, the ball is none of theirs, and nothing of a part is shown, but the pull request still says
+// what ana holds on it. A read token sees the board too.
 func TestBoardOverHTTP(t *testing.T) {
 	pool := storetest.MigratedPool(t)
 	logs := &syncBuffer{}
@@ -130,6 +131,12 @@ func TestBoardOverHTTP(t *testing.T) {
 	if u.Ball != BoardUnitBallNone || pr.Part != nil || pr.ThreadsOnYou != nil || pr.YourReview != nil || pr.Requested != nil ||
 		pr.ThreadsUnresolved != 1 {
 		t.Fatalf("a board with no part: %+v; pull request %+v", u, pr)
+	}
+	// With no part of their own, the caller still reads what the holder holds on the pull request.
+	if len(pr.Holders) != 1 || pr.Holders[0].Account.Login != "ana" || len(pr.Holders[0].Parts) != 1 ||
+		pr.Holders[0].Parts[0].Action == nil || *pr.Holders[0].Parts[0].Action != "fix_checks" ||
+		pr.Holders[0].Parts[0].Reason != "1 required checks failing" || pr.Holders[0].Parts[0].PullRequest != pr.Summary.Id {
+		t.Fatalf("the holders of a pull request with no part of the caller's: %+v", pr.Holders)
 	}
 
 	var token NewToken
