@@ -66,6 +66,13 @@ func (s *Service) Register(r *work.Runner) {
 	r.Handle(KindResolve, func(ctx context.Context, _ work.Item) error { return s.Resolve(ctx) })
 }
 
+// Start queues one resolution now. Otherwise resolution runs only when facts it reads change, or a member acts on
+// groups, so what a new release changes in what it derives — memberships, names, suggestions — would wait for the
+// next such change. Processes starting together queue the one item.
+func (s *Service) Start(ctx context.Context) error {
+	return work.Enqueue(ctx, s.pool, KindResolve, "all", time.Time{})
+}
+
 // relevant are the facts grouping reads.
 var relevant = map[string]bool{"state": true, "head_branch": true, "base_branch": true, "head_repo": true, "author": true,
 	"closes_issues": true, "references": true, "title": true, "stack": true}
