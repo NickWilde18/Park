@@ -98,7 +98,7 @@ Runs when a pull request's facts change, when an assertion that names it is adde
 5. **Ask the model for a suggestion** for pull requests with no claim at all, if it is on (next flow). Nothing changes until a member accepts one.
 6. **Write the changes.** Record each pull request whose group changed, with the assertion that placed it, and queue work for verdicts, tasks, and the dashboard.
 7. **Open suggestions** for structural claims that lost and point to a different group than the one the pull request ended up in — "`mobile#4` has the same branch name as `web#7`, `feat/schedule`, and `web#7` is in 'Scheduled tasks'; add it?" — unless the same suggestion is open or was dismissed. Weak signals open suggestions the same way.
-8. **Archive** groups left with no open pull requests, and release their anchors: a later claim under the same anchor starts a new group.
+8. **Archive** groups left with no open pull requests, and release their anchors: a later claim under the same anchor starts a new group. Then drop the open suggestions that name an archived group, since none can be accepted into it — those opened in this resolution, for a group it emptied, and those left from before. A group merged into another is archived too; its claims' anchors point to the group it joined, so a claim that still loses suggests that group. Dismissed suggestions stay recorded.
 
 ## Flow: suggest with the model
 
