@@ -22,7 +22,8 @@ const Sandbox = "allow-scripts allow-forms allow-popups allow-popups-to-escape-s
 // Serve answers GET /docs/{token}/{path...} with a file of the description the token names, or its index.html for
 // the top and for a folder. No session is read, and none is needed: the token is the description's key (G17). The
 // answer sends no referrer, so that the token stays out of what the page asks other sites for. Ranges and
-// conditional requests are answered, so that videos seek; a token's files never change.
+// conditional requests are answered, so that videos seek; a token's files never change. An HTML page starts with a
+// script that lets it follow the dashboard's theme (themed).
 func (s *Service) Serve(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("Content-Security-Policy", Policy)
@@ -47,6 +48,9 @@ func (s *Service) Serve(w http.ResponseWriter, r *http.Request) {
 		s.log.ErrorContext(r.Context(), "read a description's file", "error", err)
 		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
 		return
+	}
+	if strings.HasPrefix(contentType, "text/html") {
+		content = themed(content)
 	}
 	h.Set("Content-Type", contentType)
 	h.Set("Cache-Control", "private, max-age=3600")

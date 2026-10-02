@@ -4,6 +4,7 @@ import { useFetch } from '../fetch'
 import { prName, unitPath, type PRs } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
+import { themedLink, useShownTheme } from '../theme'
 
 type Answer = Promise<{ error?: unknown }>
 
@@ -11,6 +12,7 @@ type Answer = Promise<{ error?: unknown }>
 // description, linked; the open pull requests in none; bridges' open proposals above them, then the open suggestions; and the manual actions: create,
 // move in, take out, merge, and split. A group is renamed on its own page.
 export default function Groups() {
+  const theme = useShownTheme()
   const [error, setError] = useState('')
   const { data, refresh } = useFetch(async () => {
     const [g, p, o, s] = await Promise.all([api.GET('/groups'), api.GET('/prs'), api.GET('/proposals'), api.GET('/suggestions')])
@@ -58,7 +60,7 @@ export default function Groups() {
             </h3>
             {g.doc && (
               <p className="quiet">
-                <a href={g.doc.link} target="_blank" rel="noopener noreferrer">
+                <a href={themedLink(g.doc.link, theme)} target="_blank" rel="noopener noreferrer">
                   Description
                 </a>
                 , by {g.doc.uploaded_by}

@@ -331,3 +331,11 @@ Set aside: serving descriptions in Park's origin with scripts forbidden, which k
 The first release was to change rules only by importing a rule-set file through the API. The owner asked for it on the dashboard, so the Rules page now drafts, edits, previews, and publishes them, and the drafts are read back, to be continued later or by someone else. The editor builds a condition from a field, one of the ops its type takes, and a value, or takes an expression. The fields with their ops, and the actions by role, come from the API, so that the editor offers what publishing checks. A preview evaluates every open unit twice, with the version in force and with the draft, from the same facts at the same moment, and lists the units whose verdict differs. Pinned examples are left for later.
 
 Set aside: comparing the draft with the stored verdicts, which can be older than the facts or the clock, so that the preview would list changes the draft did not make. Also set aside: one text box for the whole rule-set document, which edits everything but checks nothing until it is saved.
+
+### D68. A description is told the dashboard's theme
+
+The owner wanted the dashboard's light and dark themes to reach a group's description. By the specification, CSS alone would carry them: a framed page's `prefers-color-scheme` follows its frame's `color-scheme`, across origins too. Tested in October 2026, only Firefox did so. Chromium 151 and WebKit 26.5 matched it to the operating system, even in a frame of the same origin.
+
+So Park tells the description. The theme goes in its link, and a message follows whenever it changes or the frame loads a page. A short script starts every page Park serves, and sets the page's `data-theme` and `color-scheme` from them. The stored files are not changed. The script takes only the two values, and messages only from the window framing the page.
+
+Set aside: CSS alone, which follows the switch only in Firefox. Also set aside: a message alone, with no script served, which leaves every page to listen for itself. And set aside: inverting the frame's colors, which inverts its pictures and videos too.

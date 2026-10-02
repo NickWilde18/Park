@@ -2,6 +2,8 @@
 
 The dashboard is a client of the same API that executors and bridges use; it has no private back door.
 
+Every view comes in a light and a dark theme. A switch in the header picks *System*, which follows the operating system, *Light*, or *Dark*; the browser keeps the choice, and a group's description follows it ([Grouping](03-grouping.md#descriptions)).
+
 ## Views
 
 ### Sign in
