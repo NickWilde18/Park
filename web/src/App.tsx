@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { api } from './api/client'
 import Board from './pages/Board'
 import Groups from './pages/Groups'
@@ -12,6 +12,7 @@ import { Link } from './Link'
 import { usePath } from './router'
 import { SessionGate } from './session'
 import { useSession } from './sessionContext'
+import { chooseTheme, storedTheme, type Theme } from './theme'
 
 export default function App() {
   return (
@@ -62,10 +63,31 @@ function Shell() {
           <Link to="/settings">Settings</Link>
         </nav>
         <span className="who">
-          {me.member.display_name} <button onClick={signOut}>Sign out</button>
+          <ThemeSwitch /> {me.member.display_name} <button onClick={signOut}>Sign out</button>
         </span>
       </header>
       <main className={path === '/board' ? 'wide' : undefined}>{page(path)}</main>
     </>
+  )
+}
+
+// ThemeSwitch picks the dashboard's theme for this browser: System, which follows the operating system, Light, or
+// Dark. A group's description in its frame follows the theme as far as its own pages style themselves for it.
+function ThemeSwitch() {
+  const [theme, setTheme] = useState<Theme>(storedTheme)
+  return (
+    <select
+      aria-label="Theme"
+      value={theme}
+      onChange={(e) => {
+        const t = e.target.value as Theme
+        chooseTheme(t)
+        setTheme(t)
+      }}
+    >
+      <option value="system">System</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
   )
 }

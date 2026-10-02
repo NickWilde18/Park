@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
 import { pathText, prName, reasonsOf, since, words, type PRs } from '../format'
@@ -6,6 +6,7 @@ import { Link } from '../Link'
 import { useLive } from '../live'
 import { asked, refreshPRs } from '../refresh'
 import { navigate } from '../router'
+import { shownTheme, tellTheme, themedLink, useShownTheme } from '../theme'
 
 type Props = { kind: 'group' | 'pull_request'; id: number }
 
@@ -115,7 +116,8 @@ export default function Unit({ kind, id }: Props) {
           <h2>Description</h2>
           <p className="quiet">
             A static site, as a zip with its index.html at its top. Park serves it at a link of its own, and anyone who has the
-            link can read it.
+            link can read it. Its pages follow the dashboard's theme through [data-theme="dark"] in their styles, and their
+            default colors follow by themselves.
           </p>
           <DocForm id={group.id} label="Upload" done={described} />
         </section>
@@ -270,9 +272,16 @@ function DocForm({ id, label, done }: { id: number; label: string; done: (failed
 }
 
 // Description is a group's description in a sidebar, framed in its sandbox, with a link to open it on its own and,
-// for those who may, the controls to replace or remove it.
+// for those who may, the controls to replace or remove it. It follows the dashboard's theme: the frame starts in the
+// theme shown when the description loads, and is told the theme again whenever it changes or the frame loads a page,
+// so that it does not reload, and a page reached inside it follows too.
 function Description({ group, done }: { group: Schemas['Group']; done: (failed: string) => void }) {
   const doc = group.doc
+  const theme = useShownTheme()
+  const frame = useRef<HTMLIFrameElement>(null)
+  const link = doc?.link ?? ''
+  const src = useMemo(() => themedLink(link, shownTheme()), [link])
+  useEffect(() => tellTheme(frame.current?.contentWindow, theme), [theme])
   if (!doc) return null
   const remove = async () => {
     const { error } = await api.DELETE('/groups/{id}/doc', { params: { path: { id: group.id } } })
@@ -282,7 +291,7 @@ function Description({ group, done }: { group: Schemas['Group']; done: (failed: 
     <aside className="doc" aria-label="Description">
       <header>
         <strong>Description</strong>
-        <a href={doc.link} target="_blank" rel="noopener noreferrer">
+        <a href={themedLink(doc.link, theme)} target="_blank" rel="noopener noreferrer">
           Open in a new tab
         </a>
         <span className="quiet">
@@ -295,7 +304,13 @@ function Description({ group, done }: { group: Schemas['Group']; done: (failed: 
           </>
         )}
       </header>
-      <iframe title={`Description of ${group.name}`} src={doc.link} sandbox={sandbox} />
+      <iframe
+        ref={frame}
+        title={`Description of ${group.name}`}
+        src={src}
+        sandbox={sandbox}
+        onLoad={(e) => tellTheme(e.currentTarget.contentWindow, theme)}
+      />
     </aside>
   )
 }

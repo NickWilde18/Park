@@ -135,7 +135,7 @@ test("a group's description is uploaded, shown beside it in a sandbox, and remov
   expect(await framed.getAttribute('sandbox')).toContain('allow-scripts')
   expect(await framed.getAttribute('sandbox')).not.toContain('allow-same-origin')
   const link = await page.getByRole('link', { name: 'Open in a new tab' }).getAttribute('href')
-  expect(link).toMatch(/^\/docs\/[A-Za-z0-9_-]{22}\/$/)
+  expect(link).toMatch(/^\/docs\/[A-Za-z0-9_-]{22}\/\?theme=light$/)
 
   await page.getByRole('link', { name: 'Groups', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Description', exact: true })).toHaveAttribute('href', link ?? '')
@@ -146,4 +146,50 @@ test("a group's description is uploaded, shown beside it in a sandbox, and remov
   await page.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(page.locator('aside.doc')).toHaveCount(0)
   await expect(page.getByLabel('Upload: a zip of a static site')).toBeVisible()
+})
+
+// The theme, switched in the header, colors the dashboard and carries into a group's description. The frame starts in
+// the theme shown, and is told each change: its page, which styles itself for [data-theme="dark"], follows without
+// reloading, and so does a page reached inside it. The link that opens the description on its own names the theme.
+// The choice outlives a reload. System follows the operating system, emulated light, then dark.
+test("the theme colors the dashboard and carries into a group's description", async ({ page }) => {
+  await signIn(page, 'ana')
+  await page.goto('/units/group/1')
+  await page.getByLabel('Upload: a zip of a static site').setInputFiles(fileURLToPath(new URL('./fixtures/description.zip', import.meta.url)))
+  await page.getByRole('button', { name: 'Upload', exact: true }).click()
+  const frame = page.frameLocator('aside.doc iframe')
+  await expect(frame.getByRole('heading', { name: 'Billing, explained' })).toBeVisible()
+  const dashboard = page.locator('html')
+  const root = frame.locator('html')
+  const body = frame.locator('body')
+  const opened = page.getByRole('link', { name: 'Open in a new tab' })
+  const theme = page.getByLabel('Theme')
+  await expect(theme).toHaveValue('system')
+  await expect(dashboard).toHaveCSS('background-color', 'rgb(250, 251, 252)')
+  await expect(root).toHaveAttribute('data-theme', 'light')
+  await expect(body).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+
+  await theme.selectOption('dark')
+  await expect(dashboard).toHaveCSS('background-color', 'rgb(13, 17, 23)')
+  await expect(root).toHaveAttribute('data-theme', 'dark')
+  await expect(root).toHaveCSS('color-scheme', 'dark')
+  await expect(body).toHaveCSS('background-color', 'rgb(1, 2, 3)')
+  await expect(opened).toHaveAttribute('href', /\?theme=dark$/)
+  await frame.getByRole('link', { name: 'More' }).click()
+  await expect(frame.getByRole('heading', { name: 'More about billing' })).toBeVisible()
+  await expect(body).toHaveCSS('background-color', 'rgb(1, 2, 3)')
+
+  await page.reload()
+  await expect(theme).toHaveValue('dark')
+  await expect(body).toHaveCSS('background-color', 'rgb(1, 2, 3)')
+  await theme.selectOption('light')
+  await expect(dashboard).toHaveCSS('background-color', 'rgb(250, 251, 252)')
+  await expect(body).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await theme.selectOption('system')
+  await expect(dashboard).toHaveCSS('background-color', 'rgb(13, 17, 23)')
+  await expect(body).toHaveCSS('background-color', 'rgb(1, 2, 3)')
+
+  await page.getByRole('button', { name: 'Remove', exact: true }).click()
+  await expect(page.locator('aside.doc')).toHaveCount(0)
 })

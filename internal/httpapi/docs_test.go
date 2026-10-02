@@ -152,6 +152,11 @@ func TestGroupDocsOverHTTP(t *testing.T) {
 		page.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("the page: %d %v %q", page.Code, page.Header(), page.Body)
 	}
+	// The page, which has no head, starts with the script that lets it follow the dashboard's theme, once.
+	if body := page.Body.String(); !strings.HasPrefix(body, "<script>") || strings.Count(body, `"park-theme"`) != 1 ||
+		!strings.HasSuffix(body, "<h1>Billing</h1>"+`<img src="shots/a.png"><video src="video/v.mp4"></video>`) {
+		t.Fatalf("the page's theme script: %q", body)
+	}
 	if shot := get(first.Doc.Link + "shots/a.png"); shot.Code != http.StatusOK || shot.Header().Get("Content-Type") != "image/png" {
 		t.Fatalf("the screenshot: %d %v", shot.Code, shot.Header())
 	}

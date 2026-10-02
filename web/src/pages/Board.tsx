@@ -5,6 +5,7 @@ import { pathText, since, unitPath, words } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
 import { asked, refreshPRs } from '../refresh'
+import { themedLink, useShownTheme } from '../theme'
 
 type BoardUnit = Schemas['BoardUnit']
 type BoardPR = Schemas['BoardPullRequest']
@@ -186,6 +187,7 @@ const nameOf = (p: BoardPR) => `${p.summary.repo.name}#${p.summary.number}`
 // ball, the repository, and words, and fold by group; the columns shown are kept in the browser. The forge can be
 // asked now about every repository, or the one the board shows, and about a unit's pull requests.
 export default function Board() {
+  const theme = useShownTheme()
   const { data, refresh } = useFetch(async () => {
     const { data, error } = await api.GET('/board')
     return { units: data?.units, problem: error ? problem(error) : '' }
@@ -350,7 +352,7 @@ export default function Board() {
                       <Link to={unitPath(u.unit)}>{u.name}</Link>
                       <span className="badge">{u.pull_requests.length}</span> {refreshButton(u, u.name)}
                       {u.doc_link && (
-                        <a className="doc" href={u.doc_link} target="_blank" rel="noopener noreferrer" aria-label={`Description of ${u.name}`}>
+                        <a className="doc" href={themedLink(u.doc_link, theme)} target="_blank" rel="noopener noreferrer" aria-label={`Description of ${u.name}`}>
                           📄
                         </a>
                       )}
