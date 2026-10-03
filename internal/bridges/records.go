@@ -27,7 +27,9 @@ type querier interface {
 type Bridge struct {
 	CreatedAt    time.Time
 	Account      *ConnectedAccount
+	LastRound    *Round
 	Chat         Chat
+	Model        ModelSettings
 	Name         string
 	LinkTemplate string
 	Plugin       string
@@ -38,6 +40,29 @@ type Bridge struct {
 	LookbackDays int
 	ProposeFrom  int
 	Enabled      bool
+	// Late is set for a Park-run bridge that is on, and whose last round ended more than two periods ago.
+	Late bool
+}
+
+// ModelSettings are a Park-run bridge's model: the address of a service that speaks the chat completions protocol, the
+// model's name, how long an answer may take, and whether its key is set, which is never shown. Without an address, the
+// bridge asks no model.
+type ModelSettings struct {
+	URL            string
+	Name           string
+	TimeoutSeconds int
+	KeySet         bool
+}
+
+// Round is one round of a Park-run bridge: when it ran, how many messages it read, how many assertions and proposals it
+// posted or retracted, and how it ended, ok or failed, with the code of what went wrong.
+type Round struct {
+	StartedAt time.Time
+	EndedAt   time.Time
+	Outcome   string
+	Reason    string
+	Read      int
+	Changes   int
 }
 
 // ConnectedAccount is the account a Park-run bridge reads as: who it is on the platform; which member connected it,
@@ -54,11 +79,18 @@ type ConnectedAccount struct {
 func credentialsContext(id int64) string { return "bridge_credentials:" + strconv.FormatInt(id, 10) }
 func tokensContext(id int64) string      { return "bridge_tokens:" + strconv.FormatInt(id, 10) }
 
+// modelKeyContext is what a bridge's model key is sealed for.
+func modelKeyContext(id int64) string { return "bridge_model_key:" + strconv.FormatInt(id, 10) }
+
 const bridgeColumns = `b.id, b.name, b.owner_id, b.link_template, b.created_at, coalesce(b.plugin, ''), b.enabled, b.credentials,
 	b.chat, b.chat_name, b.every_minutes, b.lookback_days, b.propose_from,
-	a.subject, a.name, a.connected_by, a.connected_at, a.lapsed_at`
+	b.model_url, b.model_name, b.model_key IS NOT NULL, b.model_timeout_seconds,
+	a.subject, a.name, a.connected_by, a.connected_at, a.lapsed_at,
+	r.started_at, r.ended_at, r.read, r.changes, r.outcome, r.reason`
 
-const bridgeFrom = ` FROM bridge b LEFT JOIN bridge_account a ON a.bridge_id = b.id`
+const bridgeFrom = ` FROM bridge b LEFT JOIN bridge_account a ON a.bridge_id = b.id
+	LEFT JOIN LATERAL (SELECT started_at, ended_at, read, changes, outcome, reason FROM bridge_round
+		WHERE bridge_id = b.id ORDER BY ended_at DESC, id DESC LIMIT 1) r ON true`
 
 // scanBridge reads a row of bridgeColumns, opening the credentials only to learn which keys are set.
 func (s *Service) scanBridge(row pgx.Row) (Bridge, error) {
@@ -68,9 +100,20 @@ func (s *Service) scanBridge(row pgx.Row) (Bridge, error) {
 	var by *int64
 	var at *time.Time
 	var lapsed *time.Time
+	var started, ended *time.Time
+	var roundRead, roundChanges *int
+	var outcome, reason *string
 	if err := row.Scan(&b.ID, &b.Name, &b.OwnerID, &b.LinkTemplate, &b.CreatedAt, &b.Plugin, &b.Enabled, &sealed, &b.Chat.ID,
-		&b.Chat.Name, &b.EveryMinutes, &b.LookbackDays, &b.ProposeFrom, &subject, &name, &by, &at, &lapsed); err != nil {
+		&b.Chat.Name, &b.EveryMinutes, &b.LookbackDays, &b.ProposeFrom, &b.Model.URL, &b.Model.Name, &b.Model.KeySet,
+		&b.Model.TimeoutSeconds, &subject, &name, &by, &at, &lapsed, &started, &ended, &roundRead, &roundChanges, &outcome,
+		&reason); err != nil {
 		return Bridge{}, err
+	}
+	if started != nil {
+		b.LastRound = &Round{StartedAt: *started, EndedAt: *ended, Read: *roundRead, Changes: *roundChanges, Outcome: *outcome,
+			Reason: *reason}
+		period := time.Duration(b.EveryMinutes) * time.Minute
+		b.Late = b.Plugin != "" && b.Enabled && b.LastRound.EndedAt.Before(s.now().Add(-2*period))
 	}
 	creds, err := s.openCredentials(b.ID, sealed)
 	if err != nil {

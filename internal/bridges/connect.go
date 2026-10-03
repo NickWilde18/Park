@@ -75,8 +75,8 @@ func (s *Service) StartConnect(ctx context.Context, member, id int64) (string, s
 
 // FinishConnect completes connecting an account when the browser comes back from the platform with a code, and
 // returns the bridge's ID. The state must match the flow sealed in the browser's cookie, and the member must be the
-// one who started it. The account it signed in, and its tokens, replace any the bridge had, and it is no longer
-// lapsed.
+// one who started it. The account it signed in, and its tokens, replace any the bridge had, it is no longer lapsed,
+// and a round is queued now.
 func (s *Service) FinishConnect(ctx context.Context, member int64, code, state, cookie string) (int64, error) {
 	sealed, err := base64.RawURLEncoding.DecodeString(cookie)
 	if err != nil {
@@ -115,7 +115,10 @@ func (s *Service) FinishConnect(ctx context.Context, member int64, code, state, 
 		ON CONFLICT (bridge_id) DO UPDATE SET subject = EXCLUDED.subject, name = EXCLUDED.name, tokens = EXCLUDED.tokens,
 			connected_by = EXCLUDED.connected_by, connected_at = now(), lapsed_at = NULL`,
 		b.ID, strings.TrimSpace(account.ID), strings.TrimSpace(account.Name), s.box.Seal(tokens, tokensContext(b.ID)), member)
-	return b.ID, err
+	if err != nil {
+		return 0, err
+	}
+	return b.ID, s.scheduleNow(ctx, b)
 }
 
 // credentials returns a Park-run bridge's credentials, when they are complete: every field of its plugin set.

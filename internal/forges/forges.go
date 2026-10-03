@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -49,6 +50,9 @@ type Kind struct {
 	SignIn SignIn
 	// PullURL is the address of a pull request, built from the forge's base address when it is shown.
 	PullURL func(base, owner, name string, number int) string
+	// PullPattern matches the address of a pull request on the forge at base, wherever it is in a text, with the
+	// repository's owner, its name, and the number as its three groups: the reverse of PullURL.
+	PullPattern func(base string) *regexp.Regexp
 }
 
 var kinds = map[string]Kind{}

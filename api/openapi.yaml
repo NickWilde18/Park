@@ -1209,6 +1209,37 @@ paths:
                 $ref: "#/components/schemas/BridgePlugin"
         default:
           $ref: "#/components/responses/Error"
+  /bridges:
+    get:
+      operationId: listBridgeStatuses
+      summary: The bridges, as members see them
+      description: Each bridge's name, plugin, switch, and last round, and whether it is late.
+      tags: [groups]
+      responses:
+        "200":
+          description: The bridges, in the order they were registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgeStatuses"
+        default:
+          $ref: "#/components/responses/Error"
+  /bridges/{id}/sync:
+    post:
+      operationId: syncBridge
+      summary: Ask a bridge Park runs for a round now
+      description: >-
+        From a member's session. A round queued for later runs now; one asked for while a round runs runs again when
+        it ends. The bridge must be ready: on, its plugin on, its credentials complete, its account connected and not
+        lapsed, and its chat chosen.
+      tags: [groups]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "202":
+          description: The round is queued.
+        default:
+          $ref: "#/components/responses/Error"
   /bridges/callback:
     get:
       operationId: finishBridgeConnect
@@ -2883,7 +2914,8 @@ components:
             format: int64
     Bridge:
       type: object
-      required: [id, name, owner_id, link_template, created_at, enabled, credentials, every_minutes, lookback_days, propose_from]
+      required: [id, name, owner_id, link_template, created_at, enabled, credentials, every_minutes, lookback_days, propose_from,
+        model, late]
       properties:
         id:
           type: integer
@@ -2924,8 +2956,91 @@ components:
         propose_from:
           type: integer
           description: >-
-            How many pull requests a thread links before a Park-run bridge asks the model about it, when Park has a
-            model; 0 for never.
+            How many pull requests a thread links before a Park-run bridge asks its model about it, when it has one;
+            0 for never.
+        model:
+          $ref: "#/components/schemas/BridgeModel"
+        last_round:
+          $ref: "#/components/schemas/BridgeRound"
+        late:
+          type: boolean
+          description: A Park-run bridge that is on, whose last round ended more than two periods ago.
+    BridgeModel:
+      type: object
+      required: [url, name, key_set, timeout_seconds]
+      description: A Park-run bridge's model; without an address, it asks none, and every thread is an assertion.
+      properties:
+        url:
+          type: string
+          description: The address of a service that speaks the chat completions protocol.
+        name:
+          type: string
+        key_set:
+          type: boolean
+          description: Whether its key is set; the key is never shown.
+        timeout_seconds:
+          type: integer
+    BridgeModelPatch:
+      type: object
+      description: What is left out stays as it is. An empty address means no model; an empty key removes it.
+      properties:
+        url:
+          type: string
+        name:
+          type: string
+        key:
+          type: string
+        timeout_seconds:
+          type: integer
+    BridgeRound:
+      type: object
+      required: [started_at, ended_at, read, changes, outcome, reason]
+      properties:
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+        read:
+          type: integer
+          description: How many messages it read.
+        changes:
+          type: integer
+          description: How many assertions and proposals it posted or retracted.
+        outcome:
+          type: string
+          enum: [ok, failed]
+        reason:
+          type: string
+          description: The code of what went wrong, when it failed; Park's log has the details.
+    BridgeStatus:
+      type: object
+      required: [id, name, enabled, late]
+      description: A bridge as members see it.
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        plugin_name:
+          type: string
+          description: The name of the plugin Park runs it through; left out for an external bridge.
+        enabled:
+          type: boolean
+        last_round:
+          $ref: "#/components/schemas/BridgeRound"
+        late:
+          type: boolean
+    BridgeStatuses:
+      type: object
+      required: [bridges]
+      properties:
+        bridges:
+          type: array
+          items:
+            $ref: "#/components/schemas/BridgeStatus"
     Bridges:
       type: object
       required: [bridges]
@@ -2970,6 +3085,8 @@ components:
           type: integer
         propose_from:
           type: integer
+        model:
+          $ref: "#/components/schemas/BridgeModelPatch"
     BridgeChat:
       type: object
       required: [id, name]

@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/NickWilde18/Park/internal/fail"
+	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/secret"
 )
 
@@ -24,6 +25,8 @@ import (
 type Options struct {
 	// Now is the clock; time.Now by default.
 	Now func() time.Time
+	// Groups takes what the bridges' rounds post.
+	Groups *grouping.Service
 	// PublicURL is Park's own address as browsers reach it, which a platform sends a browser back to; connecting an
 	// account needs it.
 	PublicURL string
@@ -34,6 +37,7 @@ type Options struct {
 // Service keeps the bridges.
 type Service struct {
 	pool      *pgxpool.Pool
+	groups    *grouping.Service
 	box       *secret.Box
 	log       *slog.Logger
 	now       func() time.Time
@@ -43,7 +47,7 @@ type Service struct {
 
 // New returns the service over pool, sealing credentials and tokens with box.
 func New(pool *pgxpool.Pool, box *secret.Box, log *slog.Logger, opts Options) *Service {
-	s := &Service{pool: pool, box: box, log: log, now: opts.Now, plugins: map[string]Plugin{}, publicURL: opts.PublicURL}
+	s := &Service{pool: pool, groups: opts.Groups, box: box, log: log, now: opts.Now, plugins: map[string]Plugin{}, publicURL: opts.PublicURL}
 	if s.now == nil {
 		s.now = time.Now
 	}

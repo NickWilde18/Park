@@ -38,9 +38,9 @@ Every answer is one JSON object. Besides its result, it may carry:
 | `authorize` | `credentials`; `redirect_uri`, where the platform sends the browser back; `state`; `code_challenge` and `code_challenge_method`, `S256`, for platforms that take PKCE | `url`, the platform's sign-in page, an http or https address |
 | `exchange` | `credentials`; `redirect_uri`; the `code` the platform sent the browser back with; `code_verifier` | `account`, the platform's `id` for the account that signed in and its `name`, each 1 to 200 characters; `tokens` |
 | `chats` | `credentials`; `tokens` | `chats`, those the account can read, each the platform's `id` for it, never a link, and its `name` |
-| `threads` | `credentials`; `tokens`; `chat`; `since`, a time in RFC 3339 | `read`, how many root messages the plugin read; `threads`, those since the time that link anything, each with an `anchor`, the platform's ID for the message; `created`; `text`, the message as words, a paragraph a line, with each link's address after its label, and without mentions; `plain`, the same with links' labels only; and `links`, the links' addresses, in order |
+| `threads` | `credentials`; `tokens`; `chat`; `since`, a time in RFC 3339 | `read`, how many root messages the plugin read; `threads`, those since the time that link anything, each with an `anchor`, the platform's ID for the message; `created`; `text`, the message as words, a paragraph a line, with each link's address after its label, and without mentions; `plain`, the same with links' labels only; and `links`, every address in the message, labelled or bare, in the order they appear |
 
-`credentials` are the plugin's fields as an admin entered them, by key. Park checks every answer against this table, and an answer that does not fit is the plugin's failure.
+`credentials` are the plugin's fields as an admin entered them, by key. Park checks every answer against this table — an answer to `threads` says how many messages it read, and gives each thread an anchor that is an ID and a time — and an answer that does not fit is the plugin's failure.
 
 A platform that answers a member who cannot read a chat with no messages, rather than an error, is answered as such: `read` is 0. Park then retracts nothing ([Grouping](03-grouping.md#bridges-park-runs)).
 

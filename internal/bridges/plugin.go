@@ -95,8 +95,8 @@ func environment() []string {
 	return env
 }
 
-// answer is what any operation's answer may carry besides its result: an error, and tokens to keep.
-type answer struct {
+// envelope is what any operation's answer may carry besides its result: an error, and tokens to keep.
+type envelope struct {
 	Error  *Error          `json:"error"`
 	Tokens json.RawMessage `json:"tokens"`
 }
@@ -147,7 +147,7 @@ func (p Plugin) run(ctx context.Context, op string, timeout time.Duration, reque
 	if stdout.over {
 		return nil, fmt.Errorf("the plugin %s answered %s with more than %d bytes", p.Kind, op, maxOutput)
 	}
-	var a answer
+	var a envelope
 	if err := json.Unmarshal(stdout.buf.Bytes(), &a); err != nil {
 		if ran != nil {
 			return nil, fmt.Errorf("the plugin %s failed at %s: %w%s", p.Kind, op, ran, said(stderr))

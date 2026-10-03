@@ -62,8 +62,9 @@ func newBridgesAPI(t *testing.T) *bridgesAPI {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := New(Options{Ready: ready, UI: built, Logger: log, Identity: ids, Grouping: grouping.New(pool, log),
-		Bridges: bridges.New(pool, box, log, bridges.Options{PublicURL: "https://park.test", Plugins: plugins}), Pool: pool})
+	groups := grouping.New(pool, log)
+	h, err := New(Options{Ready: ready, UI: built, Logger: log, Identity: ids, Grouping: groups,
+		Bridges: bridges.New(pool, box, log, bridges.Options{PublicURL: "https://park.test", Plugins: plugins, Groups: groups}), Pool: pool})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,4 +260,81 @@ func TestExternalBridgeSwitchOverHTTP(t *testing.T) {
 		t.Fatalf("converted %+v", b)
 	}
 	wantStatus(t, tracker.call(t, "POST", "/api/v1/assertions", post, nil), http.StatusUnauthorized, "")
+}
+
+// connected makes a bridge Park runs, through the reference plugin, ready to run: its credential set, its account
+// connected through the redirects, and the Reviews chat chosen. It returns the bridge's admin path.
+func (a *bridgesAPI) connected(t *testing.T) (Bridge, string) {
+	t.Helper()
+	a.admin.call(t, "PUT", "/api/v1/admin/bridge-plugins/file", map[string]bool{"enabled": true}, nil)
+	var b Bridge
+	wantStatus(t, a.admin.call(t, "POST", "/api/v1/admin/bridges", map[string]any{"name": "Reviews", "plugin": "file"}, &b), http.StatusCreated, "")
+	path := "/api/v1/admin/bridges/" + strconv.FormatInt(b.Id, 10)
+	wantStatus(t, a.admin.call(t, "PATCH", path, map[string]any{"credentials": map[string]string{"file": a.chats}}, nil), http.StatusOK, "")
+	follow(t, a.admin, a.admin.raw("GET", path+"/connect", "", ""))
+	wantStatus(t, a.admin.call(t, "PATCH", path, map[string]any{"chat": map[string]string{"id": "c-reviews", "name": "Reviews"}}, &b),
+		http.StatusOK, "")
+	return b, path
+}
+
+// A bridge's model is set as its credentials are, and checked: an address of http or https, and a name whenever there
+// is an address. Its key is never shown again; the bridge shows only that it is set.
+func TestBridgeModelOverHTTP(t *testing.T) {
+	a := newBridgesAPI(t)
+	b, path := a.connected(t)
+	if b.Model.Url != "" || b.Model.KeySet || b.Model.TimeoutSeconds != 60 || b.Late || b.LastRound != nil {
+		t.Fatalf("a new bridge's model and rounds: %+v %v %v", b.Model, b.Late, b.LastRound)
+	}
+	wantStatus(t, a.admin.call(t, "PATCH", path, map[string]any{"model": map[string]any{"url": "ftp://models.test"}}, nil),
+		http.StatusBadRequest, "invalid_model_url")
+	wantStatus(t, a.admin.call(t, "PATCH", path, map[string]any{"model": map[string]any{"url": "https://models.test/v1"}}, nil),
+		http.StatusBadRequest, "invalid_model_name")
+	wantStatus(t, a.admin.call(t, "PATCH", path, map[string]any{"model": map[string]any{"timeout_seconds": 601}}, nil),
+		http.StatusBadRequest, "invalid_model_timeout")
+	w := a.admin.call(t, "PATCH", path, map[string]any{"model": map[string]any{"url": "https://models.test/v1", "name": "a-model",
+		"key": "a model key, never shown", "timeout_seconds": 30}}, &b)
+	wantStatus(t, w, http.StatusOK, "")
+	if b.Model != (BridgeModel{Url: "https://models.test/v1", Name: "a-model", KeySet: true, TimeoutSeconds: 30}) ||
+		strings.Contains(w.Body.String(), "never shown") {
+		t.Fatalf("the model: %+v in %s", b.Model, w.Body)
+	}
+	var all Bridges
+	w = a.admin.call(t, "GET", "/api/v1/admin/bridges", nil, &all)
+	if strings.Contains(w.Body.String(), "never shown") || !all.Bridges[0].Model.KeySet {
+		t.Fatalf("listed %s", w.Body)
+	}
+}
+
+// Every member sees the bridges — names, plugins, switches, last rounds, and whether each is late, never their
+// settings — and asks one that is ready for a round now, from a session. One that is not ready says why; a token
+// asks for no round.
+func TestBridgeStatusesOverHTTP(t *testing.T) {
+	a := newBridgesAPI(t)
+	b, _ := a.connected(t)
+	var external Bridge
+	wantStatus(t, a.admin.call(t, "POST", "/api/v1/admin/bridges", map[string]any{"name": "Tracker"}, &external), http.StatusCreated, "")
+	bob := a.member(t)
+	var all BridgeStatuses
+	w := bob.call(t, "GET", "/api/v1/bridges", nil, &all)
+	wantStatus(t, w, http.StatusOK, "")
+	if len(all.Bridges) != 2 || all.Bridges[0].Name != "Reviews" || all.Bridges[0].PluginName == nil || *all.Bridges[0].PluginName != "File" ||
+		!all.Bridges[0].Enabled || all.Bridges[0].Late || all.Bridges[1].PluginName != nil {
+		t.Fatalf("listed %+v", all.Bridges)
+	}
+	if strings.Contains(w.Body.String(), a.chats) || strings.Contains(w.Body.String(), "c-reviews") {
+		t.Fatalf("members see a bridge's settings: %s", w.Body)
+	}
+	wantStatus(t, bob.call(t, "POST", "/api/v1/bridges/"+strconv.FormatInt(b.Id, 10)+"/sync", nil, nil), http.StatusAccepted, "")
+	wantStatus(t, bob.call(t, "POST", "/api/v1/bridges/"+strconv.FormatInt(external.Id, 10)+"/sync", nil, nil), http.StatusConflict, "external_bridge")
+	var tok NewToken
+	wantStatus(t, a.admin.call(t, "POST", "/api/v1/me/tokens", map[string]any{"name": "reads", "scopes": []string{"read"}}, &tok), http.StatusCreated, "")
+	reader := a.browser()
+	reader.bearer = tok.Token
+	wantStatus(t, reader.call(t, "GET", "/api/v1/bridges", nil, nil), http.StatusOK, "")
+	wantStatus(t, reader.call(t, "POST", "/api/v1/bridges/"+strconv.FormatInt(b.Id, 10)+"/sync", nil, nil), http.StatusForbidden, "insufficient_scope")
+
+	var unready Bridge
+	wantStatus(t, a.admin.call(t, "POST", "/api/v1/admin/bridges", map[string]any{"name": "Team", "plugin": "file"}, &unready), http.StatusCreated, "")
+	wantStatus(t, bob.call(t, "POST", "/api/v1/bridges/"+strconv.FormatInt(unready.Id, 10)+"/sync", nil, nil), http.StatusConflict,
+		"credentials_missing")
 }
