@@ -173,11 +173,17 @@ func People(pr facts.PR, c Context) []Person {
 		return true
 	}
 
-	// Written reviews the author has not answered, by commenting or pushing after them. A bot's review waits for no
-	// answer; its comments on lines of code are threads, and count there.
-	answered := func(t time.Time) bool {
+	// Written reviews nobody has answered: the author, by commenting or pushing after them, or their writer, by
+	// approving after them. A bot's review waits for no answer; its comments on lines of code are threads, and count
+	// there.
+	answered := func(rs []facts.Review, t time.Time) bool {
 		if pr.HeadPushedAt.After(t) {
 			return true
+		}
+		for _, r := range rs {
+			if r.State == facts.ReviewApproved && r.At.After(t) {
+				return true
+			}
 		}
 		for _, cm := range pr.Conversation {
 			if cm.Author == author && cm.At.After(t) {
@@ -196,7 +202,7 @@ func People(pr facts.PR, c Context) []Person {
 	unanswered := int64(0)
 	for _, rs := range reviews {
 		for _, r := range rs {
-			if r.HasBody && !r.Bot && (r.State == facts.ReviewChangesRequested || r.State == facts.ReviewCommented) && !answered(r.At) {
+			if r.HasBody && !r.Bot && (r.State == facts.ReviewChangesRequested || r.State == facts.ReviewCommented) && !answered(rs, r.At) {
 				unanswered++
 			}
 		}
