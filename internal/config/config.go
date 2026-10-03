@@ -32,6 +32,11 @@ type Config struct {
 		// URL is the Postgres connection string.
 		URL string `yaml:"url"`
 	} `yaml:"database"`
+	Bridges struct {
+		// PluginDir is the directory of the bridge plugins Park runs: each executable file in it is one plugin.
+		// Without it, Park has no plugins, and runs no bridge itself.
+		PluginDir string `yaml:"plugin_dir"`
+	} `yaml:"bridges"`
 	// SecretKey encrypts the secrets Park stores, such as forge credentials.
 	SecretKey string `yaml:"secret_key"`
 	// SetupCode, if set, is the one-time code that creates the first administrator, instead of one printed to the
@@ -79,6 +84,7 @@ func (c *Config) variables() []variable {
 		{"PARK_HTTP_ADDR", &c.HTTP.Addr},
 		{"PARK_HTTP_PUBLIC_URL", &c.HTTP.PublicURL},
 		{"PARK_DATABASE_URL", &c.Database.URL},
+		{"PARK_BRIDGES_PLUGIN_DIR", &c.Bridges.PluginDir},
 		{"PARK_SECRET_KEY", &c.SecretKey},
 		{"PARK_SETUP_CODE", &c.SetupCode},
 	}

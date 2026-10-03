@@ -29,7 +29,7 @@ The dashboard draws this picture and lets each box be configured — which sourc
 Sources, from highest authority to lowest:
 
 1. **Manual** — a member moves, splits, merges, creates, or renames groups on the dashboard, or accepts a suggestion.
-2. **External** — programs outside Park post assertions through the API: a bridge that reads review threads from a chat tool, or epics from an issue tracker. Park ships no such integration; it only accepts assertions. A bridge that cannot tell how a thread's pull requests divide into units — one thread that announces several features, or one large feature — proposes groups instead, and a member accepts them ([bridge proposals](#flow-bridge-proposals)).
+2. **External** — programs outside Park post assertions through the API: a bridge that reads review threads from a chat tool, or epics from an issue tracker. A bridge is a program that posts through its token, or one Park runs itself through a plugin ([below](#bridges-park-runs)); Park ships no integration with a chat tool or a tracker, only a plugin that reads a file. A bridge that cannot tell how a thread's pull requests divide into units — one thread that announces several features, or one large feature — proposes groups instead, and a member accepts them ([bridge proposals](#flow-bridge-proposals)).
 3. **Structural** — built in, derived from forge facts (below).
 
 The model, optional and off unless a model provider is configured, is not a source: it only suggests a group for a pull request that nothing else explains, and nothing changes until a member accepts.
@@ -151,6 +151,33 @@ A thread that links many pull requests may be one large unit of work, or several
 5. A member accepts a proposal, as proposed or after editing its groups' names and pull requests, or dismisses it ([manual actions](#flow-manual-actions)). Accepting records manual placements, which win over the bridge's own assertions and everything below them.
 
 `DELETE /proposals?anchor=…` retracts the live proposal under that anchor; groups a member made by accepting it stay.
+
+## Bridges Park runs
+
+A bridge is external, a program outside Park that posts with its token, as above, or one Park runs itself, through a plugin that reads one chat on one platform ([Bridge plugins](12-bridge-plugins.md), [D69](10-design-log.md#d69-bridges-are-plugins-which-park-calls)). Either is a source, `bridge:<id>`, and says what its threads say through the same assertions and proposals.
+
+- **Switches.** An admin switches each plugin, and each bridge, on and off. While a plugin is off, its bridges have no rounds, and no bridge can be added with it. A bridge Park runs that is off has no rounds; an external one that is off has its posts and retractions refused, `409 bridge_disabled`. What either has posted stays.
+- **Settings.** A bridge Park runs has its plugin's credentials, sealed and shown again only by their keys; the account it reads as, which an admin connects through the plugin's sign-in, with its tokens sealed; the chat it reads; how often it runs, every 10 minutes by default; how far back its threads count, 45 days; and the number of pull requests from which a thread is asked about, 4, when a model provider is configured.
+- **Moving a bridge in.** An external bridge can be given a plugin. It keeps its ID, so its assertions, proposals, and anchors stay where they are, and its tokens are revoked, so that the program that ran it cannot post alongside Park. No token is made for a bridge Park runs, and it keeps its plugin ([B4](12-bridge-plugins.md#rules)).
+
+### Flow: connect a bridge's account
+
+1. An admin opens `GET /admin/bridges/{id}/connect` from a browser session. The bridge's credentials must be complete, and `http.public_url` configured.
+2. Park asks the plugin for its platform's sign-in page, with a state and a PKCE challenge, and sends the browser there, with the flow sealed in a cookie that lasts ten minutes and that only the callback reads.
+3. The platform sends the browser back to `/bridges/callback`: `http.public_url` and that path are the address to register with the platform. The state must be the flow's, and the admin the one who began.
+4. The plugin trades the code for the account and its tokens, which replace any the bridge had, and the browser goes back to the settings page.
+
+### Flow: a round
+
+1. A round is a work item, one per bridge: one runs at a time, a due round runs once even with several Park replicas, and each round queues the next when it ends. Syncing now moves the next round to now; asked for during a round, the round runs again when it ends.
+2. The plugin reads the chat's root messages of the window. Park finds the pull requests among each thread's links, with each forge kind's pattern for a pull request's address ([B1](12-bridge-plugins.md#rules)).
+3. The newest thread that links a pull request wins it. Only watched repositories count, and a thread left with fewer than two pull requests is nothing.
+4. A thread that links fewer pull requests than the bridge asks about is an assertion. One that links as many or more is asked about, when a model provider is configured, and what the model answers is proposed ([D61](10-design-log.md#d61-a-bridge-proposes-the-groups-it-is-unsure-of)); the answer is kept, and asked for again only when the thread's text or pull requests change, and a thread the model cannot be asked about is left as it is.
+5. Only new and changed assertions and proposals are posted, under the thread's anchor.
+6. One whose thread is gone from the window, deleted or edited to link fewer than two pull requests, is retracted; one whose thread aged out of the window is left as it is. A round that read no messages at all retracts nothing, since a platform answers a member who cannot read a chat with no messages.
+7. Each round is recorded: when it started and ended, how many messages it read, how many changes it made, and whether it failed, as a reason; the details go to the log. A bridge whose last round ended more than two periods ago shows as late.
+
+What a bridge remembers between rounds, what it posted, with each thread's time, and the model's answers, is kept per bridge; a bridge moved in starts from its live assertions and proposals. A thread's text is not kept ([B2](12-bridge-plugins.md#rules)).
 
 ## Descriptions
 

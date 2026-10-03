@@ -1133,13 +1133,106 @@ type BoardUnitSide string
 
 // Bridge defines model for Bridge.
 type Bridge struct {
-	CreatedAt time.Time `json:"created_at"`
-	Id        int64     `json:"id"`
+	Account   *BridgeAccount `json:"account,omitempty"`
+	Chat      *BridgeChat    `json:"chat,omitempty"`
+	CreatedAt time.Time      `json:"created_at"`
+
+	// Credentials The keys of the credentials that are set; their values are never shown.
+	Credentials []string `json:"credentials"`
+
+	// Enabled Its switch. A Park-run bridge that is off has no rounds; an external one that is off has its posts refused.
+	Enabled bool `json:"enabled"`
+
+	// EveryMinutes How often a Park-run bridge runs.
+	EveryMinutes int   `json:"every_minutes"`
+	Id           int64 `json:"id"`
 
 	// LinkTemplate An address with {id} for an anchor or evidence ID, used to render links.
 	LinkTemplate string `json:"link_template"`
+
+	// LookbackDays How far back a Park-run bridge's threads count.
+	LookbackDays int    `json:"lookback_days"`
 	Name         string `json:"name"`
 	OwnerId      int64  `json:"owner_id"`
+
+	// Plugin The kind of the plugin Park runs it through; left out for an external bridge.
+	Plugin *string `json:"plugin,omitempty"`
+
+	// ProposeFrom How many pull requests a thread links before a Park-run bridge asks the model about it, when Park has a model; 0 for never.
+	ProposeFrom int `json:"propose_from"`
+}
+
+// BridgeAccount defines model for BridgeAccount.
+type BridgeAccount struct {
+	ConnectedAt time.Time `json:"connected_at"`
+
+	// ConnectedBy The member who connected it.
+	ConnectedBy int64 `json:"connected_by"`
+
+	// Id The platform's ID for the account.
+	Id string `json:"id"`
+
+	// LapsedAt When the plugin last said the account has to be connected again; left out while it works.
+	LapsedAt *time.Time `json:"lapsed_at,omitempty"`
+	Name     string     `json:"name"`
+}
+
+// BridgeChat defines model for BridgeChat.
+type BridgeChat struct {
+	// Id The platform's ID for the chat, never a link.
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// BridgeChats defines model for BridgeChats.
+type BridgeChats struct {
+	Chats []BridgeChat `json:"chats"`
+}
+
+// BridgeField defines model for BridgeField.
+type BridgeField struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+
+	// Secret A secret is entered as a password is.
+	Secret bool `json:"secret"`
+}
+
+// BridgePatch defines model for BridgePatch.
+type BridgePatch struct {
+	Chat         *BridgeChat        `json:"chat,omitempty"`
+	Credentials  *map[string]string `json:"credentials,omitempty"`
+	Enabled      *bool              `json:"enabled,omitempty"`
+	EveryMinutes *int               `json:"every_minutes,omitempty"`
+	LookbackDays *int               `json:"lookback_days,omitempty"`
+	Name         *string            `json:"name,omitempty"`
+	Plugin       *string            `json:"plugin,omitempty"`
+	ProposeFrom  *int               `json:"propose_from,omitempty"`
+}
+
+// BridgePlugin defines model for BridgePlugin.
+type BridgePlugin struct {
+	// ChangedAt When an admin last switched it; left out if no one has.
+	ChangedAt *time.Time `json:"changed_at,omitempty"`
+	Enabled   bool       `json:"enabled"`
+
+	// Fields Its credentials' fields.
+	Fields []BridgeField `json:"fields"`
+
+	// Installed False for a plugin that was switched before its executable left the plugin directory.
+	Installed bool   `json:"installed"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+}
+
+// BridgePluginSwitch defines model for BridgePluginSwitch.
+type BridgePluginSwitch struct {
+	Enabled bool `json:"enabled"`
+}
+
+// BridgePlugins defines model for BridgePlugins.
+type BridgePlugins struct {
+	Plugins []BridgePlugin `json:"plugins"`
 }
 
 // BridgeRequest defines model for BridgeRequest.
@@ -1149,6 +1242,9 @@ type BridgeRequest struct {
 
 	// OwnerId The member who owns it; the caller by default.
 	OwnerId *int64 `json:"owner_id,omitempty"`
+
+	// Plugin The kind of the plugin Park is to run it through; left out for an external bridge.
+	Plugin *string `json:"plugin,omitempty"`
 }
 
 // Bridges defines model for Bridges.
@@ -2395,6 +2491,13 @@ type StartSignInParams struct {
 // StartSignInParamsMode defines parameters for StartSignIn.
 type StartSignInParamsMode string
 
+// FinishBridgeConnectParams defines parameters for FinishBridgeConnect.
+type FinishBridgeConnectParams struct {
+	Code  *string `form:"code,omitempty" json:"code,omitempty"`
+	State *string `form:"state,omitempty" json:"state,omitempty"`
+	Error *string `form:"error,omitempty" json:"error,omitempty"`
+}
+
 // RetractProposalParams defines parameters for RetractProposal.
 type RetractProposalParams struct {
 	Anchor string `form:"anchor" json:"anchor"`
@@ -2433,8 +2536,14 @@ type ListVerdictsParams struct {
 	Unit *string `form:"unit,omitempty" json:"unit,omitempty"`
 }
 
+// SwitchBridgePluginJSONRequestBody defines body for SwitchBridgePlugin for application/json ContentType.
+type SwitchBridgePluginJSONRequestBody = BridgePluginSwitch
+
 // CreateBridgeJSONRequestBody defines body for CreateBridge for application/json ContentType.
 type CreateBridgeJSONRequestBody = BridgeRequest
+
+// UpdateBridgeJSONRequestBody defines body for UpdateBridge for application/json ContentType.
+type UpdateBridgeJSONRequestBody = BridgePatch
 
 // CreateForgeJSONRequestBody defines body for CreateForge for application/json ContentType.
 type CreateForgeJSONRequestBody = ForgeRequest
@@ -2534,12 +2643,27 @@ type ServerInterface interface {
 	// ListActions The actions a part can name, by role
 	// (GET /actions)
 	ListActions(w http.ResponseWriter, r *http.Request)
+	// ListBridgePlugins The bridge plugins Park has, and those switched that it no longer has
+	// (GET /admin/bridge-plugins)
+	ListBridgePlugins(w http.ResponseWriter, r *http.Request)
+	// SwitchBridgePlugin Switch a bridge plugin on or off
+	// (PUT /admin/bridge-plugins/{kind})
+	SwitchBridgePlugin(w http.ResponseWriter, r *http.Request, kind string)
 	// ListBridges Every registered bridge
 	// (GET /admin/bridges)
 	ListBridges(w http.ResponseWriter, r *http.Request)
 	// CreateBridge Register a bridge
 	// (POST /admin/bridges)
 	CreateBridge(w http.ResponseWriter, r *http.Request)
+	// UpdateBridge Change a bridge
+	// (PATCH /admin/bridges/{id})
+	UpdateBridge(w http.ResponseWriter, r *http.Request, id ID)
+	// ListBridgeChats The chats a Park-run bridge's account can read
+	// (GET /admin/bridges/{id}/chats)
+	ListBridgeChats(w http.ResponseWriter, r *http.Request, id ID)
+	// ConnectBridge Begin connecting the account a Park-run bridge reads as
+	// (GET /admin/bridges/{id}/connect)
+	ConnectBridge(w http.ResponseWriter, r *http.Request, id ID)
 	// ListForges Every forge
 	// (GET /admin/forges)
 	ListForges(w http.ResponseWriter, r *http.Request)
@@ -2624,6 +2748,9 @@ type ServerInterface interface {
 	// GetBoard Every open unit, as it stands for me
 	// (GET /board)
 	GetBoard(w http.ResponseWriter, r *http.Request)
+	// FinishBridgeConnect Where a platform sends the browser back once a bridge's account has signed in
+	// (GET /bridges/callback)
+	FinishBridgeConnect(w http.ResponseWriter, r *http.Request, params FinishBridgeConnectParams)
 	// ListFields The field catalog, every field a condition or a reason can read
 	// (GET /fields)
 	ListFields(w http.ResponseWriter, r *http.Request)
@@ -2817,6 +2944,46 @@ func (siw *ServerInterfaceWrapper) ListActions(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListBridgePlugins operation middleware
+func (siw *ServerInterfaceWrapper) ListBridgePlugins(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBridgePlugins(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SwitchBridgePlugin operation middleware
+func (siw *ServerInterfaceWrapper) SwitchBridgePlugin(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kind" -------------
+	var kind string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kind", r.PathValue("kind"), &kind, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SwitchBridgePlugin(w, r, kind)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListBridges operation middleware
 func (siw *ServerInterfaceWrapper) ListBridges(w http.ResponseWriter, r *http.Request) {
 
@@ -2836,6 +3003,84 @@ func (siw *ServerInterfaceWrapper) CreateBridge(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateBridge(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateBridge operation middleware
+func (siw *ServerInterfaceWrapper) UpdateBridge(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateBridge(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBridgeChats operation middleware
+func (siw *ServerInterfaceWrapper) ListBridgeChats(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBridgeChats(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConnectBridge operation middleware
+func (siw *ServerInterfaceWrapper) ConnectBridge(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConnectBridge(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3438,6 +3683,65 @@ func (siw *ServerInterfaceWrapper) GetBoard(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetBoard(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// FinishBridgeConnect operation middleware
+func (siw *ServerInterfaceWrapper) FinishBridgeConnect(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params FinishBridgeConnectParams
+
+	// ------------- Optional query parameter "code" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "code", r.URL.Query(), &params.Code, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "code"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "code", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", r.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "error" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "error", r.URL.Query(), &params.Error, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "error"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "error", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FinishBridgeConnect(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4927,6 +5231,12 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/proposals/{id}/dismiss", wrapper.DismissProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/bridges", wrapper.ListBridges)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/bridges", wrapper.CreateBridge)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/admin/bridges/{id}", wrapper.UpdateBridge)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/bridges/{id}/connect", wrapper.ConnectBridge)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/bridges/{id}/chats", wrapper.ListBridgeChats)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/bridge-plugins", wrapper.ListBridgePlugins)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/bridge-plugins/{kind}", wrapper.SwitchBridgePlugin)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bridges/callback", wrapper.FinishBridgeConnect)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/fields", wrapper.ListFields)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/questions", wrapper.ListQuestions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/actions", wrapper.ListActions)
@@ -4987,6 +5297,84 @@ type ListActionsdefaultJSONResponse struct {
 }
 
 func (response ListActionsdefaultJSONResponse) VisitListActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBridgePluginsRequestObject struct {
+}
+
+type ListBridgePluginsResponseObject interface {
+	VisitListBridgePluginsResponse(w http.ResponseWriter) error
+}
+
+type ListBridgePlugins200JSONResponse BridgePlugins
+
+func (response ListBridgePlugins200JSONResponse) VisitListBridgePluginsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBridgePluginsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListBridgePluginsdefaultJSONResponse) VisitListBridgePluginsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SwitchBridgePluginRequestObject struct {
+	Kind string `json:"kind"`
+	Body *SwitchBridgePluginJSONRequestBody
+}
+
+type SwitchBridgePluginResponseObject interface {
+	VisitSwitchBridgePluginResponse(w http.ResponseWriter) error
+}
+
+type SwitchBridgePlugin200JSONResponse BridgePlugin
+
+func (response SwitchBridgePlugin200JSONResponse) VisitSwitchBridgePluginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SwitchBridgePlugindefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response SwitchBridgePlugindefaultJSONResponse) VisitSwitchBridgePluginResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5064,6 +5452,118 @@ type CreateBridgedefaultJSONResponse struct {
 }
 
 func (response CreateBridgedefaultJSONResponse) VisitCreateBridgeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBridgeRequestObject struct {
+	Id   ID `json:"id"`
+	Body *UpdateBridgeJSONRequestBody
+}
+
+type UpdateBridgeResponseObject interface {
+	VisitUpdateBridgeResponse(w http.ResponseWriter) error
+}
+
+type UpdateBridge200JSONResponse Bridge
+
+func (response UpdateBridge200JSONResponse) VisitUpdateBridgeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBridgedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response UpdateBridgedefaultJSONResponse) VisitUpdateBridgeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBridgeChatsRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type ListBridgeChatsResponseObject interface {
+	VisitListBridgeChatsResponse(w http.ResponseWriter) error
+}
+
+type ListBridgeChats200JSONResponse BridgeChats
+
+func (response ListBridgeChats200JSONResponse) VisitListBridgeChatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBridgeChatsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListBridgeChatsdefaultJSONResponse) VisitListBridgeChatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConnectBridgeRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type ConnectBridgeResponseObject interface {
+	VisitConnectBridgeResponse(w http.ResponseWriter) error
+}
+
+type ConnectBridge302Response struct {
+}
+
+func (response ConnectBridge302Response) VisitConnectBridgeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(302)
+	return nil
+}
+
+type ConnectBridgedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ConnectBridgedefaultJSONResponse) VisitConnectBridgeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6119,6 +6619,39 @@ type GetBoarddefaultJSONResponse struct {
 }
 
 func (response GetBoarddefaultJSONResponse) VisitGetBoardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FinishBridgeConnectRequestObject struct {
+	Params FinishBridgeConnectParams
+}
+
+type FinishBridgeConnectResponseObject interface {
+	VisitFinishBridgeConnectResponse(w http.ResponseWriter) error
+}
+
+type FinishBridgeConnect302Response struct {
+}
+
+func (response FinishBridgeConnect302Response) VisitFinishBridgeConnectResponse(w http.ResponseWriter) error {
+	w.WriteHeader(302)
+	return nil
+}
+
+type FinishBridgeConnectdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response FinishBridgeConnectdefaultJSONResponse) VisitFinishBridgeConnectResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -8255,12 +8788,27 @@ type StrictServerInterface interface {
 	// ListActions The actions a part can name, by role
 	// (GET /actions)
 	ListActions(ctx context.Context, request ListActionsRequestObject) (ListActionsResponseObject, error)
+	// ListBridgePlugins The bridge plugins Park has, and those switched that it no longer has
+	// (GET /admin/bridge-plugins)
+	ListBridgePlugins(ctx context.Context, request ListBridgePluginsRequestObject) (ListBridgePluginsResponseObject, error)
+	// SwitchBridgePlugin Switch a bridge plugin on or off
+	// (PUT /admin/bridge-plugins/{kind})
+	SwitchBridgePlugin(ctx context.Context, request SwitchBridgePluginRequestObject) (SwitchBridgePluginResponseObject, error)
 	// ListBridges Every registered bridge
 	// (GET /admin/bridges)
 	ListBridges(ctx context.Context, request ListBridgesRequestObject) (ListBridgesResponseObject, error)
 	// CreateBridge Register a bridge
 	// (POST /admin/bridges)
 	CreateBridge(ctx context.Context, request CreateBridgeRequestObject) (CreateBridgeResponseObject, error)
+	// UpdateBridge Change a bridge
+	// (PATCH /admin/bridges/{id})
+	UpdateBridge(ctx context.Context, request UpdateBridgeRequestObject) (UpdateBridgeResponseObject, error)
+	// ListBridgeChats The chats a Park-run bridge's account can read
+	// (GET /admin/bridges/{id}/chats)
+	ListBridgeChats(ctx context.Context, request ListBridgeChatsRequestObject) (ListBridgeChatsResponseObject, error)
+	// ConnectBridge Begin connecting the account a Park-run bridge reads as
+	// (GET /admin/bridges/{id}/connect)
+	ConnectBridge(ctx context.Context, request ConnectBridgeRequestObject) (ConnectBridgeResponseObject, error)
 	// ListForges Every forge
 	// (GET /admin/forges)
 	ListForges(ctx context.Context, request ListForgesRequestObject) (ListForgesResponseObject, error)
@@ -8345,6 +8893,9 @@ type StrictServerInterface interface {
 	// GetBoard Every open unit, as it stands for me
 	// (GET /board)
 	GetBoard(ctx context.Context, request GetBoardRequestObject) (GetBoardResponseObject, error)
+	// FinishBridgeConnect Where a platform sends the browser back once a bridge's account has signed in
+	// (GET /bridges/callback)
+	FinishBridgeConnect(ctx context.Context, request FinishBridgeConnectRequestObject) (FinishBridgeConnectResponseObject, error)
 	// ListFields The field catalog, every field a condition or a reason can read
 	// (GET /fields)
 	ListFields(ctx context.Context, request ListFieldsRequestObject) (ListFieldsResponseObject, error)
@@ -8578,6 +9129,63 @@ func (sh *strictHandler) ListActions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListBridgePlugins operation middleware
+func (sh *strictHandler) ListBridgePlugins(w http.ResponseWriter, r *http.Request) {
+	var request ListBridgePluginsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBridgePlugins(ctx, request.(ListBridgePluginsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBridgePlugins")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBridgePluginsResponseObject); ok {
+		if err := validResponse.VisitListBridgePluginsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SwitchBridgePlugin operation middleware
+func (sh *strictHandler) SwitchBridgePlugin(w http.ResponseWriter, r *http.Request, kind string) {
+	var request SwitchBridgePluginRequestObject
+
+	request.Kind = kind
+
+	var body SwitchBridgePluginJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SwitchBridgePlugin(ctx, request.(SwitchBridgePluginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SwitchBridgePlugin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SwitchBridgePluginResponseObject); ok {
+		if err := validResponse.VisitSwitchBridgePluginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListBridges operation middleware
 func (sh *strictHandler) ListBridges(w http.ResponseWriter, r *http.Request) {
 	var request ListBridgesRequestObject
@@ -8626,6 +9234,91 @@ func (sh *strictHandler) CreateBridge(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateBridgeResponseObject); ok {
 		if err := validResponse.VisitCreateBridgeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateBridge operation middleware
+func (sh *strictHandler) UpdateBridge(w http.ResponseWriter, r *http.Request, id ID) {
+	var request UpdateBridgeRequestObject
+
+	request.Id = id
+
+	var body UpdateBridgeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateBridge(ctx, request.(UpdateBridgeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateBridge")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateBridgeResponseObject); ok {
+		if err := validResponse.VisitUpdateBridgeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBridgeChats operation middleware
+func (sh *strictHandler) ListBridgeChats(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ListBridgeChatsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBridgeChats(ctx, request.(ListBridgeChatsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBridgeChats")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBridgeChatsResponseObject); ok {
+		if err := validResponse.VisitListBridgeChatsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConnectBridge operation middleware
+func (sh *strictHandler) ConnectBridge(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ConnectBridgeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConnectBridge(ctx, request.(ConnectBridgeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConnectBridge")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConnectBridgeResponseObject); ok {
+		if err := validResponse.VisitConnectBridgeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -9420,6 +10113,32 @@ func (sh *strictHandler) GetBoard(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetBoardResponseObject); ok {
 		if err := validResponse.VisitGetBoardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FinishBridgeConnect operation middleware
+func (sh *strictHandler) FinishBridgeConnect(w http.ResponseWriter, r *http.Request, params FinishBridgeConnectParams) {
+	var request FinishBridgeConnectRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FinishBridgeConnect(ctx, request.(FinishBridgeConnectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FinishBridgeConnect")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FinishBridgeConnectResponseObject); ok {
+		if err := validResponse.VisitFinishBridgeConnectResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

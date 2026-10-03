@@ -37,13 +37,34 @@ func TestLoadFromEnvironment(t *testing.T) {
 
 // Every key the file sets is loaded.
 func TestLoadFromFile(t *testing.T) {
-	path := writeFile(t, "http:\n  addr: 127.0.0.1:9000\ndatabase:\n  url: postgres://file/park\nsecret_key: "+key+"\n")
+	path := writeFile(t, "http:\n  addr: 127.0.0.1:9000\ndatabase:\n  url: postgres://file/park\nbridges:\n  plugin_dir: /opt/park/plugins\n"+
+		"secret_key: "+key+"\n")
 	c, err := Load(path, env(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.HTTP.Addr != "127.0.0.1:9000" || c.Database.URL != "postgres://file/park" || c.SecretKey != key {
+	if c.HTTP.Addr != "127.0.0.1:9000" || c.Database.URL != "postgres://file/park" || c.Bridges.PluginDir != "/opt/park/plugins" ||
+		c.SecretKey != key {
 		t.Fatalf("got %+v", c)
+	}
+}
+
+// The plugin directory has its own variable, and has none by default: Park then has no plugins.
+func TestPluginDir(t *testing.T) {
+	c, err := Load("", env(map[string]string{"PARK_DATABASE_URL": "postgres://db/park", "PARK_SECRET_KEY": key}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Bridges.PluginDir != "" {
+		t.Fatalf("bridges.plugin_dir = %q by default, want none", c.Bridges.PluginDir)
+	}
+	c, err = Load("", env(map[string]string{"PARK_DATABASE_URL": "postgres://db/park", "PARK_SECRET_KEY": key,
+		"PARK_BRIDGES_PLUGIN_DIR": "/opt/park/plugins"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Bridges.PluginDir != "/opt/park/plugins" {
+		t.Fatalf("bridges.plugin_dir = %q, want the variable's", c.Bridges.PluginDir)
 	}
 }
 

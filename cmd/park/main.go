@@ -25,6 +25,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/NickWilde18/Park/internal/bridges"
 	"github.com/NickWilde18/Park/internal/config"
 	"github.com/NickWilde18/Park/internal/events"
 	"github.com/NickWilde18/Park/internal/facts"
@@ -116,6 +117,14 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	}
 	collected := facts.New(pool, box, log)
 	groups := grouping.New(pool, log)
+	plugins, err := bridges.Load(ctx, cfg.Bridges.PluginDir)
+	if err != nil {
+		return err
+	}
+	for _, p := range plugins {
+		log.InfoContext(ctx, "bridge plugin found", "kind", p.Kind, "name", p.Name, "path", p.Path)
+	}
+	chatBridges := bridges.New(pool, box, log, bridges.Options{PublicURL: cfg.HTTP.PublicURL, Plugins: plugins})
 	balls := verdicts.New(pool, log, ruleSets, groups)
 	taskStage := tasks.New(pool, log, groups)
 	collected.Follow(groups.FactsFollower())
@@ -187,6 +196,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 		Identity: ids,
 		Facts:    collected,
 		Grouping: groups,
+		Bridges:  chatBridges,
 		Rules:    ruleSets,
 		Verdicts: balls,
 		Tasks:    taskStage,

@@ -22,6 +22,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/NickWilde18/Park/api"
+	"github.com/NickWilde18/Park/internal/bridges"
 	"github.com/NickWilde18/Park/internal/docs"
 	"github.com/NickWilde18/Park/internal/events"
 	"github.com/NickWilde18/Park/internal/facts"
@@ -43,6 +44,7 @@ type Options struct {
 	Identity *identity.Service
 	Facts    *facts.Service
 	Grouping *grouping.Service
+	Bridges  *bridges.Service
 	Rules    *rules.Service
 	Verdicts *verdicts.Service
 	Tasks    *tasks.Service
@@ -76,7 +78,7 @@ func New(opts Options) (http.Handler, error) {
 		log.InfoContext(r.Context(), "bad request", "path", r.URL.Path, "error", err)
 		writeError(w, http.StatusBadRequest, "bad_request", "The request is not valid.")
 	}
-	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, rules: opts.Rules, verdicts: opts.Verdicts, tasks: opts.Tasks, events: opts.Events, pool: opts.Pool,
+	srv := &server{id: opts.Identity, facts: opts.Facts, grouping: opts.Grouping, bridges: opts.Bridges, rules: opts.Rules, verdicts: opts.Verdicts, tasks: opts.Tasks, events: opts.Events, pool: opts.Pool,
 		eventPoll: time.Second,
 		closing:   opts.Closing,
 		log:       log}
@@ -107,6 +109,7 @@ type server struct {
 	id       *identity.Service
 	facts    *facts.Service
 	grouping *grouping.Service
+	bridges  *bridges.Service
 	rules    *rules.Service
 	verdicts *verdicts.Service
 	tasks    *tasks.Service

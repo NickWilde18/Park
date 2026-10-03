@@ -13,6 +13,7 @@
 | Authentication | Identity-provider abstraction: local, forge, OIDC; plus API tokens |
 | Forge access | Credential-provider abstraction: app installation first, personal token for a quick start |
 | Model judgement | Provider abstraction, bring your own key; off unless configured |
+| Chat bridges | Plugins: executables Park calls for one operation at a time ([Bridge plugins](12-bridge-plugins.md)) |
 | Repository | Monorepo, without monorepo tooling |
 | License | MIT |
 | Language | English throughout: code, comments, commits, docs |
@@ -38,6 +39,7 @@ Inside `park serve`:
 | Evaluator | Verdicts and judgements ([Verdicts](04-verdicts.md)) |
 | Task keeper | Creating tasks, expiring leases, verification, and retries ([Tasks](06-tasks.md)) |
 | Model pool | Calls to the model provider, under the concurrency limit |
+| Bridge rounds | The rounds of the bridges Park runs, through their plugins ([Grouping](03-grouping.md#bridges-park-runs)) |
 
 ## How stages hand off
 
@@ -55,11 +57,13 @@ All coordination goes through Postgres, so several `park serve` processes can ru
 Park/
   cmd/park/            entry point: serve, migrate, version
   cmd/seed/            a small team's pull requests, for the dashboard's end-to-end tests
+  cmd/park-bridge-file/ the reference bridge plugin, which reads its chats from a file
   api/openapi.yaml     the contract
   internal/
     facts/             refresh, webhook intake, polling, fact events, and the collector interface it calls
     forges/github/     the GitHub collector: fetching, and normalizing into neutral facts
     grouping/          chains, assertions, resolution, suggestions
+    bridges/           bridges Park runs: plugins and their protocol, switches, settings, accounts, rounds
     docs/              groups' descriptions: reading their zips, storing their files, serving them by link
     verdicts/          roles, parts, placing the ball, queues
     judgement/         questions, fingerprints, the model provider interface
@@ -76,11 +80,11 @@ Park/
 
 ## Neutral vocabulary
 
-Domain terms are forge-neutral — `forge`, `repo`, `pull_request`, `review`, `account` — in tables, columns, API paths, and configuration keys. A forge's kind is a value (`github`), never part of a name; the only place a vendor's name appears in code is its own collector's package. GitHub is the only forge at first, and adding another means adding a collector, not changing the schema. The fact layer calls its collector through a thin interface, shaped by what the fact layer needs — fetch a pull request's state, list open pull requests, read a delivery — so it never imports a vendor's package. There is no broader adapter layer, designed around forges Park does not support, until a second forge actually exists.
+Domain terms are forge-neutral — `forge`, `repo`, `pull_request`, `review`, `account` — in tables, columns, API paths, and configuration keys. A forge's kind is a value (`github`), never part of a name; the only place a vendor's name appears in code is its own collector's package. GitHub is the only forge at first, and adding another means adding a collector, not changing the schema. The fact layer calls its collector through a thin interface, shaped by what the fact layer needs — fetch a pull request's state, list open pull requests, read a delivery — so it never imports a vendor's package. There is no broader adapter layer, designed around forges Park does not support, until a second forge actually exists. A bridge plugin's kind is a value too, and no chat platform's name appears in Park at all: what a plugin is called, and what its credentials are, come from the plugin ([Bridge plugins](12-bridge-plugins.md)).
 
 ## Configuration
 
-A YAML file, named by `-config` or `PARK_CONFIG`, plus environment variables; the environment wins. Each key has a variable: `PARK_`, then the key in upper case with dots as underscores — `database.url` is `PARK_DATABASE_URL`. A key the file misspells stops startup, and so does a required key that is missing. Keys are neutral: `http.addr` (`:8080` by default), `http.public_url` (Park's own address, which forge sign-in sends browsers back to), `database.url`, `secret_key` (at least 32 bytes), `setup_code` (a setup code of the operator's choosing, instead of one printed to the log), `identity.oidc`, `model.provider`. Forges and installations, sign-in and model providers, bridges, and grouping settings are edited on the dashboard and stored in the database. Their addresses — a forge's base address, an OIDC issuer, a bridge's link template — are configuration, kept in one place and used to build links and check tokens; no fact, identity, or assertion stores a URL. Secrets — forge credentials, webhook secrets, provider keys — are stored encrypted with the server's secret key, or read from the environment or from files.
+A YAML file, named by `-config` or `PARK_CONFIG`, plus environment variables; the environment wins. Each key has a variable: `PARK_`, then the key in upper case with dots as underscores — `database.url` is `PARK_DATABASE_URL`. A key the file misspells stops startup, and so does a required key that is missing. Keys are neutral: `http.addr` (`:8080` by default), `http.public_url` (Park's own address, which forge sign-in sends browsers back to), `database.url`, `secret_key` (at least 32 bytes), `setup_code` (a setup code of the operator's choosing, instead of one printed to the log), `bridges.plugin_dir` (the directory of bridge plugins), `identity.oidc`, `model.provider`. Forges and installations, sign-in and model providers, bridges, and grouping settings are edited on the dashboard and stored in the database. Their addresses — a forge's base address, an OIDC issuer, a bridge's link template — are configuration, kept in one place and used to build links and check tokens; no fact, identity, or assertion stores a URL. Secrets — forge credentials, webhook secrets, provider keys — are stored encrypted with the server's secret key, or read from the environment or from files.
 
 ## Deployment
 
@@ -88,6 +92,7 @@ A YAML file, named by `-config` or `PARK_CONFIG`, plus environment variables; th
 - Only the webhook endpoint has to be reachable from the forge. Without it, polling alone keeps Park correct, only slower.
 - `/healthz` reports that the process is up; `/readyz`, that the database is reachable and migrations are current.
 - A setup for one person — a local account and a personal token — is the predecessor's use case, and needs nothing more.
+- Bridge plugins, if any, are executables in the directory `bridges.plugin_dir` names, beside the binary or in the container; a platform's sign-in sends browsers back to `http.public_url`.
 
 ## Operations
 

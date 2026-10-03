@@ -19,6 +19,9 @@ func (s *server) PostProposal(ctx context.Context, req PostProposalRequestObject
 	if c.BridgeID == 0 {
 		return nil, errBridgeProposes
 	}
+	if err := s.bridges.Accepting(ctx, c.BridgeID); err != nil {
+		return nil, err
+	}
 	p := grouping.Proposal{Anchor: req.Body.Anchor}
 	if req.Body.Title != nil {
 		p.Title = *req.Body.Title
@@ -50,6 +53,9 @@ func (s *server) RetractProposal(ctx context.Context, req RetractProposalRequest
 	}
 	if c.BridgeID == 0 {
 		return nil, errBridgeProposes
+	}
+	if err := s.bridges.Accepting(ctx, c.BridgeID); err != nil {
+		return nil, err
 	}
 	if err := s.grouping.RetractProposal(ctx, c.BridgeID, req.Params.Anchor); err != nil {
 		return nil, err
