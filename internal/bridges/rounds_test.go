@@ -80,6 +80,14 @@ func (e *env) queued(t *testing.T, id int64) *time.Time {
 	return at
 }
 
+// clock is the database's time now: the work queue's now, which a round queued for now is queued for.
+func (e *env) clock(t *testing.T) time.Time {
+	t.Helper()
+	var now time.Time
+	must(t, e.pool.QueryRow(e.ctx, "SELECT now()").Scan(&now))
+	return now
+}
+
 // live is a bridge's live assertions, by anchor, as owner/name#number... joined with their titles.
 func (e *env) live(t *testing.T, id int64) map[string]string {
 	t.Helper()
@@ -235,7 +243,9 @@ func TestAMovedBridgeStartsFromWhatItPosted(t *testing.T) {
 }
 
 // Syncing now needs a bridge that is ready: Park runs it, it is on, its account is connected, and its chat chosen;
-// then a round is queued now. Starting queues each ready bridge's round a period after its last, or now.
+// then a round is queued now, by the work queue's clock, which is the database's: between the database's time just
+// before the sync and just after, rather than later by it or by the test's own clock. Starting queues each ready
+// bridge's round a period after its last, or now.
 func TestSyncAndStart(t *testing.T) {
 	e := newEnv(t)
 	e.watchRepos(t)
@@ -251,9 +261,10 @@ func TestSyncAndStart(t *testing.T) {
 	must(t, err)
 	_, err = e.pool.Exec(e.ctx, "DELETE FROM work_item")
 	must(t, err)
+	before := e.clock(t)
 	must(t, e.s.Sync(e.ctx, b.ID))
-	if at := e.queued(t, b.ID); at == nil || at.After(e.now) {
-		t.Fatalf("synced: the round is queued for %v, want now", at)
+	if at, after := e.queued(t, b.ID), e.clock(t); at == nil || at.Before(before) || at.After(after) {
+		t.Fatalf("synced: the round is queued for %v, want the queue's now, from %v to %v", at, before, after)
 	}
 
 	e.run(t, b.ID)
