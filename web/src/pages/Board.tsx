@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
-import { pathText, since, unitPath, words } from '../format'
+import { checkStates, pathText, since, unitPath, words } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
 import { asked, refreshPRs } from '../refresh'
@@ -21,8 +21,8 @@ type Column = {
   wrap?: boolean
 }
 
-// Look is how a value shows as a tag, and where it sorts.
-type Look = { text: string; colour: string; order: number }
+// Look is how a value shows as a tag, and where it sorts; a hint, if any, says what the tag covers when pointed at.
+type Look = { text: string; colour: string; order: number; hint?: string }
 
 const balls: Record<BoardUnit['ball'], Look> = {
   yours: { text: 'Yours', colour: 'red', order: 0 },
@@ -30,10 +30,10 @@ const balls: Record<BoardUnit['ball'], Look> = {
   none: { text: 'Not yours', colour: 'gray', order: 2 },
 }
 const checks: Record<string, Look> = {
-  failing: { text: 'Failing', colour: 'red', order: 0 },
-  pending: { text: 'Pending', colour: 'yellow', order: 1 },
-  passing: { text: 'Passing', colour: 'green', order: 2 },
-  none: { text: 'None', colour: 'gray', order: 3 },
+  failing: { ...checkStates.failing, colour: 'red', order: 0 },
+  pending: { ...checkStates.pending, colour: 'yellow', order: 1 },
+  passing: { ...checkStates.passing, colour: 'green', order: 2 },
+  none: { ...checkStates.none, colour: 'gray', order: 3 },
 }
 const reviews: Record<string, Look> = {
   changes_requested: { text: 'Changes requested', colour: 'red', order: 0 },
@@ -48,7 +48,11 @@ const taskStates: Record<string, Look> = {
 }
 
 function tag(look: Look): ReactNode {
-  return <span className={`tag ${look.colour}`}>{look.text}</span>
+  return (
+    <span className={`tag ${look.colour}`} title={look.hint}>
+      {look.text}
+    </span>
+  )
 }
 
 const quietDash = <span className="quiet">—</span>

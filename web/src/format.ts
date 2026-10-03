@@ -18,6 +18,18 @@ export function prName(prs: PRs, id: number): string {
   return p ? `${p.repo.name}#${p.number}` : `pull request ${id}`
 }
 
+// checkStates names where a pull request's required checks stand on its latest commit, and says what each name
+// covers, as the board's CI column and a unit's page show them.
+export const checkStates = {
+  failing: { text: 'Failed', hint: 'A required check on the latest commit failed.' },
+  pending: {
+    text: 'Running',
+    hint: 'No required check failed, and one is still queued, running, or not reported on the latest commit yet.',
+  },
+  passing: { text: 'Passed', hint: 'Every required check on the latest commit finished, and passed.' },
+  none: { text: 'None', hint: 'The base branch requires no checks.' },
+} as const
+
 // unitPath is the dashboard's page of a unit.
 export function unitPath(unit: Schemas['Unit']): string {
   return `/units/${unit.kind === 'pull_request' ? 'pr' : 'group'}/${unit.id}`

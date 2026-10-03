@@ -71,6 +71,16 @@ test('a unit\'s page shows nothing of the unit before it', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'api#14', exact: true })).toBeVisible({ timeout: 10_000 })
 })
 
+// The Billing group's page names each pull request's checks as the board does, by where they stand: api#12's build
+// failed, and the others' passed.
+test('a unit\'s page names its checks by where they stand', async ({ page }) => {
+  await signIn(page, 'ana')
+  await page.goto('/units/group/1')
+  await expect(page.getByText(/^Checks: build failed\./)).toBeVisible()
+  await expect(page.getByText(/^Checks: build passed\./).first()).toBeVisible()
+  await expect(page.getByText(/^Checks: build (failing|passing|pending)\./)).toHaveCount(0)
+})
+
 // Ana's groups page lists the bridge's two proposals, each linked to its thread, and one the bridge posts while the
 // page is open, from its notice. She dismisses two, and they go. She leaves a pull request out of the third, whose
 // group then has too few to group, and Park says so; with it back and the group renamed, accepting makes the group

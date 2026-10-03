@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
-import { pathText, prName, reasonsOf, since, words, type PRs } from '../format'
+import { checkStates, pathText, prName, reasonsOf, since, words, type PRs } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
 import { asked, refreshPRs } from '../refresh'
@@ -179,7 +179,8 @@ export default function Unit({ kind, id }: Props) {
             <span className="quiet"> · checked {since(f.summary.refreshed_at)} ago</span>
           </h3>
           <p>
-            Checks: {f.facts.checks.map((c) => `${c.name} ${c.state}`).join(', ') || 'none'}. Reviews:{' '}
+            Checks:{' '}
+            {f.facts.checks.map((c) => `${c.name} ${checkStates[c.state].text.toLowerCase()}`).join(', ') || 'none'}. Reviews:{' '}
             {f.facts.reviews.map((r) => `${login(f, r.author)} ${words(r.state)}`).join(', ') || 'none'}. Threads:{' '}
             {f.facts.threads.filter((t) => !t.resolved).length} open of {f.facts.threads.length}.
           </p>
