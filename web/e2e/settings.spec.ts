@@ -176,7 +176,9 @@ test('an admin connects forges, installations, repositories, and bridges', async
   await connections.getByLabel("New bridge's name").fill('Threads')
   await connections.getByLabel("New bridge's link template").fill('https://chat.example.test/t/{id}')
   await connections.getByRole('button', { name: 'Register a bridge' }).click()
-  await expect(connections.getByRole('listitem').filter({ hasText: /^Threads, owned by Ana/ })).toContainText('https://chat.example.test/t/{id}')
+  await expect(connections.getByRole('article', { name: 'Threads', exact: true })).toContainText(
+    'Owned by Ana, posting with a token, linking to https://chat.example.test/t/{id}.',
+  )
   await connections.getByRole('button', { name: 'Create a token for Threads' }).click()
   await expect(connections.locator('.notice code')).toHaveText(/^park_/)
 })
