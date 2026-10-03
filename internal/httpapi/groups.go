@@ -232,6 +232,9 @@ func (s *server) PostAssertion(ctx context.Context, req PostAssertionRequestObje
 	if c.BridgeID == 0 {
 		return nil, errBridgeOnly
 	}
+	if err := s.bridges.Accepting(ctx, c.BridgeID); err != nil {
+		return nil, err
+	}
 	a := grouping.Assertion{Anchor: req.Body.Anchor}
 	if req.Body.Title != nil {
 		a.Title = *req.Body.Title
@@ -257,50 +260,11 @@ func (s *server) RetractAssertion(ctx context.Context, req RetractAssertionReque
 	if c.BridgeID == 0 {
 		return nil, errBridgeOnly
 	}
+	if err := s.bridges.Accepting(ctx, c.BridgeID); err != nil {
+		return nil, err
+	}
 	if err := s.grouping.Retract(ctx, c.BridgeID, req.Params.Anchor); err != nil {
 		return nil, err
 	}
 	return RetractAssertion204Response{}, nil
-}
-
-func bridgeOut(b grouping.Bridge) Bridge {
-	return Bridge{Id: b.ID, Name: b.Name, OwnerId: b.OwnerID, LinkTemplate: b.LinkTemplate, CreatedAt: b.CreatedAt}
-}
-
-func (s *server) ListBridges(ctx context.Context, _ ListBridgesRequestObject) (ListBridgesResponseObject, error) {
-	if _, err := requireAdmin(ctx); err != nil {
-		return nil, err
-	}
-	bs, err := s.grouping.Bridges(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := ListBridges200JSONResponse{Bridges: []Bridge{}}
-	for _, b := range bs {
-		out.Bridges = append(out.Bridges, bridgeOut(b))
-	}
-	return out, nil
-}
-
-func (s *server) CreateBridge(ctx context.Context, req CreateBridgeRequestObject) (CreateBridgeResponseObject, error) {
-	c, err := requireAdminSession(ctx)
-	if err != nil {
-		return nil, err
-	}
-	owner := c.Member.ID
-	if req.Body.OwnerId != nil {
-		owner = *req.Body.OwnerId
-		if _, err := s.id.MemberByID(ctx, owner); err != nil {
-			return nil, err
-		}
-	}
-	template := ""
-	if req.Body.LinkTemplate != nil {
-		template = *req.Body.LinkTemplate
-	}
-	b, err := s.grouping.CreateBridge(ctx, owner, req.Body.Name, template)
-	if err != nil {
-		return nil, err
-	}
-	return CreateBridge201JSONResponse(bridgeOut(b)), nil
 }

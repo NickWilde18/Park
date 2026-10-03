@@ -64,6 +64,7 @@ A YAML file, named by `-config` or `PARK_CONFIG`, and environment variables, whi
 | `http.public_url` | `PARK_HTTP_PUBLIC_URL` | Park's own address, such as `https://park.example.com`; needed for signing in through a forge |
 | `database.url` | `PARK_DATABASE_URL` | Required. A `postgres://` URL |
 | `secret_key` | `PARK_SECRET_KEY` | Required, at least 32 bytes. Encrypts the secrets Park stores; they cannot be read without it |
+| `bridges.plugin_dir` | `PARK_BRIDGES_PLUGIN_DIR` | The directory of the bridge plugins Park runs: each executable in it is one; without it, Park runs no bridge itself |
 | `setup_code` | `PARK_SETUP_CODE` | The one-time code that creates the first administrator; without it, Park prints one to its log |
 
 ## Develop

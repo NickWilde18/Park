@@ -48,7 +48,7 @@ Each role's list drawn as its first-match tree, with passed-over labels on the e
 
 ### Settings
 
-Mine: automation (which actions become tasks, in which repositories), linked identities, which I connect through a sign-in provider and can unlink unless one is my last way in ([I10](07-identity.md#rules)), tokens. For admins: forges; installations, with the address each forge delivers webhooks to, and credentials typed in and never shown back; repositories, to watch, stop watching, or refresh now; bridges, with a token for one the admin owns, shown once; members, with their permissions and the accounts linked to them by hand; invites, whose code and link are shown once; sign-in providers, with the callback address each forge needs; the model provider and each question's threshold; and grouping settings.
+Mine: automation (which actions become tasks, in which repositories), linked identities, which I connect through a sign-in provider and can unlink unless one is my last way in ([I10](07-identity.md#rules)), tokens. For admins: forges; installations, with the address each forge delivers webhooks to, and credentials typed in and never shown back; repositories, to watch, stop watching, or refresh now; bridge plugins, each switched on or off; bridges, each with its switch — an external one with a token for one the admin owns, shown once, and one Park runs with its plugin's credentials, typed in and never shown back, the account it reads as, connected through the plugin's sign-in, the chat it reads, its settings, and its last round ([Grouping](03-grouping.md#bridges-park-runs)); members, with their permissions and the accounts linked to them by hand; invites, whose code and link are shown once; sign-in providers, with the callback address each forge needs; the model provider and each question's threshold; and grouping settings.
 
 ## Live updates
 
@@ -77,10 +77,11 @@ Mine: automation (which actions become tasks, in which repositories), linked ide
 | Suggestions | `GET /suggestions` · `POST /suggestions/{id}/accept` · `POST /suggestions/{id}/dismiss` |
 | Assertions | `POST /assertions` · `DELETE /assertions?anchor=…` |
 | Proposals | `POST /proposals` · `DELETE /proposals?anchor=…` · `GET /proposals` · `POST /proposals/{id}/accept` · `POST /proposals/{id}/dismiss` |
+| Bridges | `GET /bridges` · `POST /bridges/{id}/sync` · `GET /bridges/callback` |
 | Rules | `GET /fields` · `GET /questions` · `GET /actions` · `GET /rulesets` · `GET /rulesets/{version}` · `GET /rulesets/drafts` · `POST /rulesets/drafts` · `GET /rulesets/drafts/{id}` · `PUT /rulesets/drafts/{id}` · `DELETE /rulesets/drafts/{id}` · `POST /rulesets/drafts/{id}/preview` · `POST /rulesets/drafts/{id}/publish` · `POST /examples` · `DELETE /examples/{id}` |
 | Tasks | `GET /tasks` · `GET /tasks/{id}` · `POST /tasks/claim` · `POST /tasks/{id}/heartbeat` · `POST /tasks/{id}/report` · `POST /tasks/{id}/release` · `POST /tasks/{id}/retry` · `POST /tasks/{id}/dismiss` |
 | My settings | `GET /me/automation` · `PUT /me/automation` · `GET /me/identities` · `DELETE /me/identities/{id}` · `GET /me/tokens` · `POST /me/tokens` · `DELETE /me/tokens/{id}` |
-| Administration | `/admin/forges` · `/admin/installations` · `/admin/repos` · `/admin/members` · `/admin/invites` · `/admin/providers` · `/admin/bridges` · `/admin/grouping` · `/admin/model` |
+| Administration | `/admin/forges` · `/admin/installations` · `/admin/repos` · `/admin/members` · `/admin/invites` · `/admin/providers` · `/admin/bridges` · `/admin/bridge-plugins` · `/admin/grouping` · `/admin/model` |
 | Events | `GET /events` |
 
 Outside `/api/v1`: `POST /hooks/{installation_id}` for forge deliveries; `GET /docs/{token}/…` for groups' descriptions, by their links; and `GET /healthz` and `GET /readyz` for health checks. `{provider}` is the ID an admin gave a configured sign-in provider, not a vendor's name.

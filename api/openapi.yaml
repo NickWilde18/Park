@@ -1088,7 +1088,10 @@ paths:
     post:
       operationId: createBridge
       summary: Register a bridge
-      description: Its owner then creates its token, with bridge_id, at POST /me/tokens.
+      description: >-
+        Without a plugin, an external bridge, whose owner then creates its token, with bridge_id, at POST /me/tokens.
+        With one, a bridge Park runs through that plugin, which must be one Park has, and switched on; it has no rounds
+        until it has its credentials, its account, and its chat.
       tags: [admin]
       requestBody:
         required: true
@@ -1103,6 +1106,134 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Bridge"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/bridges/{id}:
+    patch:
+      operationId: updateBridge
+      summary: Change a bridge
+      description: >-
+        What is left out stays as it is. Credentials are merged into the bridge's: a key with a value sets it, and a
+        key with an empty value removes it. Giving an external bridge a plugin makes it one Park runs: it keeps its ID,
+        and what it posted, and its tokens are revoked. A bridge Park runs keeps its plugin. Credentials, chat, and
+        schedule are only a Park-run bridge's.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BridgePatch"
+      responses:
+        "200":
+          description: The bridge, as it is now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bridge"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/bridges/{id}/connect:
+    get:
+      operationId: connectBridge
+      summary: Begin connecting the account a Park-run bridge reads as
+      description: >-
+        With an admin's session. Redirects the browser to the plugin's sign-in page, which sends it back to
+        /bridges/callback. The bridge's credentials must be complete, and http.public_url configured.
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "302":
+          description: To the platform's sign-in page.
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/bridges/{id}/chats:
+    get:
+      operationId: listBridgeChats
+      summary: The chats a Park-run bridge's account can read
+      tags: [admin]
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: The chats, as the plugin lists them.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgeChats"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/bridge-plugins:
+    get:
+      operationId: listBridgePlugins
+      summary: The bridge plugins Park has, and those switched that it no longer has
+      tags: [admin]
+      responses:
+        "200":
+          description: The plugins, by kind.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgePlugins"
+        default:
+          $ref: "#/components/responses/Error"
+  /admin/bridge-plugins/{kind}:
+    put:
+      operationId: switchBridgePlugin
+      summary: Switch a bridge plugin on or off
+      description: >-
+        While a plugin is off, its bridges have no rounds, and no bridge can be added with it. Only a plugin Park has
+        can be switched on; one it no longer has can still be switched off.
+      tags: [admin]
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BridgePluginSwitch"
+      responses:
+        "200":
+          description: The plugin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BridgePlugin"
+        default:
+          $ref: "#/components/responses/Error"
+  /bridges/callback:
+    get:
+      operationId: finishBridgeConnect
+      summary: Where a platform sends the browser back once a bridge's account has signed in
+      description: >-
+        Redirects to `/settings`, with `bridge_connected` set to the bridge's ID, or with `bridge_error` set to the
+        error's code. Only the admin who began connecting the account, in the same browser, finishes it.
+      tags: [admin]
+      security: []
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: error
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Back into Park.
         default:
           $ref: "#/components/responses/Error"
   /fields:
@@ -2752,7 +2883,7 @@ components:
             format: int64
     Bridge:
       type: object
-      required: [id, name, owner_id, link_template, created_at]
+      required: [id, name, owner_id, link_template, created_at, enabled, credentials, every_minutes, lookback_days, propose_from]
       properties:
         id:
           type: integer
@@ -2768,6 +2899,33 @@ components:
         created_at:
           type: string
           format: date-time
+        enabled:
+          type: boolean
+          description: >-
+            Its switch. A Park-run bridge that is off has no rounds; an external one that is off has its posts refused.
+        plugin:
+          type: string
+          description: The kind of the plugin Park runs it through; left out for an external bridge.
+        credentials:
+          type: array
+          description: The keys of the credentials that are set; their values are never shown.
+          items:
+            type: string
+        chat:
+          $ref: "#/components/schemas/BridgeChat"
+        account:
+          $ref: "#/components/schemas/BridgeAccount"
+        every_minutes:
+          type: integer
+          description: How often a Park-run bridge runs.
+        lookback_days:
+          type: integer
+          description: How far back a Park-run bridge's threads count.
+        propose_from:
+          type: integer
+          description: >-
+            How many pull requests a thread links before a Park-run bridge asks the model about it, when Park has a
+            model; 0 for never.
     Bridges:
       type: object
       required: [bridges]
@@ -2788,6 +2946,114 @@ components:
           description: The member who owns it; the caller by default.
         link_template:
           type: string
+        plugin:
+          type: string
+          description: The kind of the plugin Park is to run it through; left out for an external bridge.
+    BridgePatch:
+      type: object
+      properties:
+        name:
+          type: string
+        enabled:
+          type: boolean
+        plugin:
+          type: string
+        credentials:
+          type: object
+          additionalProperties:
+            type: string
+        chat:
+          $ref: "#/components/schemas/BridgeChat"
+        every_minutes:
+          type: integer
+        lookback_days:
+          type: integer
+        propose_from:
+          type: integer
+    BridgeChat:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          description: The platform's ID for the chat, never a link.
+        name:
+          type: string
+    BridgeChats:
+      type: object
+      required: [chats]
+      properties:
+        chats:
+          type: array
+          items:
+            $ref: "#/components/schemas/BridgeChat"
+    BridgeAccount:
+      type: object
+      required: [id, name, connected_by, connected_at]
+      properties:
+        id:
+          type: string
+          description: The platform's ID for the account.
+        name:
+          type: string
+        connected_by:
+          type: integer
+          format: int64
+          description: The member who connected it.
+        connected_at:
+          type: string
+          format: date-time
+        lapsed_at:
+          type: string
+          format: date-time
+          description: When the plugin last said the account has to be connected again; left out while it works.
+    BridgeField:
+      type: object
+      required: [key, label, secret]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        secret:
+          type: boolean
+          description: A secret is entered as a password is.
+    BridgePlugin:
+      type: object
+      required: [kind, name, fields, enabled, installed]
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+        fields:
+          type: array
+          description: Its credentials' fields.
+          items:
+            $ref: "#/components/schemas/BridgeField"
+        enabled:
+          type: boolean
+        installed:
+          type: boolean
+          description: False for a plugin that was switched before its executable left the plugin directory.
+        changed_at:
+          type: string
+          format: date-time
+          description: When an admin last switched it; left out if no one has.
+    BridgePlugins:
+      type: object
+      required: [plugins]
+      properties:
+        plugins:
+          type: array
+          items:
+            $ref: "#/components/schemas/BridgePlugin"
+    BridgePluginSwitch:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
     Field:
       type: object
       required: [name, type, meaning, operators]

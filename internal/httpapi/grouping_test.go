@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NickWilde18/Park/internal/bridges"
 	"github.com/NickWilde18/Park/internal/facts"
 	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/identity"
@@ -39,7 +40,8 @@ func TestGroupingOverHTTP(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- runner.Run(ctx) }()
 	t.Cleanup(func() { cancel(); <-done })
-	h, err := New(Options{Ready: ready, UI: built, Logger: log, Identity: ids, Facts: collected, Grouping: groups, Pool: pool})
+	h, err := New(Options{Ready: ready, UI: built, Logger: log, Identity: ids, Facts: collected, Grouping: groups,
+		Bridges: bridges.New(pool, box, log, bridges.Options{}), Pool: pool})
 	if err != nil {
 		t.Fatal(err)
 	}

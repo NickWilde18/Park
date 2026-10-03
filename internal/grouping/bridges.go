@@ -25,36 +25,33 @@ type Bridge struct {
 	OwnerID      int64
 }
 
-// CreateBridge registers a bridge owned by a member. Its link template, if any, is an http or https address with
-// {id} where an anchor or evidence ID goes, used to render links when they are shown.
+// CreateBridge registers an external bridge owned by a member. Its link template, if any, is an http or https
+// address with {id} where an anchor or evidence ID goes, used to render links when they are shown.
 func (s *Service) CreateBridge(ctx context.Context, owner int64, name, linkTemplate string) (Bridge, error) {
-	name = strings.TrimSpace(name)
-	if n := utf8.RuneCountInString(name); n < 1 || n > 100 {
-		return Bridge{}, fail.New(fail.Invalid, "invalid_name", "A bridge's name is 1 to 100 characters long.")
-	}
-	if linkTemplate != "" {
-		u, err := url.Parse(strings.ReplaceAll(linkTemplate, "{id}", "x"))
-		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || !strings.Contains(linkTemplate, "{id}") {
-			return Bridge{}, fail.New(fail.Invalid, "invalid_link_template", "A link template is an http or https address with {id} in it.")
-		}
+	name, err := CheckBridge(name, linkTemplate)
+	if err != nil {
+		return Bridge{}, err
 	}
 	b := Bridge{Name: name, LinkTemplate: linkTemplate, OwnerID: owner}
-	err := s.pool.QueryRow(ctx, "INSERT INTO bridge (name, owner_id, link_template) VALUES ($1, $2, $3) RETURNING id, created_at",
+	err = s.pool.QueryRow(ctx, "INSERT INTO bridge (name, owner_id, link_template) VALUES ($1, $2, $3) RETURNING id, created_at",
 		name, owner, linkTemplate).Scan(&b.ID, &b.CreatedAt)
 	return b, err
 }
 
-// Bridges lists the registered bridges.
-func (s *Service) Bridges(ctx context.Context) ([]Bridge, error) {
-	rows, err := s.pool.Query(ctx, "SELECT id, name, owner_id, link_template, created_at FROM bridge ORDER BY id")
-	if err != nil {
-		return nil, err
+// CheckBridge checks what every bridge has, whether Park runs it or not — a name of 1 to 100 characters, and a link
+// template that is empty or an http or https address with {id} in it — and returns the name trimmed.
+func CheckBridge(name, linkTemplate string) (string, error) {
+	name = strings.TrimSpace(name)
+	if n := utf8.RuneCountInString(name); n < 1 || n > 100 {
+		return "", fail.New(fail.Invalid, "invalid_name", "A bridge's name is 1 to 100 characters long.")
 	}
-	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Bridge, error) {
-		var b Bridge
-		err := row.Scan(&b.ID, &b.Name, &b.OwnerID, &b.LinkTemplate, &b.CreatedAt)
-		return b, err
-	})
+	if linkTemplate != "" {
+		u, err := url.Parse(strings.ReplaceAll(linkTemplate, "{id}", "x"))
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || !strings.Contains(linkTemplate, "{id}") {
+			return "", fail.New(fail.Invalid, "invalid_link_template", "A link template is an http or https address with {id} in it.")
+		}
+	}
+	return name, nil
 }
 
 // PRRef names a pull request as a bridge does: by repository name — owner/name, or a name that only one watched

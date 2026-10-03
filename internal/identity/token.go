@@ -49,12 +49,16 @@ func (s *Service) CreateToken(ctx context.Context, c *Caller, name string, scope
 	}
 	if bridge != nil {
 		var owner int64
-		err := s.pool.QueryRow(ctx, "SELECT owner_id FROM bridge WHERE id = $1", *bridge).Scan(&owner)
+		var runByPark bool
+		err := s.pool.QueryRow(ctx, "SELECT owner_id, plugin IS NOT NULL FROM bridge WHERE id = $1", *bridge).Scan(&owner, &runByPark)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && owner != c.Member.ID) {
 			return "", Token{}, fail.New(fail.NotFound, "not_found", "You own no such bridge.")
 		}
 		if err != nil {
 			return "", Token{}, err
+		}
+		if runByPark {
+			return "", Token{}, fail.New(fail.Conflict, "bridge_run_by_park", "Park runs this bridge; it has no tokens.")
 		}
 		if len(scopes) != 1 || scopes[0] != ScopeAssertionsWrite {
 			return "", Token{}, fail.New(fail.Invalid, "invalid_scopes", "A bridge's token has the one scope assertions:write.")

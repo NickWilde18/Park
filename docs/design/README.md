@@ -4,7 +4,7 @@ Park is the team-level source of truth for "whose turn is it, and to do what". I
 
 > Status: decided, except the entries under *Proposed* in the [design log](10-design-log.md#proposed), which await review.
 
-The design is split into chapters, one per part of the system. Each chapter states what the part is responsible for, the data it owns, its flows step by step, and the rules it must keep. Rules are numbered so that other chapters can cite them: P for principles, F facts, G grouping, V verdicts, R rules, T tasks, I identity, A the API, and D for design-log entries. The reasons behind the design, and the alternatives set aside, are collected in the design log, so that the chapters can stay descriptive. The [design checks](checks/README.md) check the chapters against each other, and the default rule set against every state it must handle.
+The design is split into chapters, one per part of the system. Each chapter states what the part is responsible for, the data it owns, its flows step by step, and the rules it must keep. Rules are numbered so that other chapters can cite them: P for principles, F facts, G grouping, V verdicts, R rules, T tasks, I identity, A the API, B bridge plugins, and D for design-log entries. The reasons behind the design, and the alternatives set aside, are collected in the design log, so that the chapters can stay descriptive. The [design checks](checks/README.md) check the chapters against each other, and the default rule set against every state it must handle.
 
 API paths are relative to `/api/v1`, except the webhook endpoint and the health checks.
 
@@ -25,6 +25,7 @@ Examples name pull requests as `repository#number`: `api#12` is pull request 12 
 | 9 | [Architecture](09-architecture.md) | Stack, runtime, how stages hand off, layout, deployment, operations |
 | 10 | [Design log](10-design-log.md) | Decisions and their reasons, and what was set aside |
 | 11 | [Open questions](11-open-questions.md) | What is still undecided |
+| 12 | [Bridge plugins](12-bridge-plugins.md) | The contract of the plugins through which Park runs chat bridges |
 
 ## The pipeline
 

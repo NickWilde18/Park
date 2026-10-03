@@ -841,9 +841,123 @@ export interface paths {
         put?: never;
         /**
          * Register a bridge
-         * @description Its owner then creates its token, with bridge_id, at POST /me/tokens.
+         * @description Without a plugin, an external bridge, whose owner then creates its token, with bridge_id, at POST /me/tokens. With one, a bridge Park runs through that plugin, which must be one Park has, and switched on; it has no rounds until it has its credentials, its account, and its chat.
          */
         post: operations["createBridge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bridges/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a bridge
+         * @description What is left out stays as it is. Credentials are merged into the bridge's: a key with a value sets it, and a key with an empty value removes it. Giving an external bridge a plugin makes it one Park runs: it keeps its ID, and what it posted, and its tokens are revoked. A bridge Park runs keeps its plugin. Credentials, chat, and schedule are only a Park-run bridge's.
+         */
+        patch: operations["updateBridge"];
+        trace?: never;
+    };
+    "/admin/bridges/{id}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Begin connecting the account a Park-run bridge reads as
+         * @description With an admin's session. Redirects the browser to the plugin's sign-in page, which sends it back to /bridges/callback. The bridge's credentials must be complete, and http.public_url configured.
+         */
+        get: operations["connectBridge"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bridges/{id}/chats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The chats a Park-run bridge's account can read */
+        get: operations["listBridgeChats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bridge-plugins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The bridge plugins Park has, and those switched that it no longer has */
+        get: operations["listBridgePlugins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bridge-plugins/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Switch a bridge plugin on or off
+         * @description While a plugin is off, its bridges have no rounds, and no bridge can be added with it. Only a plugin Park has can be switched on; one it no longer has can still be switched off.
+         */
+        put: operations["switchBridgePlugin"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bridges/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where a platform sends the browser back once a bridge's account has signed in
+         * @description Redirects to `/settings`, with `bridge_connected` set to the bridge's ID, or with `bridge_error` set to the error's code. Only the admin who began connecting the account, in the same browser, finishes it.
+         */
+        get: operations["finishBridgeConnect"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1899,6 +2013,20 @@ export interface components {
             link_template: string;
             /** Format: date-time */
             created_at: string;
+            /** @description Its switch. A Park-run bridge that is off has no rounds; an external one that is off has its posts refused. */
+            enabled: boolean;
+            /** @description The kind of the plugin Park runs it through; left out for an external bridge. */
+            plugin?: string;
+            /** @description The keys of the credentials that are set; their values are never shown. */
+            credentials: string[];
+            chat?: components["schemas"]["BridgeChat"];
+            account?: components["schemas"]["BridgeAccount"];
+            /** @description How often a Park-run bridge runs. */
+            every_minutes: number;
+            /** @description How far back a Park-run bridge's threads count. */
+            lookback_days: number;
+            /** @description How many pull requests a thread links before a Park-run bridge asks the model about it, when Park has a model; 0 for never. */
+            propose_from: number;
         };
         Bridges: {
             bridges: components["schemas"]["Bridge"][];
@@ -1911,6 +2039,71 @@ export interface components {
              */
             owner_id?: number;
             link_template?: string;
+            /** @description The kind of the plugin Park is to run it through; left out for an external bridge. */
+            plugin?: string;
+        };
+        BridgePatch: {
+            name?: string;
+            enabled?: boolean;
+            plugin?: string;
+            credentials?: {
+                [key: string]: string;
+            };
+            chat?: components["schemas"]["BridgeChat"];
+            every_minutes?: number;
+            lookback_days?: number;
+            propose_from?: number;
+        };
+        BridgeChat: {
+            /** @description The platform's ID for the chat, never a link. */
+            id: string;
+            name: string;
+        };
+        BridgeChats: {
+            chats: components["schemas"]["BridgeChat"][];
+        };
+        BridgeAccount: {
+            /** @description The platform's ID for the account. */
+            id: string;
+            name: string;
+            /**
+             * Format: int64
+             * @description The member who connected it.
+             */
+            connected_by: number;
+            /** Format: date-time */
+            connected_at: string;
+            /**
+             * Format: date-time
+             * @description When the plugin last said the account has to be connected again; left out while it works.
+             */
+            lapsed_at?: string;
+        };
+        BridgeField: {
+            key: string;
+            label: string;
+            /** @description A secret is entered as a password is. */
+            secret: boolean;
+        };
+        BridgePlugin: {
+            kind: string;
+            name: string;
+            /** @description Its credentials' fields. */
+            fields: components["schemas"]["BridgeField"][];
+            enabled: boolean;
+            /** @description False for a plugin that was switched before its executable left the plugin directory. */
+            installed: boolean;
+            /**
+             * Format: date-time
+             * @description When an admin last switched it; left out if no one has.
+             */
+            changed_at?: string;
+        };
+        BridgePlugins: {
+            plugins: components["schemas"]["BridgePlugin"][];
+        };
+        BridgePluginSwitch: {
+            enabled: boolean;
         };
         Field: {
             /** @description Such as pr.checks. */
@@ -3839,6 +4032,148 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Bridge"];
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    updateBridge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BridgePatch"];
+            };
+        };
+        responses: {
+            /** @description The bridge, as it is now. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bridge"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    connectBridge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description To the platform's sign-in page. */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listBridgeChats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The chats, as the plugin lists them. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgeChats"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listBridgePlugins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plugins, by kind. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgePlugins"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    switchBridgePlugin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BridgePluginSwitch"];
+            };
+        };
+        responses: {
+            /** @description The plugin. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgePlugin"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    finishBridgeConnect: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Back into Park. */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };
