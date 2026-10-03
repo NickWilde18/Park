@@ -13,9 +13,10 @@
 # Ctrl-C stops it.
 #
 # The secret key that encrypts the credentials Park stores is kept in ~/.config/park-local/secret_key, so that a
-# restarted Park can read them; Park's log is there too. $PARK_LOCAL_DIR, $PARK_LOCAL_DB, and $PARK_LOCAL_PORT choose
-# another directory, database, and port, and $PARK_LOCAL_GITHUB_API another address for GitHub's API, which
-# scripts/local_test.py fakes.
+# restarted Park can read them; Park's log is there too. The bridge plugins in ~/.config/park-local/plugins, when it
+# exists, are Park's (bridges.plugin_dir), unless $PARK_BRIDGES_PLUGIN_DIR names another directory; Park finds them
+# when it starts. $PARK_LOCAL_DIR, $PARK_LOCAL_DB, and $PARK_LOCAL_PORT choose another directory, database, and port,
+# and $PARK_LOCAL_GITHUB_API another address for GitHub's API, which scripts/local_test.py fakes.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -51,6 +52,9 @@ export PARK_DATABASE_URL="postgres://park:park@localhost:5432/$db?sslmode=disabl
 export PARK_SECRET_KEY="$(cat "$state/secret_key")"
 export PARK_HTTP_ADDR="127.0.0.1:$port"
 export PARK_HTTP_PUBLIC_URL="$URL"
+if [ -z "${PARK_BRIDGES_PLUGIN_DIR:-}" ] && [ -d "$state/plugins" ]; then
+  export PARK_BRIDGES_PLUGIN_DIR="$state/plugins"
+fi
 PARK_SETUP_CODE="$(openssl rand -hex 8)"
 export PARK_SETUP_CODE
 
