@@ -205,7 +205,8 @@ label.nested {
 
 article.pr,
 article.group,
-article.proposal {
+article.proposal,
+article.bridge {
   margin-bottom: 1rem;
   padding: 0.6rem 0.9rem;
   border: 1px solid var(--border);
@@ -216,6 +217,15 @@ article.proposal {
 article.proposal {
   border: 1px dashed var(--proposal-border);
   background: var(--proposal-bg);
+}
+
+article.bridge h3 {
+  margin: 0.2rem 0 0.4rem;
+}
+
+article.bridge > p,
+article.bridge > div {
+  margin: 0.3rem 0;
 }
 
 section + section > h2 {

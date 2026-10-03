@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
 import { since } from '../format'
-import { useSession } from '../sessionContext'
+import Bridges from './Bridges'
 
 type Answer = Promise<{ error?: unknown }>
 
@@ -15,15 +15,12 @@ function fields(e: FormEvent<HTMLFormElement>) {
 
 // Connections is what Park connects to, for an admin: the forges; the installations, with the address each forge
 // delivers webhooks to and whether a secret is set, and whose credentials are typed in and never shown back; the
-// repositories watched through them, each to refresh from its forge now; and the bridges, with a token for one the
-// admin owns, shown once.
+// repositories watched through them, each to refresh from its forge now; and the bridges (Bridges).
 export default function Connections({ members }: { members: Schemas['Member'][] }) {
-  const { me } = useSession()
   const [notice, setNotice] = useState('')
-  const [token, setToken] = useState('')
   const { data, refresh } = useFetch(async () => {
-    const [f, i, r, b] = await Promise.all([api.GET('/admin/forges'), api.GET('/admin/installations'), api.GET('/admin/repos'), api.GET('/admin/bridges')])
-    return { forges: f.data?.forges ?? [], installations: i.data?.installations ?? [], repos: r.data?.repos ?? [], bridges: b.data?.bridges ?? [] }
+    const [f, i, r] = await Promise.all([api.GET('/admin/forges'), api.GET('/admin/installations'), api.GET('/admin/repos')])
+    return { forges: f.data?.forges ?? [], installations: i.data?.installations ?? [], repos: r.data?.repos ?? [] }
   })
   const done = async (answer: Answer, said: string) => {
     const { error } = await answer
@@ -31,20 +28,14 @@ export default function Connections({ members }: { members: Schemas['Member'][] 
     refresh()
   }
   if (!data) return <p className="quiet">Loading…</p>
-  const { forges, installations, repos, bridges } = data
+  const { forges, installations, repos } = data
   const forgeName = (id: number) => forges.find((f) => f.id === id)?.name ?? `forge ${id}`
   const installationName = (id: number) => installations.find((i) => i.id === id)?.name ?? `installation ${id}`
-  const memberName = (id: number) => members.find((m) => m.id === id)?.display_name ?? `member ${id}`
   const forgeOptions = forges.map((f) => (
     <option key={f.id} value={f.id}>
       {f.name}
     </option>
   ))
-  const bridgeToken = async (b: Schemas['Bridge']) => {
-    const { data: made, error } = await api.POST('/me/tokens', { body: { name: `${b.name} bridge`, scopes: ['assertions:write'], bridge_id: b.id } })
-    setNotice(error ? problem(error) : '')
-    setToken(made?.token ?? '')
-  }
   return (
     <section aria-label="Connections">
       {notice && <p className="notice">{notice}</p>}
@@ -140,46 +131,7 @@ export default function Connections({ members }: { members: Schemas['Member'][] 
         <button type="submit">Watch</button>
       </form>
 
-      <h2>Bridges</h2>
-      {token && (
-        <p className="notice">
-          The bridge's token, shown this once: <code>{token}</code>
-        </p>
-      )}
-      <ul>
-        {bridges.map((b) => (
-          <li key={b.id}>
-            <strong>{b.name}</strong>, owned by {memberName(b.owner_id)}
-            {b.link_template && (
-              <>
-                , linking to <code>{b.link_template}</code>
-              </>
-            )}{' '}
-            {b.owner_id === me.member.id && <button onClick={() => void bridgeToken(b)}>Create a token for {b.name}</button>}
-          </li>
-        ))}
-      </ul>
-      <form
-        className="inline"
-        onSubmit={(e) => {
-          const field = fields(e)
-          void done(
-            api.POST('/admin/bridges', { body: { name: field('name'), owner_id: Number(field('owner')), link_template: field('template') || undefined } }),
-            `${field('name')} registered.`,
-          )
-        }}
-      >
-        <input name="name" placeholder="Name" aria-label="New bridge's name" required />
-        <select name="owner" defaultValue={me.member.id} aria-label="New bridge's owner">
-          {members.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.display_name}
-            </option>
-          ))}
-        </select>
-        <input name="template" placeholder="Link template, with {id}" aria-label="New bridge's link template" />
-        <button type="submit">Register a bridge</button>
-      </form>
+      <Bridges members={members} />
     </section>
   )
 }

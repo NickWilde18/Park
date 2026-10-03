@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	_ "github.com/NickWilde18/Park/internal/forges/github" // pull requests' addresses on github.com
 	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/work"
@@ -326,5 +328,45 @@ func TestRoundsRunOnTheQueue(t *testing.T) {
 	}
 	if got := e.live(t, b.ID); len(got) != 1 {
 		t.Fatalf("live assertions %v", got)
+	}
+}
+
+// The dashboard follows a bridge through its notices: a change of its settings, its account, its plugin's switch, and
+// each round write one, naming the bridge, or the plugin by its kind; what the bridge remembers, and tokens a plugin
+// renews, write none.
+func TestBridgeNotices(t *testing.T) {
+	e := newEnv(t)
+	e.watchRepos(t)
+	e.chatsWith(t)
+	notices := func() []string {
+		t.Helper()
+		rows, err := e.pool.Query(e.ctx, "SELECT subject FROM event_notice WHERE kind = 'bridge' ORDER BY id")
+		must(t, err)
+		subjects, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		must(t, err)
+		_, err = e.pool.Exec(e.ctx, "DELETE FROM event_notice")
+		must(t, err)
+		return subjects
+	}
+	b := e.ready(t)
+	id := strconv.FormatInt(b.ID, 10)
+	if got := notices(); fmt.Sprint(got) != fmt.Sprintf("[file %s %s]", id, id) {
+		t.Fatalf("switching the plugin on, adding the bridge, and setting its credential: %v", got)
+	}
+	e.connect(t, e.ana, b.ID)
+	if got := notices(); fmt.Sprint(got) != "["+id+"]" {
+		t.Fatalf("connecting its account: %v", got)
+	}
+	_, err := e.s.Chats(e.ctx, b.ID)
+	must(t, err)
+	if got := notices(); len(got) != 0 {
+		t.Fatalf("listing chats, which renews the tokens: %v", got)
+	}
+	_, err = e.s.Update(e.ctx, b.ID, Change{Chat: &Chat{ID: "c-reviews", Name: "Reviews"}})
+	must(t, err)
+	notices()
+	e.run(t, b.ID)
+	if got := notices(); fmt.Sprint(got) != "["+id+"]" {
+		t.Fatalf("a round, which also keeps what the bridge remembers: %v", got)
 	}
 }

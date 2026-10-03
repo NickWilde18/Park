@@ -56,6 +56,25 @@ export function words(s?: string): string {
   return (s ?? '').replaceAll('_', ' ')
 }
 
+// roundFailures say why a bridge's round failed, for the reasons a person can act on; others are read as words.
+const roundFailures: Record<string, string> = {
+  signin_lapsed: 'its account has to be connected again',
+  plugin_failed: "its plugin failed, and Park's log says why",
+}
+
+// roundText says how a bridge Park runs did in its last round — how long ago, what it read and changed, or why it
+// failed — and whether the bridge is late.
+export function roundText(b: { last_round?: Schemas['BridgeRound']; late: boolean }): string {
+  const r = b.last_round
+  if (!r) return 'No round yet.'
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
+  const said =
+    r.outcome === 'ok'
+      ? `Last round ${since(r.ended_at)} ago: read ${plural(r.read, 'message')}, ${plural(r.changes, 'change')}.`
+      : `Last round ${since(r.ended_at)} ago failed: ${roundFailures[r.reason] ?? words(r.reason)}.`
+  return b.late ? `${said} It is late: no round has ended in two periods.` : said
+}
+
 // pathText writes a part's path through its role's rules: the role, then each rule tried — its passed-over label when
 // it did not match, nothing when it has none — and the rule that decided. Rules never reached do not appear. A rule
 // that reads a judgement nobody has answered is marked as unknown says, such as a preview's "would ask the model".

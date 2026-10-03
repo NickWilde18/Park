@@ -1,21 +1,29 @@
 import { useState, type FormEvent } from 'react'
 import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
-import { prName, unitPath, type PRs } from '../format'
+import { prName, roundText, unitPath, type PRs } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
+import { SyncButton } from '../SyncButton'
 import { themedLink, useShownTheme } from '../theme'
 
 type Answer = Promise<{ error?: unknown }>
 
 // Groups with their pull requests, nested by chain and marked with the source that placed each, and each group's
-// description, linked; the open pull requests in none; bridges' open proposals above them, then the open suggestions; and the manual actions: create,
-// move in, take out, merge, and split. A group is renamed on its own page.
+// description, linked; the open pull requests in none; above them, the bridges Park runs, each with its last round and
+// to sync now, then bridges' open proposals, then the open suggestions; and the manual actions: create, move in, take
+// out, merge, and split. A group is renamed on its own page.
 export default function Groups() {
   const theme = useShownTheme()
   const [error, setError] = useState('')
   const { data, refresh } = useFetch(async () => {
-    const [g, p, o, s] = await Promise.all([api.GET('/groups'), api.GET('/prs'), api.GET('/proposals'), api.GET('/suggestions')])
+    const [g, p, o, s, b] = await Promise.all([
+      api.GET('/groups'),
+      api.GET('/prs'),
+      api.GET('/proposals'),
+      api.GET('/suggestions'),
+      api.GET('/bridges'),
+    ])
     const prs: PRs = new Map((p.data?.pull_requests ?? []).map((x) => [x.id, x]))
     return {
       groups: g.data?.groups,
@@ -23,9 +31,10 @@ export default function Groups() {
       prs,
       proposals: o.data?.proposals ?? [],
       suggestions: s.data?.suggestions ?? [],
+      bridges: (b.data?.bridges ?? []).filter((x) => x.plugin_name),
     }
   })
-  useLive(['group', 'pr', 'proposal'], refresh)
+  useLive(['group', 'pr', 'proposal', 'bridge'], refresh)
   const done = async (answer: Answer) => {
     const { error } = await answer
     if (error) setError(problem(error))
@@ -35,7 +44,7 @@ export default function Groups() {
     }
   }
   if (!data) return <p className="quiet">Loading…</p>
-  const { groups, prs, proposals, suggestions } = data
+  const { groups, prs, proposals, suggestions, bridges } = data
   if (!groups) return <p className="error">{data.problem}</p>
   const grouped = new Set(groups.flatMap((g) => g.members.map((m) => m.pull_request)))
   const loose = [...prs.values()].filter((p) => !grouped.has(p.id) && (p.state === 'open' || p.state === 'draft'))
@@ -48,6 +57,7 @@ export default function Groups() {
     <section>
       <h1>Groups</h1>
       {error && <p className="error">{error}</p>}
+      {bridges.length > 0 && <Rounds bridges={bridges} failed={setError} />}
       {proposals.length > 0 && <Proposed proposals={proposals} prs={prs} done={done} />}
       {suggestions.length > 0 && <Suggested suggestions={suggestions} groups={groups} prs={prs} done={done} />}
       <section aria-label="Current groups">
@@ -151,6 +161,24 @@ export default function Groups() {
         <input name="name" placeholder="Name" aria-label="New group's name" required />
         <button type="submit">Create</button>
       </form>
+    </section>
+  )
+}
+
+// Rounds lists the bridges Park runs, each with its last round and, while it is switched on, to sync now.
+function Rounds({ bridges, failed }: { bridges: Schemas['BridgeStatus'][]; failed: (said: string) => void }) {
+  return (
+    <section aria-label="Bridges">
+      <h2>Bridges</h2>
+      <ul>
+        {bridges.map((b) => (
+          <li key={b.id}>
+            <strong>{b.name}</strong>, through {b.plugin_name}
+            {b.enabled ? '. ' : ', switched off. '}
+            {roundText(b)} {b.enabled && <SyncButton bridge={b} failed={failed} />}
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }
