@@ -144,6 +144,24 @@ func (e BoardUnitSide) Valid() bool {
 	}
 }
 
+// Defines values for BridgeRoundOutcome.
+const (
+	BridgeRoundOutcomeFailed BridgeRoundOutcome = "failed"
+	BridgeRoundOutcomeOk     BridgeRoundOutcome = "ok"
+)
+
+// Valid indicates whether the value is a known member of the BridgeRoundOutcome enum.
+func (e BridgeRoundOutcome) Valid() bool {
+	switch e {
+	case BridgeRoundOutcomeFailed:
+		return true
+	case BridgeRoundOutcomeOk:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CheckFactState.
 const (
 	CheckFactStateFailing CheckFactState = "failing"
@@ -1144,21 +1162,28 @@ type Bridge struct {
 	Enabled bool `json:"enabled"`
 
 	// EveryMinutes How often a Park-run bridge runs.
-	EveryMinutes int   `json:"every_minutes"`
-	Id           int64 `json:"id"`
+	EveryMinutes int          `json:"every_minutes"`
+	Id           int64        `json:"id"`
+	LastRound    *BridgeRound `json:"last_round,omitempty"`
+
+	// Late A Park-run bridge that is on, whose last round ended more than two periods ago.
+	Late bool `json:"late"`
 
 	// LinkTemplate An address with {id} for an anchor or evidence ID, used to render links.
 	LinkTemplate string `json:"link_template"`
 
 	// LookbackDays How far back a Park-run bridge's threads count.
-	LookbackDays int    `json:"lookback_days"`
-	Name         string `json:"name"`
-	OwnerId      int64  `json:"owner_id"`
+	LookbackDays int `json:"lookback_days"`
+
+	// Model A Park-run bridge's model; without an address, it asks none, and every thread is an assertion.
+	Model   BridgeModel `json:"model"`
+	Name    string      `json:"name"`
+	OwnerId int64       `json:"owner_id"`
 
 	// Plugin The kind of the plugin Park runs it through; left out for an external bridge.
 	Plugin *string `json:"plugin,omitempty"`
 
-	// ProposeFrom How many pull requests a thread links before a Park-run bridge asks the model about it, when Park has a model; 0 for never.
+	// ProposeFrom How many pull requests a thread links before a Park-run bridge asks its model about it, when it has one; 0 for never.
 	ProposeFrom int `json:"propose_from"`
 }
 
@@ -1198,6 +1223,25 @@ type BridgeField struct {
 	Secret bool `json:"secret"`
 }
 
+// BridgeModel A Park-run bridge's model; without an address, it asks none, and every thread is an assertion.
+type BridgeModel struct {
+	// KeySet Whether its key is set; the key is never shown.
+	KeySet         bool   `json:"key_set"`
+	Name           string `json:"name"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
+
+	// Url The address of a service that speaks the chat completions protocol.
+	Url string `json:"url"`
+}
+
+// BridgeModelPatch What is left out stays as it is. An empty address means no model; an empty key removes it.
+type BridgeModelPatch struct {
+	Key            *string `json:"key,omitempty"`
+	Name           *string `json:"name,omitempty"`
+	TimeoutSeconds *int    `json:"timeout_seconds,omitempty"`
+	Url            *string `json:"url,omitempty"`
+}
+
 // BridgePatch defines model for BridgePatch.
 type BridgePatch struct {
 	Chat         *BridgeChat        `json:"chat,omitempty"`
@@ -1205,9 +1249,12 @@ type BridgePatch struct {
 	Enabled      *bool              `json:"enabled,omitempty"`
 	EveryMinutes *int               `json:"every_minutes,omitempty"`
 	LookbackDays *int               `json:"lookback_days,omitempty"`
-	Name         *string            `json:"name,omitempty"`
-	Plugin       *string            `json:"plugin,omitempty"`
-	ProposeFrom  *int               `json:"propose_from,omitempty"`
+
+	// Model What is left out stays as it is. An empty address means no model; an empty key removes it.
+	Model       *BridgeModelPatch `json:"model,omitempty"`
+	Name        *string           `json:"name,omitempty"`
+	Plugin      *string           `json:"plugin,omitempty"`
+	ProposeFrom *int              `json:"propose_from,omitempty"`
 }
 
 // BridgePlugin defines model for BridgePlugin.
@@ -1245,6 +1292,41 @@ type BridgeRequest struct {
 
 	// Plugin The kind of the plugin Park is to run it through; left out for an external bridge.
 	Plugin *string `json:"plugin,omitempty"`
+}
+
+// BridgeRound defines model for BridgeRound.
+type BridgeRound struct {
+	// Changes How many assertions and proposals it posted or retracted.
+	Changes int                `json:"changes"`
+	EndedAt time.Time          `json:"ended_at"`
+	Outcome BridgeRoundOutcome `json:"outcome"`
+
+	// Read How many messages it read.
+	Read int `json:"read"`
+
+	// Reason The code of what went wrong, when it failed; Park's log has the details.
+	Reason    string    `json:"reason"`
+	StartedAt time.Time `json:"started_at"`
+}
+
+// BridgeRoundOutcome defines model for BridgeRound.Outcome.
+type BridgeRoundOutcome string
+
+// BridgeStatus A bridge as members see it.
+type BridgeStatus struct {
+	Enabled   bool         `json:"enabled"`
+	Id        int64        `json:"id"`
+	LastRound *BridgeRound `json:"last_round,omitempty"`
+	Late      bool         `json:"late"`
+	Name      string       `json:"name"`
+
+	// PluginName The name of the plugin Park runs it through; left out for an external bridge.
+	PluginName *string `json:"plugin_name,omitempty"`
+}
+
+// BridgeStatuses defines model for BridgeStatuses.
+type BridgeStatuses struct {
+	Bridges []BridgeStatus `json:"bridges"`
 }
 
 // Bridges defines model for Bridges.
@@ -2748,9 +2830,15 @@ type ServerInterface interface {
 	// GetBoard Every open unit, as it stands for me
 	// (GET /board)
 	GetBoard(w http.ResponseWriter, r *http.Request)
+	// ListBridgeStatuses The bridges, as members see them
+	// (GET /bridges)
+	ListBridgeStatuses(w http.ResponseWriter, r *http.Request)
 	// FinishBridgeConnect Where a platform sends the browser back once a bridge's account has signed in
 	// (GET /bridges/callback)
 	FinishBridgeConnect(w http.ResponseWriter, r *http.Request, params FinishBridgeConnectParams)
+	// SyncBridge Ask a bridge Park runs for a round now
+	// (POST /bridges/{id}/sync)
+	SyncBridge(w http.ResponseWriter, r *http.Request, id ID)
 	// ListFields The field catalog, every field a condition or a reason can read
 	// (GET /fields)
 	ListFields(w http.ResponseWriter, r *http.Request)
@@ -3692,6 +3780,20 @@ func (siw *ServerInterfaceWrapper) GetBoard(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// ListBridgeStatuses operation middleware
+func (siw *ServerInterfaceWrapper) ListBridgeStatuses(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBridgeStatuses(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // FinishBridgeConnect operation middleware
 func (siw *ServerInterfaceWrapper) FinishBridgeConnect(w http.ResponseWriter, r *http.Request) {
 
@@ -3742,6 +3844,32 @@ func (siw *ServerInterfaceWrapper) FinishBridgeConnect(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.FinishBridgeConnect(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SyncBridge operation middleware
+func (siw *ServerInterfaceWrapper) SyncBridge(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SyncBridge(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5236,6 +5364,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/bridges/{id}/chats", wrapper.ListBridgeChats)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/bridge-plugins", wrapper.ListBridgePlugins)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/bridge-plugins/{kind}", wrapper.SwitchBridgePlugin)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bridges", wrapper.ListBridgeStatuses)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bridges/{id}/sync", wrapper.SyncBridge)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bridges/callback", wrapper.FinishBridgeConnect)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/fields", wrapper.ListFields)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/questions", wrapper.ListQuestions)
@@ -6630,6 +6760,44 @@ func (response GetBoarddefaultJSONResponse) VisitGetBoardResponse(w http.Respons
 	return err
 }
 
+type ListBridgeStatusesRequestObject struct {
+}
+
+type ListBridgeStatusesResponseObject interface {
+	VisitListBridgeStatusesResponse(w http.ResponseWriter) error
+}
+
+type ListBridgeStatuses200JSONResponse BridgeStatuses
+
+func (response ListBridgeStatuses200JSONResponse) VisitListBridgeStatusesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBridgeStatusesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListBridgeStatusesdefaultJSONResponse) VisitListBridgeStatusesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type FinishBridgeConnectRequestObject struct {
 	Params FinishBridgeConnectParams
 }
@@ -6652,6 +6820,39 @@ type FinishBridgeConnectdefaultJSONResponse struct {
 }
 
 func (response FinishBridgeConnectdefaultJSONResponse) VisitFinishBridgeConnectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SyncBridgeRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type SyncBridgeResponseObject interface {
+	VisitSyncBridgeResponse(w http.ResponseWriter) error
+}
+
+type SyncBridge202Response struct {
+}
+
+func (response SyncBridge202Response) VisitSyncBridgeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(202)
+	return nil
+}
+
+type SyncBridgedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response SyncBridgedefaultJSONResponse) VisitSyncBridgeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -8893,9 +9094,15 @@ type StrictServerInterface interface {
 	// GetBoard Every open unit, as it stands for me
 	// (GET /board)
 	GetBoard(ctx context.Context, request GetBoardRequestObject) (GetBoardResponseObject, error)
+	// ListBridgeStatuses The bridges, as members see them
+	// (GET /bridges)
+	ListBridgeStatuses(ctx context.Context, request ListBridgeStatusesRequestObject) (ListBridgeStatusesResponseObject, error)
 	// FinishBridgeConnect Where a platform sends the browser back once a bridge's account has signed in
 	// (GET /bridges/callback)
 	FinishBridgeConnect(ctx context.Context, request FinishBridgeConnectRequestObject) (FinishBridgeConnectResponseObject, error)
+	// SyncBridge Ask a bridge Park runs for a round now
+	// (POST /bridges/{id}/sync)
+	SyncBridge(ctx context.Context, request SyncBridgeRequestObject) (SyncBridgeResponseObject, error)
 	// ListFields The field catalog, every field a condition or a reason can read
 	// (GET /fields)
 	ListFields(ctx context.Context, request ListFieldsRequestObject) (ListFieldsResponseObject, error)
@@ -10120,6 +10327,30 @@ func (sh *strictHandler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListBridgeStatuses operation middleware
+func (sh *strictHandler) ListBridgeStatuses(w http.ResponseWriter, r *http.Request) {
+	var request ListBridgeStatusesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBridgeStatuses(ctx, request.(ListBridgeStatusesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBridgeStatuses")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBridgeStatusesResponseObject); ok {
+		if err := validResponse.VisitListBridgeStatusesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // FinishBridgeConnect operation middleware
 func (sh *strictHandler) FinishBridgeConnect(w http.ResponseWriter, r *http.Request, params FinishBridgeConnectParams) {
 	var request FinishBridgeConnectRequestObject
@@ -10139,6 +10370,32 @@ func (sh *strictHandler) FinishBridgeConnect(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(FinishBridgeConnectResponseObject); ok {
 		if err := validResponse.VisitFinishBridgeConnectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SyncBridge operation middleware
+func (sh *strictHandler) SyncBridge(w http.ResponseWriter, r *http.Request, id ID) {
+	var request SyncBridgeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SyncBridge(ctx, request.(SyncBridgeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SyncBridge")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SyncBridgeResponseObject); ok {
+		if err := validResponse.VisitSyncBridgeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -104,7 +104,7 @@ func (s *Service) Propose(ctx context.Context, bridge int64, token string, p Pro
 		}
 		out.State = "open"
 		if err := tx.QueryRow(ctx, `INSERT INTO proposal (source, anchor, title, evidence, fingerprint, token_id)
-			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`, source, p.Anchor, title, p.Evidence, sum, token).Scan(&out.ID); err != nil {
+			VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')) RETURNING id`, source, p.Anchor, title, p.Evidence, sum, token).Scan(&out.ID); err != nil {
 			return err
 		}
 		for i, g := range groups {

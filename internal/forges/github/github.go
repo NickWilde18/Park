@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -21,13 +22,19 @@ import (
 const Kind = "github"
 
 func init() {
-	forges.Register(Kind, forges.Kind{SignIn: signIn{client: &http.Client{Timeout: 15 * time.Second}}, PullURL: pullURL})
+	forges.Register(Kind, forges.Kind{SignIn: signIn{client: &http.Client{Timeout: 15 * time.Second}}, PullURL: pullURL,
+		PullPattern: pullPattern})
 	facts.Register(Kind, newCollector)
 }
 
 // pullURL is a pull request's page on GitHub.
 func pullURL(base, owner, name string, number int) string {
 	return strings.TrimSuffix(base, "/") + "/" + url.PathEscape(owner) + "/" + url.PathEscape(name) + "/pull/" + strconv.Itoa(number)
+}
+
+// pullPattern matches a pull request's page on GitHub, at base, as pullURL writes it: owner, name, and number.
+func pullPattern(base string) *regexp.Regexp {
+	return regexp.MustCompile(regexp.QuoteMeta(strings.TrimSuffix(base, "/")) + `/([\w.-]+)/([\w.-]+)/pull/(\d+)`)
 }
 
 // APIBase is the REST API's address for a forge's base address: api.github.com for github.com, and /api/v3 on an

@@ -16,6 +16,7 @@ import (
 
 	"github.com/NickWilde18/Park/internal/bridges/bridgestest"
 	"github.com/NickWilde18/Park/internal/fail"
+	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/secret"
 	"github.com/NickWilde18/Park/internal/store/storetest"
 )
@@ -49,7 +50,8 @@ func newEnv(t *testing.T) *env {
 	pool := storetest.MigratedPool(t)
 	e := &env{ctx: ctx, pool: pool, logs: &bytes.Buffer{}, chats: filepath.Join(t.TempDir(), "chats.json"),
 		now: time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)}
-	e.s = New(pool, box, slog.New(slog.NewTextHandler(e.logs, nil)), Options{PublicURL: "https://park.test", Plugins: plugins,
+	log := slog.New(slog.NewTextHandler(e.logs, nil))
+	e.s = New(pool, box, log, Options{PublicURL: "https://park.test", Plugins: plugins, Groups: grouping.New(pool, log),
 		Now: func() time.Time { return e.now }})
 	e.write(t, chatsFile)
 	must(t, pool.QueryRow(ctx, "INSERT INTO member (display_name, admin) VALUES ('Ana', true) RETURNING id").Scan(&e.ana))

@@ -944,6 +944,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bridges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The bridges, as members see them
+         * @description Each bridge's name, plugin, switch, and last round, and whether it is late.
+         */
+        get: operations["listBridgeStatuses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bridges/{id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask a bridge Park runs for a round now
+         * @description From a member's session. A round queued for later runs now; one asked for while a round runs runs again when it ends. The bridge must be ready: on, its plugin on, its credentials complete, its account connected and not lapsed, and its chat chosen.
+         */
+        post: operations["syncBridge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bridges/callback": {
         parameters: {
             query?: never;
@@ -2025,8 +2065,56 @@ export interface components {
             every_minutes: number;
             /** @description How far back a Park-run bridge's threads count. */
             lookback_days: number;
-            /** @description How many pull requests a thread links before a Park-run bridge asks the model about it, when Park has a model; 0 for never. */
+            /** @description How many pull requests a thread links before a Park-run bridge asks its model about it, when it has one; 0 for never. */
             propose_from: number;
+            model: components["schemas"]["BridgeModel"];
+            last_round?: components["schemas"]["BridgeRound"];
+            /** @description A Park-run bridge that is on, whose last round ended more than two periods ago. */
+            late: boolean;
+        };
+        /** @description A Park-run bridge's model; without an address, it asks none, and every thread is an assertion. */
+        BridgeModel: {
+            /** @description The address of a service that speaks the chat completions protocol. */
+            url: string;
+            name: string;
+            /** @description Whether its key is set; the key is never shown. */
+            key_set: boolean;
+            timeout_seconds: number;
+        };
+        /** @description What is left out stays as it is. An empty address means no model; an empty key removes it. */
+        BridgeModelPatch: {
+            url?: string;
+            name?: string;
+            key?: string;
+            timeout_seconds?: number;
+        };
+        BridgeRound: {
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            ended_at: string;
+            /** @description How many messages it read. */
+            read: number;
+            /** @description How many assertions and proposals it posted or retracted. */
+            changes: number;
+            /** @enum {string} */
+            outcome: "ok" | "failed";
+            /** @description The code of what went wrong, when it failed; Park's log has the details. */
+            reason: string;
+        };
+        /** @description A bridge as members see it. */
+        BridgeStatus: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @description The name of the plugin Park runs it through; left out for an external bridge. */
+            plugin_name?: string;
+            enabled: boolean;
+            last_round?: components["schemas"]["BridgeRound"];
+            late: boolean;
+        };
+        BridgeStatuses: {
+            bridges: components["schemas"]["BridgeStatus"][];
         };
         Bridges: {
             bridges: components["schemas"]["Bridge"][];
@@ -2053,6 +2141,7 @@ export interface components {
             every_minutes?: number;
             lookback_days?: number;
             propose_from?: number;
+            model?: components["schemas"]["BridgeModelPatch"];
         };
         BridgeChat: {
             /** @description The platform's ID for the chat, never a link. */
@@ -4151,6 +4240,48 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BridgePlugin"];
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listBridgeStatuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bridges, in the order they were registered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgeStatuses"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    syncBridge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The round is queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };

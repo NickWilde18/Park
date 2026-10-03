@@ -124,7 +124,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	for _, p := range plugins {
 		log.InfoContext(ctx, "bridge plugin found", "kind", p.Kind, "name", p.Name, "path", p.Path)
 	}
-	chatBridges := bridges.New(pool, box, log, bridges.Options{PublicURL: cfg.HTTP.PublicURL, Plugins: plugins})
+	chatBridges := bridges.New(pool, box, log, bridges.Options{PublicURL: cfg.HTTP.PublicURL, Plugins: plugins, Groups: groups})
 	balls := verdicts.New(pool, log, ruleSets, groups)
 	taskStage := tasks.New(pool, log, groups)
 	collected.Follow(groups.FactsFollower())
@@ -137,6 +137,7 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	runner := work.NewRunner(pool, log, work.Options{})
 	collected.Register(runner)
 	groups.Register(runner)
+	chatBridges.Register(runner)
 	balls.Register(runner)
 	taskStage.Register(runner)
 	notices := events.New(pool, log)
@@ -146,6 +147,9 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger, pool *pgxp
 	}
 	if err := groups.Start(ctx); err != nil {
 		return fmt.Errorf("schedule grouping: %w", err)
+	}
+	if err := chatBridges.Start(ctx); err != nil {
+		return fmt.Errorf("schedule the bridges' rounds: %w", err)
 	}
 	if err := balls.Start(ctx); err != nil {
 		return fmt.Errorf("schedule verdicts: %w", err)

@@ -22,7 +22,8 @@ func bridgeFlowCookieFor(value string) *http.Cookie {
 func bridgeOut(b bridges.Bridge) Bridge {
 	out := Bridge{Id: b.ID, Name: b.Name, OwnerId: b.OwnerID, LinkTemplate: b.LinkTemplate, CreatedAt: b.CreatedAt,
 		Enabled: b.Enabled, Credentials: b.Credentials, EveryMinutes: b.EveryMinutes, LookbackDays: b.LookbackDays,
-		ProposeFrom: b.ProposeFrom}
+		ProposeFrom: b.ProposeFrom, Late: b.Late, LastRound: roundOut(b.LastRound),
+		Model: BridgeModel{Url: b.Model.URL, Name: b.Model.Name, KeySet: b.Model.KeySet, TimeoutSeconds: b.Model.TimeoutSeconds}}
 	if b.Plugin != "" {
 		out.Plugin = &b.Plugin
 	}
@@ -33,6 +34,14 @@ func bridgeOut(b bridges.Bridge) Bridge {
 		out.Account = &BridgeAccount{Id: a.ID, Name: a.Name, ConnectedBy: a.ConnectedBy, ConnectedAt: a.ConnectedAt, LapsedAt: a.LapsedAt}
 	}
 	return out
+}
+
+func roundOut(r *bridges.Round) *BridgeRound {
+	if r == nil {
+		return nil
+	}
+	return &BridgeRound{StartedAt: r.StartedAt, EndedAt: r.EndedAt, Read: r.Read, Changes: r.Changes,
+		Outcome: BridgeRoundOutcome(r.Outcome), Reason: r.Reason}
 }
 
 func pluginOut(p bridges.PluginState) BridgePlugin {
@@ -103,11 +112,47 @@ func (s *server) UpdateBridge(ctx context.Context, req UpdateBridgeRequestObject
 	if req.Body.Chat != nil {
 		c.Chat = &bridges.Chat{ID: req.Body.Chat.Id, Name: req.Body.Chat.Name}
 	}
+	if m := req.Body.Model; m != nil {
+		c.Model = &bridges.ModelChange{URL: m.Url, Name: m.Name, Key: m.Key, TimeoutSeconds: m.TimeoutSeconds}
+	}
 	b, err := s.bridges.Update(ctx, req.Id, c)
 	if err != nil {
 		return nil, err
 	}
 	return UpdateBridge200JSONResponse(bridgeOut(b)), nil
+}
+
+// ListBridgeStatuses lists the bridges for any member: names, plugins, switches, and last rounds; never their
+// settings.
+func (s *server) ListBridgeStatuses(ctx context.Context, _ ListBridgeStatusesRequestObject) (ListBridgeStatusesResponseObject, error) {
+	if _, err := requireCaller(ctx); err != nil {
+		return nil, err
+	}
+	bs, err := s.bridges.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := ListBridgeStatuses200JSONResponse{Bridges: []BridgeStatus{}}
+	for _, b := range bs {
+		st := BridgeStatus{Id: b.ID, Name: b.Name, Enabled: b.Enabled, Late: b.Late, LastRound: roundOut(b.LastRound)}
+		if b.Plugin != "" {
+			name := s.bridges.PluginName(b.Plugin)
+			st.PluginName = &name
+		}
+		out.Bridges = append(out.Bridges, st)
+	}
+	return out, nil
+}
+
+// SyncBridge queues a round of a Park-run bridge now, for any member.
+func (s *server) SyncBridge(ctx context.Context, req SyncBridgeRequestObject) (SyncBridgeResponseObject, error) {
+	if _, err := requireCaller(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.bridges.Sync(ctx, req.Id); err != nil {
+		return nil, err
+	}
+	return SyncBridge202Response{}, nil
 }
 
 func (s *server) ListBridgeChats(ctx context.Context, req ListBridgeChatsRequestObject) (ListBridgeChatsResponseObject, error) {

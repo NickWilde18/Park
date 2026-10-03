@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/NickWilde18/Park/internal/fail"
 )
 
@@ -58,7 +60,8 @@ func (s *Service) Plugins(ctx context.Context) ([]PluginState, error) {
 }
 
 // SwitchPlugin switches a plugin on or off, as a member chose. Only a plugin Park has can be switched on; one it no
-// longer has can still be switched off. While a plugin is off, its bridges have no rounds, and none can be added.
+// longer has can still be switched off. While a plugin is off, its bridges have no rounds, and none can be added;
+// switched on, its bridges that are on have a round queued now.
 func (s *Service) SwitchPlugin(ctx context.Context, member int64, kind string, on bool) (PluginState, error) {
 	if _, ok := s.installed(kind); !ok {
 		if on {
@@ -73,9 +76,30 @@ func (s *Service) SwitchPlugin(ctx context.Context, member int64, kind string, o
 		if tag.RowsAffected() == 0 {
 			return PluginState{}, fail.New(fail.NotFound, "not_found", "There is no such plugin.")
 		}
-	} else if _, err := s.pool.Exec(ctx, `INSERT INTO bridge_plugin (kind, enabled, changed_by) VALUES ($1, $2, $3)
-		ON CONFLICT (kind) DO UPDATE SET enabled = EXCLUDED.enabled, changed_by = EXCLUDED.changed_by, changed_at = now()`,
-		kind, on, member); err != nil {
+	} else if err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO bridge_plugin (kind, enabled, changed_by) VALUES ($1, $2, $3)
+			ON CONFLICT (kind) DO UPDATE SET enabled = EXCLUDED.enabled, changed_by = EXCLUDED.changed_by, changed_at = now()`,
+			kind, on, member); err != nil {
+			return err
+		}
+		if !on {
+			return nil
+		}
+		rows, err := tx.Query(ctx, "SELECT id FROM bridge WHERE plugin = $1 AND enabled", kind)
+		if err != nil {
+			return err
+		}
+		ids, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if err := s.schedule(ctx, tx, id, time.Time{}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return PluginState{}, err
 	}
 	all, err := s.Plugins(ctx)
@@ -88,4 +112,12 @@ func (s *Service) SwitchPlugin(ctx context.Context, member int64, kind string, o
 		}
 	}
 	return PluginState{}, fail.New(fail.NotFound, "not_found", "There is no such plugin.")
+}
+
+// PluginName is the name of the plugin of a kind, as it described itself, or the kind, when Park no longer has it.
+func (s *Service) PluginName(kind string) string {
+	if p, ok := s.installed(kind); ok {
+		return p.Name
+	}
+	return kind
 }

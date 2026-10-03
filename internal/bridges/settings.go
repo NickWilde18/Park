@@ -3,6 +3,7 @@ package bridges
 import (
 	"context"
 	"encoding/json"
+	neturl "net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -16,6 +17,7 @@ import (
 // bridge has: a key with a value sets it, and a key with an empty value removes it.
 type Change struct {
 	Credentials  map[string]string
+	Model        *ModelChange
 	Name         *string
 	Enabled      *bool
 	Plugin       *string
@@ -25,10 +27,20 @@ type Change struct {
 	ProposeFrom  *int
 }
 
+// ModelChange is what an admin changes of a bridge's model; a nil field stays as it is. An empty address means no
+// model; an empty key removes it.
+type ModelChange struct {
+	URL            *string
+	Name           *string
+	Key            *string
+	TimeoutSeconds *int
+}
+
 var errExternal = fail.New(fail.Conflict, "external_bridge",
 	"Park does not run this bridge: it has no plugin, credentials, chat, or schedule in Park.")
 
-// Update changes a bridge, and returns it as it is then.
+// Update changes a bridge, and returns it as it is then. A Park-run bridge that is on has a round queued now, which
+// runs once the bridge is ready.
 //
 // Giving an external bridge a plugin makes it one Park runs, through a plugin Park has and that is switched on. It
 // keeps its ID, so what it posted, and under which anchors, stays where it is; and its tokens are revoked, so that the
@@ -68,7 +80,7 @@ func (s *Service) Update(ctx context.Context, id int64, c Change) (Bridge, error
 			}
 			b.Plugin = *c.Plugin
 		}
-		if c.Credentials == nil && c.Chat == nil && c.EveryMinutes == nil && c.LookbackDays == nil && c.ProposeFrom == nil {
+		if c.Credentials == nil && c.Model == nil && c.Chat == nil && c.EveryMinutes == nil && c.LookbackDays == nil && c.ProposeFrom == nil {
 			return nil
 		}
 		if b.Plugin == "" {
@@ -79,7 +91,11 @@ func (s *Service) Update(ctx context.Context, id int64, c Change) (Bridge, error
 	if err != nil {
 		return Bridge{}, err
 	}
-	return s.Get(ctx, id)
+	b, err := s.Get(ctx, id)
+	if err != nil {
+		return Bridge{}, err
+	}
+	return b, s.scheduleNow(ctx, b)
 }
 
 // settle checks and writes a Park-run bridge's settings.
@@ -126,6 +142,11 @@ func (s *Service) settle(ctx context.Context, tx pgx.Tx, b Bridge, c Change) err
 			return err
 		}
 	}
+	if c.Model != nil {
+		if err := s.settleModel(ctx, tx, b.ID, *c.Model); err != nil {
+			return err
+		}
+	}
 	if c.Chat != nil {
 		chat := Chat{ID: strings.TrimSpace(c.Chat.ID), Name: strings.TrimSpace(c.Chat.Name)}
 		if !validChat(chat) {
@@ -158,6 +179,56 @@ func (s *Service) settle(ctx context.Context, tx pgx.Tx, b Bridge, c Change) err
 				"A bridge asks the model about threads that link 2 to 100 pull requests or more, or, with 0, about none.")
 		}
 		if _, err := tx.Exec(ctx, "UPDATE bridge SET propose_from = $2 WHERE id = $1", b.ID, *v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// settleModel checks and writes a Park-run bridge's model: an http or https address without credentials, a query,
+// or a fragment, or none; a name of 1 to 200 characters whenever there is an address; a key of at most 10,000; and a
+// time limit of 1 to 600 seconds.
+func (s *Service) settleModel(ctx context.Context, tx pgx.Tx, id int64, c ModelChange) error {
+	var url, name string
+	if err := tx.QueryRow(ctx, "SELECT model_url, model_name FROM bridge WHERE id = $1", id).Scan(&url, &name); err != nil {
+		return err
+	}
+	if c.URL != nil {
+		url = strings.TrimSpace(*c.URL)
+		if url != "" {
+			u, err := neturl.Parse(url)
+			if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil || u.RawQuery != "" ||
+				u.Fragment != "" {
+				return fail.New(fail.Invalid, "invalid_model_url", "A model's address is an http or https address, without a query.")
+			}
+		}
+	}
+	if c.Name != nil {
+		name = strings.TrimSpace(*c.Name)
+	}
+	if url != "" && !between(name, 1, 200) {
+		return fail.New(fail.Invalid, "invalid_model_name", "A model has a name of 1 to 200 characters.")
+	}
+	if _, err := tx.Exec(ctx, "UPDATE bridge SET model_url = $2, model_name = $3 WHERE id = $1", id, url, name); err != nil {
+		return err
+	}
+	if c.Key != nil {
+		if utf8.RuneCountInString(*c.Key) > 10000 {
+			return fail.New(fail.Invalid, "invalid_model_key", "A model's key is at most 10,000 characters.")
+		}
+		var sealed []byte
+		if *c.Key != "" {
+			sealed = s.box.Seal([]byte(*c.Key), modelKeyContext(id))
+		}
+		if _, err := tx.Exec(ctx, "UPDATE bridge SET model_key = $2 WHERE id = $1", id, sealed); err != nil {
+			return err
+		}
+	}
+	if v := c.TimeoutSeconds; v != nil {
+		if *v < 1 || *v > 600 {
+			return fail.New(fail.Invalid, "invalid_model_timeout", "A model has 1 to 600 seconds to answer.")
+		}
+		if _, err := tx.Exec(ctx, "UPDATE bridge SET model_timeout_seconds = $2 WHERE id = $1", id, *v); err != nil {
 			return err
 		}
 	}

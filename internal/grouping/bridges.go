@@ -143,7 +143,7 @@ func (s *Service) Assert(ctx context.Context, bridge int64, token string, a Asse
 			a.Evidence = []string{}
 		}
 		return tx.QueryRow(ctx, `INSERT INTO assertion (source, authority, anchor, members, title, evidence, applied, token_id, seen_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`, source, AuthorityExternal, a.Anchor, data, title, a.Evidence,
+			VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), $9) RETURNING id`, source, AuthorityExternal, a.Anchor, data, title, a.Evidence,
 			out.Applied, token, seenAt).Scan(&out.ID)
 	})
 	return out, err
