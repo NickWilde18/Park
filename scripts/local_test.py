@@ -7,7 +7,9 @@ databases of its own, named park_lsfix_..., on ports from 8110, and drops them a
   username, $USER by default, is said;
 - a password Park refuses is explained, and the username and password asked again;
 - a token GitHub refuses, or one without the repo and read:org scopes, is explained,
-  and the token asked again.
+  and the token asked again;
+- a later run, with no arguments, serves the Park the first run set up;
+- a first run without repositories says it needs them, and ends.
 
 It needs make db's Postgres and bin/park, so it runs here rather than in CI:
 
@@ -75,18 +77,25 @@ def free_port():
 
 
 class LocalSh:
-    """One run of scripts/local.sh, typed into through a pseudo-terminal."""
+    """One run of scripts/local.sh, typed into through a pseudo-terminal.
 
-    def __init__(self, github):
-        self.db = "park_lsfix_" + os.urandom(4).hex()
+    Its arguments are the executor token's file and one repository, unless args gives
+    others; a run that follows another passes that run's database and directory."""
+
+    def __init__(self, github, args=None, db=None, state=None):
+        self.github = github
+        self.db = db or "park_lsfix_" + os.urandom(4).hex()
         self.port = free_port()
-        self.state = tempfile.mkdtemp(prefix="local-test-")
+        self.state = state or tempfile.mkdtemp(prefix="local-test-")
         self.out, self.seen, self.failures, self.done = "", 0, [], False
+        self.stopped = False
         env = dict(os.environ, USER="tester", PARK_LOCAL_DIR=self.state,
                    PARK_LOCAL_DB=self.db, PARK_LOCAL_PORT=str(self.port),
                    PARK_LOCAL_GITHUB_API=github)
-        token = os.path.join(self.state, "executor-token")
-        args = ["sh", "scripts/local.sh", "--executor-token", token, "owner-a/api"]
+        if args is None:
+            token = os.path.join(self.state, "executor-token")
+            args = ["--executor-token", token, "owner-a/api"]
+        args = ["sh", "scripts/local.sh", *args]
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
             os.chdir(ROOT)
@@ -153,8 +162,11 @@ class LocalSh:
                 return False
             time.sleep(0.2)
 
-    def close(self):
-        """Stops local.sh and its Park, then drops the database and the directory."""
+    def stop(self):
+        """Stops local.sh and its Park, and keeps the database and the directory."""
+        if self.stopped:
+            return
+        self.stopped = True
         for sig in (signal.SIGTERM, signal.SIGKILL):
             if self.ended(0):
                 break
@@ -167,6 +179,10 @@ class LocalSh:
         os.close(self.fd)
         subprocess.run(f"lsof -t -iTCP:{self.port} -sTCP:LISTEN | xargs kill",
                        shell=True, capture_output=True, check=False)
+
+    def close(self):
+        """Stops local.sh and its Park, then drops the database and the directory."""
+        self.stop()
         subprocess.run(["docker", "compose", "exec", "-T", "db", "psql", "-U", "park",
                         "-qc", f"DROP DATABASE IF EXISTS {self.db} WITH (FORCE)"],
                        cwd=ROOT, stdin=subprocess.DEVNULL, capture_output=True,
@@ -222,13 +238,45 @@ def refused_tokens(sh):
     sh.expect("Your GitHub login", 30)
 
 
+def later_run(sh):
+    """A later run, with no arguments, serves the Park the first run set up.
+
+    The first run sets up the admin, and is stopped when it asks for the GitHub token:
+    Park is set up once it has an admin. The second run, scripts/local.sh alone, on the
+    same database and directory, says where Park is, and the admin signs in."""
+    if not sh.set_up("later", PASSWORD):
+        return
+    sh.stop()
+    again = LocalSh(sh.github, args=[], db=sh.db, state=sh.state)
+    try:
+        if again.expect("Park is at", 180):
+            status = again.sign_in("later", PASSWORD)
+            again.check(status == 200,
+                        f"signing in to the later run answered {status}, not 200")
+    finally:
+        again.stop()
+        sh.out += again.out
+        sh.failures += again.failures
+
+
+def first_run_needs_repositories(sh):
+    """A first run without repositories says it needs them, and ends, asking nothing."""
+    if sh.expect("needs the repositories to watch", 180):
+        sh.check(sh.ended(15), "local.sh went on without repositories")
+        sh.check(PROMPT not in sh.out,
+                 "local.sh asked for the admin without repositories")
+
+
 def main():
     github = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FakeGitHub)
     threading.Thread(target=github.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{github.server_address[1]}"
     failed = False
-    for case in (padded_password, refused_password, refused_tokens):
-        sh = LocalSh(url)
+    cases = [(padded_password, None), (refused_password, None), (refused_tokens, None),
+             (later_run, None),
+             (first_run_needs_repositories, ["--executor-token", os.devnull])]
+    for case, args in cases:
+        sh = LocalSh(url, args=args)
         try:
             case(sh)
         finally:

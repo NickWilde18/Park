@@ -2,15 +2,16 @@
 # Runs Park on this machine against real repositories, to try it before it is deployed: make db's Postgres, a
 # database of its own, park_local, and http://localhost:8080.
 #
-#   scripts/local.sh [--executor-token FILE] [--bridge NAME --bridge-token FILE] owner/name...
+#   scripts/local.sh [--executor-token FILE] [--bridge NAME --bridge-token FILE] owner/name...   the first run
+#   scripts/local.sh                                                                            later runs
 #
 # The first run sets Park up. It asks for the admin's username and password, a classic GitHub token with the repo and
 # read:org scopes, which must read the repositories, and your GitHub login, which it links to the admin. An answer
 # Park or GitHub refuses is explained and asked for again. It adds the GitHub forge, the token as an installation, and
 # the repositories, and makes a token for park-executor, scoped to read and tasks:work, in
 # ~/.config/park-executor/token, or the file --executor-token names. With --bridge, it registers a bridge of that name
-# and makes its token, scoped to assertions:write, in the file --bridge-token names. Later runs only serve Park;
-# Ctrl-C stops it.
+# and makes its token, scoped to assertions:write, in the file --bridge-token names. Later runs only serve Park, and
+# need no arguments; Ctrl-C stops it.
 #
 # The secret key that encrypts the credentials Park stores is kept in ~/.config/park-local/secret_key, so that a
 # restarted Park can read them; Park's log is there too. The bridge plugins in ~/.config/park-local/plugins, when it
@@ -20,6 +21,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
+usage="usage: scripts/local.sh [--executor-token FILE] [--bridge NAME --bridge-token FILE] [owner/name...]"
 bridge=""
 bridge_token=""
 executor_token="$HOME/.config/park-executor/token"
@@ -32,10 +34,6 @@ while [ $# -gt 0 ]; do
     *) break ;;
   esac
 done
-if [ $# -eq 0 ]; then
-  echo "usage: scripts/local.sh [--executor-token FILE] [--bridge NAME --bridge-token FILE] owner/name..." >&2
-  exit 2
-fi
 if [ -n "$bridge" ] && [ -z "$bridge_token" ]; then
   echo "--bridge needs --bridge-token, the file for its token" >&2
   exit 2
@@ -94,6 +92,11 @@ hidden() {
 # which every user of this machine can read.
 github="${PARK_LOCAL_GITHUB_API:-https://api.github.com}"
 if [ "$(curl -fsS "$URL/api/v1/setup" | field '["needed"]')" = "True" ]; then
+  if [ $# -eq 0 ]; then
+    echo "Park is not set up yet: its first run needs the repositories to watch, as owner/name." >&2
+    echo "$usage" >&2
+    exit 2
+  fi
   echo "Setting Park up."
   while :; do
     username="$(ask "The admin's username [$USER]: ")"
