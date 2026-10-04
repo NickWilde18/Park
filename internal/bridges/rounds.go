@@ -277,8 +277,10 @@ func (s *Service) modelOf(ctx context.Context, b Bridge) (*model, error) {
 }
 
 // memoryOf reads what a bridge remembers. The first time Park runs a bridge, it takes in the bridge's live
-// assertions and proposals, so that a bridge moved in from outside posts again only what changed. A thread's time is
-// then when Park first saw it under its anchor, until a round reads the thread itself.
+// assertions and proposals, so that a bridge moved in from outside posts again only what changed. Each live
+// proposal, decided by a member or not, is also taken as the model's answer about its thread, so that the model is
+// asked again only once the thread changes: asked again unchanged, it may name the same groups otherwise, or answer
+// none. A thread's time is then when Park first saw it under its anchor, until a round reads the thread itself.
 func (s *Service) memoryOf(ctx context.Context, id int64) (memory, error) {
 	var mem memory
 	var raw []byte
@@ -370,7 +372,13 @@ func (s *Service) memoryOf(ctx context.Context, id int64) (memory, error) {
 		p.Groups = append(p.Groups, Group{Name: name, PRs: prs})
 		mem.Proposed[anchor] = p
 	}
-	return mem, rows.Err()
+	if err := rows.Err(); err != nil {
+		return mem, err
+	}
+	for anchor, p := range mem.Proposed {
+		mem.Answers[anchor] = answer{Created: p.Created, Groups: p.Groups}
+	}
+	return mem, nil
 }
 
 // groupsPoster posts a round's decisions into Park's grouping, as the bridge does through the API, with its anchors

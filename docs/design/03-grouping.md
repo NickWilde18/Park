@@ -179,7 +179,7 @@ A bridge is external, a program outside Park that posts with its token, as above
 
 Every member sees each bridge's name, plugin, switch, and last round at `GET /bridges`, and asks for a round now at `POST /bridges/{id}/sync`, from a session, once the bridge is ready: on, its plugin on, its credentials complete, its account connected and not lapsed, and its chat chosen.
 
-What a bridge remembers between rounds, what it posted, with each thread's time, and the model's answers, is kept per bridge; a bridge moved in starts from its live assertions and proposals. A thread's text is not kept ([B2](12-bridge-plugins.md#rules)).
+What a bridge remembers between rounds, what it posted, with each thread's time, and the model's answers, is kept per bridge; a bridge moved in starts from its live assertions and proposals, and takes each proposal, decided by a member or not, as the model's answer about its thread, so that the model is asked again only once that thread changes. A thread's text is not kept ([B2](12-bridge-plugins.md#rules)).
 
 ## Descriptions
 

@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -241,6 +243,79 @@ func TestAMovedBridgeStartsFromWhatItPosted(t *testing.T) {
 	must(t, err)
 	if got := mem.Posted["m1"].Created; !mem.Seeded || !got.Equal(roundNow.Add(-30*time.Hour)) {
 		t.Fatalf("remembers m1 from %v, seeded %v", got, mem.Seeded)
+	}
+}
+
+// A bridge moved in from outside takes each of its live proposals as the model's answer about its thread, as the
+// thread is when Park first reads it: its first round asks the model about no thread it proposed groups for, and
+// changes none of those proposals, though the model, asked again, would answer otherwise. Outside Park, the bridge
+// proposed groups for m1 and m2, and a member accepted m1's. The model would now name m1's groups differently, and
+// answer no group for m2. After the first round in Park, the model was asked nothing, nothing changed, m1's proposal
+// is still accepted and m2's still open, and neither is retracted or proposed again. Once m1's text is edited, the
+// next round asks the model about m1 alone, and proposes what it answers.
+func TestAMovedBridgeKeepsItsProposals(t *testing.T) {
+	e := newEnv(t)
+	e.watchRepos(t)
+	asked := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked++
+		body, _ := io.ReadAll(r.Body)
+		answer := `{\"groups\": [{\"name\": \"Export stack\", \"pull_requests\": [\"acme/api#1\", \"acme/web#3\"]}, ` +
+			`{\"name\": \"Retry stack\", \"pull_requests\": [\"acme/api#2\", \"acme/web#4\"]}]}`
+		if strings.Contains(string(body), "Second batch") {
+			answer = `{\"groups\": []}`
+		}
+		_, _ = w.Write([]byte(`{"choices": [{"message": {"content": "` + answer + `"}}]}`))
+	}))
+	defer srv.Close()
+	var id int64
+	must(t, e.pool.QueryRow(e.ctx, "INSERT INTO bridge (name, owner_id) VALUES ('Reviews', $1) RETURNING id", e.ana).Scan(&id))
+	for _, p := range []grouping.Proposal{
+		{Anchor: "m1", Title: "Two features", Evidence: []string{"m1"}, Groups: []grouping.ProposedGroup{
+			{Name: "Exports", PRs: refs([]string{"acme/api#1", "acme/web#3"})},
+			{Name: "Retries", PRs: refs([]string{"acme/api#2", "acme/web#4"})}}},
+		{Anchor: "m2", Title: "Second batch", Evidence: []string{"m2"}, Groups: []grouping.ProposedGroup{
+			{Name: "Statements", PRs: refs([]string{"acme/api#5", "acme/api#6", "acme/web#7", "acme/web#8"})}}},
+	} {
+		_, err := e.s.groups.Propose(e.ctx, id, "", p)
+		must(t, err)
+	}
+	_, err := e.pool.Exec(e.ctx, "UPDATE proposal SET state = 'accepted', decided_at = now(), decided_by = $1 WHERE anchor = 'm1'", e.ana)
+	must(t, err)
+	_, err = e.s.SwitchPlugin(e.ctx, e.ana, "file", true)
+	must(t, err)
+	_, err = e.s.Update(e.ctx, id, Change{Plugin: ptr("file"), Credentials: map[string]string{"file": e.chats}})
+	must(t, err)
+	e.connect(t, e.ana, id)
+	_, err = e.s.Update(e.ctx, id, Change{Chat: &Chat{ID: "c-reviews", Name: "Reviews"},
+		Model: &ModelChange{URL: ptr(srv.URL), Name: ptr("a-model"), Key: ptr("the key")}})
+	must(t, err)
+	e.chatsWith(t,
+		chatThread("m1", 30, "Two features", link("api", 1), link("api", 2), link("web", 3), link("web", 4)),
+		chatThread("m2", 20, "Second batch", link("api", 5), link("api", 6), link("web", 7), link("web", 8)))
+	e.run(t, id)
+	b, err := e.s.Get(e.ctx, id)
+	must(t, err)
+	rows, err := e.pool.Query(e.ctx, `SELECT anchor || ' ' || state || ' ' || (retracted_at IS NULL)::text FROM proposal
+		WHERE source = $1 ORDER BY id`, "bridge:"+strconv.FormatInt(id, 10))
+	must(t, err)
+	proposals, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	must(t, err)
+	if asked != 0 || b.LastRound.Changes != 0 || fmt.Sprint(proposals) != "[m1 accepted true m2 open true]" {
+		t.Fatalf("the first round in Park asked the model %d times, made %d changes; proposals %v", asked, b.LastRound.Changes, proposals)
+	}
+
+	e.chatsWith(t,
+		chatThread("m1", 30, "Two features, with a third pass", link("api", 1), link("api", 2), link("web", 3), link("web", 4)),
+		chatThread("m2", 20, "Second batch", link("api", 5), link("api", 6), link("web", 7), link("web", 8)))
+	e.run(t, id)
+	rows, err = e.pool.Query(e.ctx, `SELECT anchor || ' ' || state || ' ' || (retracted_at IS NULL)::text FROM proposal
+		WHERE source = $1 ORDER BY id`, "bridge:"+strconv.FormatInt(id, 10))
+	must(t, err)
+	proposals, err = pgx.CollectRows(rows, pgx.RowTo[string])
+	must(t, err)
+	if asked != 1 || fmt.Sprint(proposals) != "[m1 accepted false m2 open true m1 open true]" {
+		t.Fatalf("after m1 was edited, the model was asked %d times; proposals %v", asked, proposals)
 	}
 }
 

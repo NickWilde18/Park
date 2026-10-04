@@ -27,7 +27,9 @@ type proposed struct {
 }
 
 // answer is what the model answered about a thread: the thread's time; a digest of what the model was asked, the
-// thread's text and pull requests, so that it is asked again only when they change; and the groups it found.
+// thread's text and pull requests, so that it is asked again only when they change; and the groups it found. An
+// answer taken from a proposal the bridge posted before Park ran it has no digest: it stands for the thread as the
+// next round reads it, which then gives it one.
 type answer struct {
 	Created time.Time `json:"created"`
 	Asked   string    `json:"asked"`
@@ -86,7 +88,8 @@ type roundOptions struct {
 //     fewer than two is nothing.
 //   - Without a model, or below the size asked about, a thread is an assertion. Otherwise the model is asked about it,
 //     once for each text and set of pull requests, and the groups it answers are proposed; an answer of none is
-//     nothing, and a thread the model cannot be asked about is left as it is.
+//     nothing, and a thread the model cannot be asked about is left as it is. A proposal the bridge posted before
+//     Park ran it is the model's answer for its thread as this round reads it.
 //   - An assertion or proposal is posted when it is new or its thread changed, since each post replaces the last
 //     under its anchor and adds to its history.
 //   - One whose thread is gone from the window is retracted; one whose thread aged out of it is forgotten, and left as
@@ -124,7 +127,9 @@ func (m *memory) round(ctx context.Context, log *slog.Logger, threads []found, r
 		}
 		asked := digest(t.Text, prs)
 		a, known := m.Answers[t.Anchor]
-		if !known || a.Asked != asked {
+		if known && a.Asked == "" {
+			a.Asked = asked
+		} else if !known || a.Asked != asked {
 			groups, err := o.Model.Split(ctx, t.Text, prs)
 			if err != nil {
 				log.WarnContext(ctx, "ask the model about a thread: it is left as it is until the model answers", "anchor", t.Anchor,
