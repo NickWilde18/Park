@@ -64,12 +64,17 @@ const columns: Column[] = [
   {
     key: 'ball',
     label: 'Ball',
-    unit: (u) => (
-      <>
-        {tag(balls[u.ball])}
-        {u.ball !== 'yours' && u.holders.length > 0 && <span className="quiet"> {u.holders.map((h) => h.login).join(', ')}</span>}
-      </>
-    ),
+    unit: (u) => {
+      // On a group of several pull requests, the ones its holders hold work on: what put the ball where it is.
+      const on = u.unit.kind === 'group' && u.pull_requests.length > 1 ? u.pull_requests.filter((p) => p.holders.length > 0).map(nameOf) : []
+      return (
+        <>
+          {tag(balls[u.ball])}
+          {u.ball !== 'yours' && u.holders.length > 0 && <span className="quiet"> {u.holders.map((h) => h.login).join(', ')}</span>}
+          {on.length > 0 && <span className="quiet"> on {on.join(', ')}</span>}
+        </>
+      )
+    },
     sort: (u) => balls[u.ball].order,
   },
   {
