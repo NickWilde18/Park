@@ -247,6 +247,18 @@
       "then": {"kind": "act", "action": "review", "task": true, "reason": "Asked again; the new commits respond to your comments"}
     },
     {
+      "name": "Asked again, approved without you",
+      "when": {"all": [
+        {"field": "me.requested", "op": "is_true"},
+        {"field": "me.decision", "op": "is", "value": "none"},
+        {"field": "me.threads_open", "op": "eq", "value": 0},
+        {"field": "me.threads_on_me", "op": "eq", "value": 0},
+        {"field": "pr.approvals", "op": "ge", "value": {"field": "pr.required_approvals"}},
+        {"field": "pr.code_owners_pending", "op": "is_empty"}
+      ]},
+      "then": {"kind": "idle", "reason": "Already has the approvals it needs, and nothing waits on you; another look is optional"}
+    },
+    {
       "name": "Asked again",
       "passed_over": "not asked again",
       "when": {"all": [

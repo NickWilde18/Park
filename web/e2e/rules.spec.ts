@@ -87,7 +87,7 @@ test('a member with the rules permission edits a draft, sees its problems, and p
   const saved = (await call(page, 'GET', '/rulesets/drafts/1')).body as { rules: { author: { name: string }[]; reviewer: { name: string }[] } }
   expect(saved.rules.author[0].name).toBe('Draft')
   expect(saved.rules.reviewer[0].name).toBe('Draft')
-  expect(saved.rules.reviewer).toHaveLength(19)
+  expect(saved.rules.reviewer).toHaveLength(20)
 })
 
 // A draft started and published unchanged, after Ana confirms, becomes version 2, and the Rules page shows it. The

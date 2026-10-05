@@ -103,6 +103,27 @@ func TestRegress(t *testing.T) {
 			map[string]model{"api#12": {author: "ana", checks: "pending", reviews: map[string]modelReview{"ben": {decision: "none"}},
 				direct: []string{"ben"}}},
 			rules.Author, []string{"ana"}, ""},
+		{"R1 Ana dismissed Ben's request for changes, his threads resolved, and asked him again; Carol and Dave approved, " +
+			"and two are required: Ana merges",
+			map[string]model{"api#12": {author: "ana", required: ptr(2), direct: []string{"ben"},
+				reviews: map[string]modelReview{"ben": {decision: "none"}, "carol": {decision: "approved"}, "dave": {decision: "approved"}}}},
+			rules.Author, []string{"ana"}, "merge"},
+		{"R2 same, but Ben's thread is still open, Ana replied last: Ben looks again",
+			map[string]model{"api#12": {author: "ana", required: ptr(2), direct: []string{"ben"}, threads: []modelThread{thread("ben", "ana", "ana")},
+				reviews: map[string]modelReview{"ben": {decision: "none"}, "carol": {decision: "approved"}, "dave": {decision: "approved"}}}},
+			rules.Reviewer, []string{"ben"}, "review"},
+		{"R3 Ben approved, and Ana asked him again; Carol approved too, and two are required: Ben looks again",
+			map[string]model{"api#12": {author: "ana", required: ptr(2), direct: []string{"ben"},
+				reviews: map[string]modelReview{"ben": {decision: "approved"}, "carol": {decision: "approved"}}}},
+			rules.Reviewer, []string{"ben"}, "review"},
+		{"R4 as R1, but code owner Eve is asked and has not approved: Ben, asked again, holds it, and so does Eve",
+			map[string]model{"api#12": {author: "ana", required: ptr(2), direct: []string{"ben", "eve"}, codeOwners: []string{"eve"},
+				reviews: map[string]modelReview{"ben": {decision: "none"}, "carol": {decision: "approved"}, "dave": {decision: "approved"}}}},
+			rules.Reviewer, []string{"ben", "eve"}, "review"},
+		{"R5 as R1, but a thread Carol started waits for Ben's reply, Ana replied last: Ben looks again",
+			map[string]model{"api#12": {author: "ana", required: ptr(2), direct: []string{"ben"}, threads: []modelThread{thread("carol", "ana", "ben")},
+				reviews: map[string]modelReview{"ben": {decision: "none"}, "carol": {decision: "approved"}, "dave": {decision: "approved"}}}},
+			rules.Reviewer, []string{"ben"}, "review"},
 	} {
 		parts, got := unit(t, c.unit)
 		var holders []string
@@ -119,6 +140,36 @@ func TestRegress(t *testing.T) {
 		if !ok {
 			t.Errorf("%s\n  want %s: %v %s | got %s (fallback %v): %v\n  parts: %s", c.title, c.side, c.holders, c.action, got.Side,
 				got.Fallback, holders, describe(parts))
+		}
+	}
+}
+
+// A reviewer asked again is optional once the pull request has every approval it needs and nothing waits on them
+// (reviewer 13). Ana dismissed Ben's request for changes, and Carol and Dave approved, two being required. Asked again,
+// with nothing of his open, Ben has nothing to do. A thread he started that is still open keeps him to look again,
+// though it waits on Ana, who answers it first; so does a thread of Carol's that waits for his reply, and so does an
+// approval still missing, with only Carol's in. Not asked again, he waits for the author, as before.
+func TestAskedAgainIsOptional(t *testing.T) {
+	both := map[string]modelReview{"ben": {decision: "none"}, "carol": {decision: "approved"}, "dave": {decision: "approved"}}
+	carol := map[string]modelReview{"ben": {decision: "none"}, "carol": {decision: "approved"}}
+	for _, c := range []struct {
+		reviews map[string]modelReview
+		name    string
+		kind    string
+		direct  []string
+		threads []modelThread
+		rule    int
+	}{
+		{both, "asked again, nothing of his open", rules.KindIdle, []string{"ben"}, nil, 13},
+		{both, "asked again, his own thread open, waiting on Ana", rules.KindAct, []string{"ben"}, []modelThread{thread("ben", "ben")}, 14},
+		{both, "asked again, Carol's thread waiting for his reply", rules.KindAct, []string{"ben"}, []modelThread{thread("carol", "ana", "ben")}, 14},
+		{carol, "asked again, an approval still missing", rules.KindAct, []string{"ben"}, nil, 14},
+		{both, "not asked again", rules.KindIdle, nil, nil, 20},
+	} {
+		parts, _ := unit(t, map[string]model{"api#12": {author: "ana", required: ptr(2), direct: c.direct, threads: c.threads, reviews: c.reviews}})
+		i := slices.IndexFunc(parts, func(p Part) bool { return names[p.Account] == "ben" })
+		if i < 0 || parts[i].Rule != c.rule || parts[i].Kind != c.kind {
+			t.Errorf("%s: Ben's part %s, want rule %d, %s", c.name, describe(parts), c.rule, c.kind)
 		}
 	}
 }

@@ -17,7 +17,7 @@ func code(err error) string {
 // Every default rule parses and type-checks, and the default rule set passes every publish check.
 func TestDefaultRuleSet(t *testing.T) {
 	rs := Default()
-	if len(rs.Author) != 20 || len(rs.Reviewer) != 19 {
+	if len(rs.Author) != 20 || len(rs.Reviewer) != 20 {
 		t.Fatalf("%d author and %d reviewer rules", len(rs.Author), len(rs.Reviewer))
 	}
 	c, problems := Compile(rs)

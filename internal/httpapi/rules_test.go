@@ -228,7 +228,7 @@ func TestRulesOverHTTP(t *testing.T) {
 	}
 	var v1 RuleSetVersion
 	wantStatus(t, member.call(t, "GET", "/api/v1/rulesets/1", nil, &v1), http.StatusOK, "")
-	if len(v1.Rules.Author) != 20 || len(v1.Rules.Reviewer) != 19 || v1.Rules.Author[0].Name != "Draft" {
+	if len(v1.Rules.Author) != 20 || len(v1.Rules.Reviewer) != 20 || v1.Rules.Author[0].Name != "Draft" {
 		t.Fatalf("version 1: %d author, %d reviewer rules", len(v1.Rules.Author), len(v1.Rules.Reviewer))
 	}
 	wantStatus(t, member.call(t, "GET", "/api/v1/rulesets/9", nil, nil), http.StatusNotFound, "not_found")
