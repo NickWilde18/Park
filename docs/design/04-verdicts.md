@@ -146,7 +146,7 @@ Evaluations of one unit are serialized: each takes the unit's lock, so two pull 
    3. A condition that fails at run time, or exceeds its cost limit, does not match. The error is recorded in the path, and the rule is flagged on the dashboard.
 5. **Place the ball** (above).
 6. **Refine.** For each holder, and for each waiting person whose path passed over a reminder rule on an unknown judgement, look those judgements up, and evaluate that person's list again with the ones that are recorded. A refined part is kept only if nothing but its reason or reminder changed; otherwise the part from step 4 stands, and the rule is flagged. A judgement not recorded yet does not hold anything up: it is asked in the background (next flow), and when its answer is recorded, the unit is evaluated again.
-7. **Compare** with the unit's current verdict. If the side, the holders with their actions and reasons, and the reminders are all unchanged, store nothing.
+7. **Compare** with the unit's current verdict. If the side, the holders with their actions and reasons, the reminders, every part, and what the board reads of each person's inputs — their review, whether one is asked of them directly, and the threads waiting on them — are all unchanged, store nothing. An evaluation that changes only inputs nobody is shown, such as the hours since a request, stores nothing ([D70](10-design-log.md#d70-a-change-that-moves-no-ball-is-stored-when-it-is-shown)).
 8. **Otherwise store** a new verdict and make it current, and queue work for tasks and the dashboard. A verdict records the fact sequence number it read of each pull request, and never replaces one computed from newer facts of any of them ([D54](10-design-log.md#d54-fact-sequence-numbers-are-kept-pull-request-by-pull-request)).
 
 When every pull request of a unit is merged or closed, its verdict is closed out, with the reason "Merged" when every one of them merged, or "Closed". A unit that was never evaluated while open gets no verdict, and a unit left with no pull requests — a group merged into another — has none.
@@ -203,7 +203,7 @@ Before a model provider is enabled, the settings page lists each question and wh
 - **V5. No model answer moves a ball.** Placement treats every judgement as unknown; a refinement may change a part's reason or reminder, and nothing else; judgements are asked in the background, and nothing waits for them.
 - **V6. Unknown never matches.** A condition that depends on an unknown judgement — no provider, a timeout, an error, or low confidence — does not match.
 - **V7. Tasks are not an input.** Verdicts read facts only. While an executor works, the ball stays where the facts put it, and the task's state is shown beside it.
-- **V8. Verdicts are immutable.** A new one is stored only when something a person sees changes.
+- **V8. Verdicts are immutable.** A new one is stored only when something a person sees changes: the ball, what anyone has to do and why, the reminders, or what the board reads of a person's inputs (step 7).
 - **V9. Every verdict explains itself**, with every part's path, its judgements, its inputs, and its rule set version.
 - **V10. Queues are derived.** A member's queue is the units whose ball they hold; their waiting list is the units they have a part in, where the ball is with someone else.
 

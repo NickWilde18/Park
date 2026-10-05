@@ -156,6 +156,93 @@ func TestEvaluate(t *testing.T) {
 	}
 }
 
+// A change that moves no ball is still stored when the dashboard shows it (V8). Ana holds the ball, answering Ben's
+// request for changes, while Carol, asked to review, approves. Ana still holds it, on the author side; Carol's part
+// and her review, as the board reads it, follow her approval in a new verdict. Evaluated again three hours on, the
+// same facts change only how long ago things were, and store nothing.
+func TestAChangeNobodyHoldsIsStored(t *testing.T) {
+	e := newEnv(t)
+	ben := modelReview{decision: "changes_requested", body: true}
+	id := e.pr(t, 12, model{author: "ana", direct: []string{"carol"}, reviews: map[string]modelReview{"ben": ben}})
+	unit := unitOfPR(id)
+	must(t, e.s.Evaluate(e.ctx, unit))
+	before := e.current(t, unit)
+	e.pr(t, 12, model{author: "ana", reviews: map[string]modelReview{"ben": ben, "carol": {decision: "approved"}}})
+	must(t, e.s.Evaluate(e.ctx, unit))
+	after := e.current(t, unit)
+	carol := func(v Verdict) (Part, Input) {
+		var part Part
+		var input Input
+		for _, p := range v.Parts {
+			if p.Login == "carol" {
+				part = p
+			}
+		}
+		for _, in := range v.Inputs {
+			if in.Login == "carol" {
+				input = in
+			}
+		}
+		return part, input
+	}
+	was, _ := carol(before)
+	now, input := carol(after)
+	if before.Side != rules.Author || !slices.Equal(holderNames(before), []string{"ana"}) || after.Side != rules.Author ||
+		!slices.Equal(holderNames(after), []string{"ana"}) {
+		t.Fatalf("the ball moved: before %s %v, after %s %v", before.Side, holderNames(before), after.Side, holderNames(after))
+	}
+	if after.ID == before.ID || now.Rule == was.Rule || input.Fields["me.decision"] != "approved" {
+		t.Fatalf("after Carol's approval: verdict %d (was %d), her part decided by rule %d (was %d): %s, her review %v", after.ID,
+			before.ID, now.Rule, was.Rule, now.Reason, input.Fields["me.decision"])
+	}
+	e.clock = e.clock.Add(3 * time.Hour)
+	must(t, e.s.Evaluate(e.ctx, unit))
+	if n := e.count(t, "SELECT count(*) FROM verdict WHERE unit = $1", unit); n != 2 {
+		t.Fatalf("%d verdicts after evaluating the same facts three hours on", n)
+	}
+}
+
+// What a person sees of a verdict decides whether a new one is stored (V8). Ana holds the ball on api#12, and Carol,
+// asked to review, has her first review to do there. Each of these counts, alone: Carol's part, which nobody holds;
+// her review; whether a review is asked of her; and the threads waiting on her. The hours since the request, which the
+// board does not show, do not.
+func TestWhatAPersonSees(t *testing.T) {
+	base := func() Verdict {
+		return Verdict{
+			Side: rules.Author,
+			Holders: []Holder{{Login: "ana", Forge: 1, Account: 1,
+				Parts: []HeldPart{{Kind: "act", Action: "address_comments", Reason: "ben requested changes", PR: 12}}}},
+			Parts: []Part{
+				{Part: rules.Part{Kind: "act", Action: "address_comments", Reason: "ben requested changes"}, Login: "ana", Role: rules.Author, PR: 12,
+					Forge: 1, Account: 1},
+				{Part: rules.Part{Kind: "act", Action: "review", Reason: "First review"}, Login: "carol", Role: rules.Reviewer, PR: 12, Forge: 1,
+					Account: 3},
+			},
+			Inputs: []Input{{Fields: map[string]any{"me.decision": "none", "me.requested": true, "me.threads_on_me": 0, "pr.hours_requested": 5},
+				Login: "carol", Role: rules.Reviewer, PR: 12, Forge: 1, Account: 3}},
+		}
+	}
+	was := base()
+	cases := []struct {
+		change func(v *Verdict)
+		name   string
+		seen   bool
+	}{
+		{func(v *Verdict) { v.Parts[1].Kind, v.Parts[1].Action, v.Parts[1].Reason = "idle", "", "Approved" }, "Carol's part", true},
+		{func(v *Verdict) { v.Inputs[0].Fields["me.decision"] = "approved" }, "her review", true},
+		{func(v *Verdict) { v.Inputs[0].Fields["me.requested"] = false }, "a review asked of her", true},
+		{func(v *Verdict) { v.Inputs[0].Fields["me.threads_on_me"] = 2 }, "threads waiting on her", true},
+		{func(v *Verdict) { v.Inputs[0].Fields["pr.hours_requested"] = 6 }, "the hours since the request", false},
+	}
+	for _, c := range cases {
+		v := base()
+		c.change(&v)
+		if seen := v.visible() != was.visible(); seen != c.seen {
+			t.Errorf("a change of %s is seen: %v, want %v", c.name, seen, c.seen)
+		}
+	}
+}
+
 // A person holds the ball since the first verdict they held it in: a new verdict where they still hold it keeps
 // that time.
 func TestHolderSince(t *testing.T) {
