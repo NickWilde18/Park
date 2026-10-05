@@ -104,8 +104,11 @@ func holders(placed []Part, previous *Verdict, now time.Time) []Holder {
 	return out
 }
 
-// visible is what a person sees of a verdict: where the ball is, who holds it and what for, and the reminders. A new
-// verdict is stored only when it changes (V8).
+// visible is what a person sees of a verdict: where the ball is, who holds it and what for, the reminders, every
+// part, as a unit's page shows it, and what the board reads of each person's inputs — their review, whether one is
+// asked of them directly, and the threads waiting on them. A new verdict is stored only when it changes (V8), so that
+// a change that moves no ball, such as a reviewer approving while the author holds it, is stored all the same; one
+// that changes only inputs nobody is shown, such as the hours since a request, is not.
 func (v *Verdict) visible() string {
 	type holder struct {
 		Parts   []HeldPart `json:"parts"`
@@ -116,12 +119,28 @@ func (v *Verdict) visible() string {
 	for i, h := range v.Holders {
 		hs[i] = holder{Parts: h.Parts, Forge: h.Forge, Account: h.Account}
 	}
+	type read struct {
+		Decision  any        `json:"decision"`
+		Requested any        `json:"requested"`
+		Threads   any        `json:"threads"`
+		Role      rules.Role `json:"role"`
+		PR        int64      `json:"pr"`
+		Forge     int64      `json:"forge"`
+		Account   int64      `json:"account"`
+	}
+	reads := make([]read, len(v.Inputs))
+	for i, in := range v.Inputs {
+		reads[i] = read{Decision: in.Fields["me.decision"], Requested: in.Fields["me.requested"], Threads: in.Fields["me.threads_on_me"],
+			Role: in.Role, PR: in.PR, Forge: in.Forge, Account: in.Account}
+	}
 	data, _ := json.Marshal(struct {
-		Side      rules.Role `json:"side"`
-		Closed    string     `json:"closed"`
 		Holders   []holder   `json:"holders"`
 		Reminders []Reminder `json:"reminders"`
+		Parts     []Part     `json:"parts"`
+		Reads     []read     `json:"reads"`
+		Side      rules.Role `json:"side"`
+		Closed    string     `json:"closed"`
 		Fallback  bool       `json:"fallback"`
-	}{v.Side, v.Closed, hs, orEmpty(v.Reminders), v.Fallback})
+	}{hs, orEmpty(v.Reminders), orEmpty(v.Parts), reads, v.Side, v.Closed, v.Fallback})
 	return string(data)
 }
