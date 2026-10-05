@@ -3,7 +3,8 @@ import { signIn } from './session.ts'
 
 // Ana's board: her units first — the Billing group, its pull requests each with her action, and her draft — then the
 // unit she waits on, with who holds it, then the one she has no part in; on those two, To do says what the holder is to
-// do. Sorting by To do puts her own first. She filters by the ball, folds the group, sorts by a column, both ways, and
+// do. The Billing group's ball is hers, and names the pull requests she holds work on: both. Sorting by To do puts her
+// own first. She filters by the ball, folds the group, sorts by a column, both ways, and
 // hides a column, which stays hidden after a reload.
 test('the board shows every open unit as it stands for me', async ({ page }) => {
   await signIn(page, 'ana')
@@ -13,6 +14,7 @@ test('the board shows every open unit as it stands for me', async ({ page }) => 
   const row = (name: string) => rows.filter({ hasText: name })
   await expect(rows.first()).toContainText('Billing')
   await expect(rows.first().locator('.tag', { hasText: 'Yours' })).toBeVisible()
+  await expect(rows.first()).toContainText('Yours on api#12, api#14')
   await expect(row('api#12 Billing export')).toContainText('fix checks — 1 required checks failing')
   // Checks are named by where they stand on the latest commit, and each says what it covers.
   const failed = row('api#12 Billing export').locator('.tag', { hasText: 'Failed' })
@@ -66,14 +68,32 @@ test('the board shows every open unit as it stands for me', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Author', exact: true })).toBeVisible()
 })
 
-// Ben reviews the Billing group's two pull requests. On api#12 his first review is his own to do. On api#14 he waits
-// for Ana to answer his request for changes, so To do says what she holds there, and only there: not her failing
-// checks, which are on api#12.
+// A group's ball names only the pull requests its holders hold work on. Park's answer is changed here so that nobody
+// holds anything on api#14: the Billing group's ball is then Ana's on api#12 alone, and the row names api#14 nowhere.
+test("a group's ball names only the pull requests it is held on", async ({ page }) => {
+  await page.route('**/api/v1/board', async (route) => {
+    const response = await route.fetch()
+    const board = (await response.json()) as { units: { pull_requests: { summary: { number: number }; holders: unknown[] }[] }[] }
+    for (const u of board.units) for (const p of u.pull_requests) if (p.summary.number === 14) p.holders = []
+    await route.fulfill({ response, json: board })
+  })
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Board' }).click()
+  const billing = page.getByRole('table').locator('tbody tr').filter({ has: page.getByRole('button', { name: 'Fold Billing' }) })
+  await expect(billing).toContainText('Yours on api#12')
+  await expect(billing).not.toContainText('api#14')
+})
+
+// Ben reviews the Billing group's two pull requests. The group's ball is Ana's, on both. On api#12 his first review is
+// his own to do. On api#14 he waits for Ana to answer his request for changes, so To do says what she holds there, and
+// only there: not her failing checks, which are on api#12.
 test('where I only wait, To do says what the holder holds on that pull request', async ({ page }) => {
   await signIn(page, 'ben')
   await page.getByRole('link', { name: 'Board' }).click()
   const rows = page.getByRole('table').locator('tbody tr')
   const row = (name: string) => rows.filter({ hasText: name })
+  const billing = rows.filter({ has: page.getByRole('button', { name: 'Fold Billing' }) })
+  await expect(billing).toContainText("Others' ana on api#12, api#14")
   await expect(row('api#12 Billing export')).toContainText('review — First review')
   await expect(row('api#14 Retry failed payments').getByText(/^ana: /)).toHaveText(
     'ana: address comments — ben requested changes; 2 items wait on you',
