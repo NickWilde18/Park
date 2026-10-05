@@ -250,24 +250,26 @@ flowchart TD
     r11 -->|yes| rk11["idle"]
     r11 -->|no request for changes| r12{"12 Asked again, new commits for you"}
     r12 -->|"yes (model)"| rk12["act · review"]
-    r12 --> r13{"13 Asked again"}
-    r13 -->|yes| rk13["act · review"]
-    r13 -->|not asked again| r14{"14 Approved, others block"}
-    r14 -->|yes| rk14["idle"]
-    r14 --> r15{"15 Approved, more needed"}
+    r12 --> r13{"13 Asked again, approved without you"}
+    r13 -->|yes| rk13["idle"]
+    r13 --> r14{"14 Asked again"}
+    r14 -->|yes| rk14["act · review"]
+    r14 -->|not asked again| r15{"15 Approved, others block"}
     r15 -->|yes| rk15["idle"]
-    r15 --> r16{"16 Approved"}
+    r15 --> r16{"16 Approved, more needed"}
     r16 -->|yes| rk16["idle"]
-    r16 -->|not approved| r17{"17 Nudged"}
+    r16 --> r17{"17 Approved"}
     r17 -->|yes| rk17["idle"]
-    r17 --> r18{"18 Time to nudge"}
-    r18 -->|"yes (model)"| rk18["idle · remind"]
-    r18 --> rk19
-    rk19["19 idle"]
+    r17 -->|not approved| r18{"18 Nudged"}
+    r18 -->|yes| rk18["idle"]
+    r18 --> r19{"19 Time to nudge"}
+    r19 -->|"yes (model)"| rk19["idle · remind"]
+    r19 --> rk20
+    rk20["20 idle"]
     classDef act fill:#fde2c8,stroke:#d9822b
     classDef idle fill:#eeeeee,stroke:#9e9e9e
-    class rk4,rk5,rk6,rk7,rk12,rk13 act
-    class rk1,rk2,rk3,rk8,rk9,rk10,rk11,rk14,rk15,rk16,rk17,rk18,rk19 idle
+    class rk4,rk5,rk6,rk7,rk12,rk14 act
+    class rk1,rk2,rk3,rk8,rk9,rk10,rk11,rk13,rk15,rk16,rk17,rk18,rk19,rk20 idle
 ```
 
 | # | Rule | When | Kind | Action | Reason |
@@ -284,28 +286,29 @@ flowchart TD
 | 10 | Time to nudge about your block | `me.decision` is `changes_requested`, not `me.new_commits`, and `me.hours_since_review` ≥ 24 | idle, remind |  | Nothing new since you requested changes; remind the author |
 | 11 | Changes requested | `me.decision` is `changes_requested` | idle |  | You requested changes; the author hands it back when it is ready for another look |
 | 12 | Asked again, new commits for you | `me.requested`, `me.new_commits`, `me.threads_open` > 0, and `judgement.commits_address_my_comments` is `yes` | act | `review` | Asked again; the new commits respond to your comments |
-| 13 | Asked again | `me.reviewed` and `me.requested` | act | `review` | The author asked you to review again |
-| 14 | Approved, others block | `me.decision` is `approved` and `pr.blocked_by` is not empty | idle |  | You approved; {pr.blocked_by} still request changes |
-| 15 | Approved, more needed | `me.decision` is `approved` and `pr.approvals` < `pr.required_approvals` | idle |  | You approved; it needs another approval |
-| 16 | Approved | `me.decision` is `approved` | idle |  | You approved |
-| 17 | Nudged | `me.hours_since_review` ≥ 24 and `me.hours_since_nudge` < 48 | idle |  | Nudged; the author has the ball |
-| 18 | Time to nudge | `me.hours_since_review` ≥ 24 and `judgement.comments_blocking` is `yes` | idle, remind |  | No progress since your review, and your comments block it; remind the author |
-| 19 | Waiting for the author | always | idle |  | The author has the ball; {me.threads_open} of your comments are open |
+| 13 | Asked again, approved without you | `me.requested`, `me.decision` is `none`, `me.threads_open` = 0, `me.threads_on_me` = 0, `pr.approvals` ≥ `pr.required_approvals`, and `pr.code_owners_pending` is empty | idle |  | Already has the approvals it needs, and nothing waits on you; another look is optional |
+| 14 | Asked again | `me.reviewed` and `me.requested` | act | `review` | The author asked you to review again |
+| 15 | Approved, others block | `me.decision` is `approved` and `pr.blocked_by` is not empty | idle |  | You approved; {pr.blocked_by} still request changes |
+| 16 | Approved, more needed | `me.decision` is `approved` and `pr.approvals` < `pr.required_approvals` | idle |  | You approved; it needs another approval |
+| 17 | Approved | `me.decision` is `approved` | idle |  | You approved |
+| 18 | Nudged | `me.hours_since_review` ≥ 24 and `me.hours_since_nudge` < 48 | idle |  | Nudged; the author has the ball |
+| 19 | Time to nudge | `me.hours_since_review` ≥ 24 and `judgement.comments_blocking` is `yes` | idle, remind |  | No progress since your review, and your comments block it; remind the author |
+| 20 | Waiting for the author | always | idle |  | The author has the ball; {me.threads_open} of your comments are open |
 
-Passed-over labels: 1 "not a draft", 2 "checks not running", 6 "reviewed before", 11 "no request for changes", 13 "not asked again", 16 "not approved".
+Passed-over labels: 1 "not a draft", 2 "checks not running", 6 "reviewed before", 11 "no request for changes", 14 "not asked again", 17 "not approved".
 
 ### How to read them
 
 - **Each row is one person's part, not the ball.** The author's list says what the author has to do on a pull request; the reviewer's list, what one reviewer has to do. The ball is then placed once for the whole unit ([Verdicts](04-verdicts.md#placing-the-ball)): author work first, then reviewer work, then an author who is only waiting on checks or a draft, then the author's last step. So no row can put the ball in two places.
-- **Handing the ball back is explicit.** While a reviewer's request for changes stands, the author has work on the pull request — with every comment answered, and even after asking again (author 6). The author hands it back by dismissing the review, saying what changed, and asking again. An author who is not allowed to dismiss hands it back by asking again (author 7), and the reviewer then holds it (reviewer 7). With nothing to dismiss — the reviewer only commented — asking again hands it back (author 12, reviewer 13). A reply, including one that disagrees and leaves the thread open, never hands the ball back by itself, and neither do new commits.
+- **Handing the ball back is explicit.** While a reviewer's request for changes stands, the author has work on the pull request — with every comment answered, and even after asking again (author 6). The author hands it back by dismissing the review, saying what changed, and asking again. An author who is not allowed to dismiss hands it back by asking again (author 7), and the reviewer then holds it (reviewer 7). With nothing to dismiss — the reviewer only commented — asking again hands it back (author 12, reviewer 14). A reviewer asked again whose request for changes no longer stands, or who only commented, is optional once the pull request has every approval it needs and nothing waits on them — no thread they started is open, none waits for their reply, and no code owner is pending (reviewer 13): the author merges ([D71](10-design-log.md#d71-a-reviewer-asked-again-is-optional-once-nothing-waits-on-them)). A reply, including one that disagrees and leaves the thread open, never hands the ball back by itself, and neither do new commits.
 - **A review's written body is something to answer.** A review that requests changes or comments in its body, with no inline thread, waits on the author like a thread does (author 9, 11), until the author comments on the pull request or pushes after it. "Every comment is answered" is never true while such a review is unanswered.
-- **An approval ends a reviewer's turn.** A reviewer who approved holds nothing, even while another approval is still needed (reviewer 15); only the author asking again brings them back (reviewer 13). Threads where the author replied last no longer wait on an approver; a thread where the approver spoke last still waits on the author (author 10), who answers it before merging.
+- **An approval ends a reviewer's turn.** A reviewer who approved holds nothing, even while another approval is still needed (reviewer 16); only the author asking again brings them back (reviewer 14). Threads where the author replied last no longer wait on an approver; a thread where the approver spoke last still waits on the author (author 10), who answers it before merging.
 - **Merging needs the forge's go-ahead.** Ready to merge takes the team's minimum approvals — at least one, even where the forge requires none — and the forge's own verdict that it can merge (author 15). Whatever else the forge still requires comes back to the author (author 16), and a code owner whose approval is required is never optional (reviewer 3).
 - **Mechanical work comes first for authors.** Conflicts and failing checks come before comments: answering comments on a pull request that conflicts or fails means coming back after fixing it. Checks that stay pending for two hours stop being a wait and become the author's to look at (author 4) — not a task, since running them again does not change the head.
 - **Waiting never blocks others.** A reviewer waits for green checks on the pull request they review (reviewer 2), but an author who is only waiting — on running checks, or on their own draft — never holds back the reviews of the other pull requests in the group.
 - **Chain position matters only where it must.** An approved pull request waits for the ones below it (author 14), and a first review deep in a chain can wait (reviewer 5). Answering comments, fixing checks, and resolving conflicts can happen anywhere in a chain, in parallel. Position 2 is not downgraded: it is usually next.
-- **Reminders are not moves.** A nudge (author 19, reviewers 10 and 18) is offered to the person waiting, and never moves the ball.
-- **Judgements never move the ball.** Reviewer 12 only sharpens the reason of a reviewer who is already asked again, and reviewer 18 only decides whether to offer a reminder. Without a model, every part has the same kind; the reasons are plainer, and a reviewer who only commented is never offered a reminder. Judgements are asked in the background, so a sharper reason may appear a moment after the plain one.
+- **Reminders are not moves.** A nudge (author 19, reviewers 10 and 19) is offered to the person waiting, and never moves the ball.
+- **Judgements never move the ball.** Reviewer 12 only sharpens the reason of a reviewer who is already asked again, and reviewer 19 only decides whether to offer a reminder. Without a model, every part has the same kind; the reasons are plainer, and a reviewer who only commented is never offered a reminder. Judgements are asked in the background, so a sharper reason may appear a moment after the plain one.
 - **The fallback is never needed.** For one author and up to two reviewers, with the forge requiring zero, one, or two approvals, in every combination of review, thread, new commits, review request, elapsed time, and nudge, some rule gives someone the ball — and never to a reviewer whose approval or request for changes stands, unless the author asked them again. The [design checks](checks/README.md) confirm this for every such state, and for regression cases that add groups, drafts, running and stuck checks, code owners, review bodies, team requests, and authors who cannot dismiss.
 
 ## Editing and publishing
