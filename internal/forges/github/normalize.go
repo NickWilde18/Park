@@ -155,9 +155,11 @@ type prNode struct {
 	Stack *stackNode `json:"stack"`
 }
 
-// stackNode is a pull request stack, by its number within its repository.
+// stackNode is a pull request stack, by its number within its repository, and the branch it merges into: GitHub holds
+// every pull request in the stack to that branch's review rules.
 type stackNode struct {
-	Number int `json:"number"`
+	BaseRefName string `json:"baseRefName"`
+	Number      int    `json:"number"`
 }
 
 // refTextLimit is how much of a description references are parsed from: later text is often pasted logs.

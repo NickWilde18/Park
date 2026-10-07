@@ -69,7 +69,7 @@ var fields = []Field{
 	{Name: "pr.approvals", Type: Number,
 		Meaning: "Reviewers whose decisive review approves, is not dismissed, and counts toward the forge's requirement — for example, because they have write access"},
 	{Name: "pr.required_approvals", Type: Number,
-		Meaning: "The larger of the forge's requirement for the base branch and the team's minimum, 1 by default"},
+		Meaning: "The larger of the forge's requirement for the base branch — for a pull request in a stack, the branch the stack merges into — and the team's minimum, 1 by default"},
 	{Name: "pr.blocked_by", Type: AccountList,
 		Meaning: "Reviewers whose decisive review requests changes and is not dismissed"},
 	{Name: "pr.blockers_rerequested", Type: Boolean,

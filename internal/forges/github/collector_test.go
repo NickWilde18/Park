@@ -26,6 +26,7 @@ import (
 
 	"github.com/NickWilde18/Park/internal/facts"
 	"github.com/NickWilde18/Park/internal/forges"
+	"github.com/NickWilde18/Park/internal/grouping"
 	"github.com/NickWilde18/Park/internal/rules"
 	"github.com/NickWilde18/Park/internal/verdicts"
 )
@@ -122,7 +123,7 @@ const (
 func TestFetchPR(t *testing.T) {
 	f := newFakeAPI(t)
 	f.graphql[probeKey] = stacksSupported
-	f.graphql["baseRefName stack { number }"] = fixture(t, "pr.json")
+	f.graphql["baseRefName stack { number baseRefName }"] = fixture(t, "pr.json")
 	f.graphql["reviewThreads(first: 100, after: $cursor)"] = fixture(t, "threads_page2.json")
 	c := tokenCollector(t, f)
 	got, err := c.FetchPR(context.Background(), repo, 12, map[string]facts.Protection{
@@ -198,7 +199,7 @@ func TestFetchPR(t *testing.T) {
 func TestBotReviewWaitsForNoAnswer(t *testing.T) {
 	f := newFakeAPI(t)
 	f.graphql[probeKey] = stacksSupported
-	f.graphql["baseRefName stack { number }"] = fixture(t, "bot_review.json")
+	f.graphql["baseRefName stack { number baseRefName }"] = fixture(t, "bot_review.json")
 	c := tokenCollector(t, f)
 	got, err := c.FetchPR(context.Background(), repo, 12, map[string]facts.Protection{
 		"main": {RequiredChecks: []string{"build"}, RequiredApprovals: 1},
@@ -231,6 +232,73 @@ func TestBotReviewWaitsForNoAnswer(t *testing.T) {
 	}
 	if c := parts["carol"]; c.Kind != rules.KindAct || c.Action != "review" {
 		t.Errorf("Carol's part: %s %s, %q", c.Kind, c.Action, c.Reason)
+	}
+}
+
+// A pull request in a stack is held to the review rules of the stack's base, where the stack merges, as GitHub holds
+// it (#90). Its own base is the branch of the pull request below, which requires nothing; the stack's base, main, asks
+// two approvals, and the pull request has one, Ben's. So the query asks for the stack's base, and the required
+// approvals are main's. Its required checks are still those of its own base: none is missing, though main asks for one
+// that has not reported. Evaluated with the default rules, a team minimum of one, and the pull request below still
+// open, the author has nothing to merge yet, and Carol, still asked, has her first review to do.
+func TestStackedPRTakesItsStackBaseReviews(t *testing.T) {
+	f := newFakeAPI(t)
+	f.graphql[probeKey] = stacksSupported
+	f.graphql["headRefOid baseRefName"] = fixture(t, "stacked.json")
+	c := tokenCollector(t, f)
+	got, err := c.FetchPR(context.Background(), repo, 21, map[string]facts.Protection{
+		"feat/billing-export": {RequiredChecks: []string{}},
+		"main":                {RequiredChecks: []string{"build", "deploy"}, RequiredApprovals: 2},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(withStacks.pr, "stack { number baseRefName }") {
+		t.Errorf("the pull request query does not ask for the stack's base")
+	}
+	p := got.PR
+	if p.RequiredApproval != 2 {
+		t.Errorf("required approvals %d, want main's 2", p.RequiredApproval)
+	}
+	if len(p.MissingChecks) != 0 {
+		t.Errorf("missing checks %v, want none: its own base requires none", p.MissingChecks)
+	}
+	compiled, problems := rules.Compile(rules.Default())
+	if len(problems) > 0 {
+		t.Fatalf("the default rules: %+v", problems)
+	}
+	logins := map[int64]string{}
+	for _, a := range got.Accounts {
+		logins[a.ID] = a.Login
+	}
+	now := time.Date(2026, 9, 3, 13, 0, 0, 0, time.UTC)
+	parts := map[string]rules.Part{}
+	for _, person := range verdicts.People(p, verdicts.Context{Now: now, Logins: logins, Teams: map[int64]verdicts.Team{},
+		Nudged: map[int64]time.Time{}, Chain: grouping.Chain{ID: 20, Position: 2, Length: 2, Below: 1}, MinimumApprovals: 1}) {
+		parts[logins[person.Account]] = compiled.Evaluate(person.Role, person.Input)
+	}
+	if a := parts["ana"]; a.Kind == rules.KindFinish {
+		t.Errorf("the author's part: %s, %q", a.Kind, a.Reason)
+	}
+	if c := parts["carol"]; c.Kind != rules.KindAct || c.Action != "review" {
+		t.Errorf("Carol's part: %s %s, %q", c.Kind, c.Action, c.Reason)
+	}
+}
+
+// When Park has not read the rules of the stack's base, the required approvals are unknown, and come from GitHub's
+// review decision, as without readable protection: one more than the one approval it has. Its own base's rules, which
+// require nothing, are not taken for the stack's.
+func TestStackedPRWithoutItsStackBaseRules(t *testing.T) {
+	f := newFakeAPI(t)
+	f.graphql[probeKey] = stacksSupported
+	f.graphql["headRefOid baseRefName"] = fixture(t, "stacked.json")
+	c := tokenCollector(t, f)
+	got, err := c.FetchPR(context.Background(), repo, 21, map[string]facts.Protection{"feat/billing-export": {RequiredChecks: []string{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PR.RequiredApproval != 2 {
+		t.Errorf("required approvals %d, want 2, from the review decision", got.PR.RequiredApproval)
 	}
 }
 
@@ -420,7 +488,7 @@ func TestMissed(t *testing.T) {
 func TestListOpen(t *testing.T) {
 	f := newFakeAPI(t)
 	f.graphql[probeKey] = stacksSupported
-	f.graphql["updatedAt stack { number }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
+	f.graphql["updatedAt stack { number baseRefName }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
 		"nodes": [{"number": 12, "updatedAt": "2026-09-03T12:00:00Z", "stack": {"number": 40}},
 			{"number": 13, "updatedAt": "2026-09-04T12:00:00Z", "stack": null}]}}}}`
 	got, err := tokenCollector(t, f).ListOpen(context.Background(), repo)
@@ -435,7 +503,7 @@ func TestListOpen(t *testing.T) {
 func TestNoStacks(t *testing.T) {
 	f := newFakeAPI(t)
 	f.graphql[probeKey] = `{"data": {"__type": null}}`
-	f.graphql["stack { number }"] = `{"errors": [{"message": "Field 'stack' doesn't exist on type 'PullRequest'"}]}`
+	f.graphql["stack { number baseRefName }"] = `{"errors": [{"message": "Field 'stack' doesn't exist on type 'PullRequest'"}]}`
 	f.graphql["baseRefName\n"] = strings.Replace(fixture(t, "pr.json"), `"stack": {"number": 40}, `, "", 1)
 	f.graphql["reviewThreads(first: 100, after: $cursor)"] = fixture(t, "threads_page2.json")
 	f.graphql["nodes { number updatedAt }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
@@ -458,7 +526,7 @@ func TestNoStacks(t *testing.T) {
 // answer, though the forge would answer the listing without stacks; the next call asks again.
 func TestStackProbeFails(t *testing.T) {
 	f := newFakeAPI(t)
-	f.graphql["updatedAt stack { number }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
+	f.graphql["updatedAt stack { number baseRefName }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
 		"nodes": [{"number": 12, "updatedAt": "2026-09-03T12:00:00Z", "stack": {"number": 40}}]}}}}`
 	f.graphql["nodes { number updatedAt }"] = `{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false},
 		"nodes": [{"number": 12, "updatedAt": "2026-09-03T12:00:00Z"}]}}}}`

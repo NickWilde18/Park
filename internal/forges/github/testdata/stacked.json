@@ -1,0 +1,144 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 2,
+      "remaining": 4990,
+      "resetAt": "2026-10-01T10:00:00Z"
+    },
+    "repository": {
+      "databaseId": 1001,
+      "pullRequest": {
+        "number": 21,
+        "title": "Retry failed exports",
+        "state": "OPEN",
+        "isDraft": false,
+        "createdAt": "2026-09-01T09:00:00Z",
+        "updatedAt": "2026-09-03T12:00:00Z",
+        "mergedAt": null,
+        "closedAt": null,
+        "authorAssociation": "MEMBER",
+        "author": {
+          "__typename": "User",
+          "login": "ana",
+          "databaseId": 501,
+          "name": "Ana"
+        },
+        "labels": {
+          "nodes": []
+        },
+        "headRepository": {
+          "databaseId": 1001
+        },
+        "headRefName": "feat/export-retry",
+        "headRefOid": "headsha21",
+        "baseRefName": "feat/billing-export",
+        "stack": {
+          "number": 22,
+          "baseRefName": "main"
+        },
+        "mergeable": "MERGEABLE",
+        "mergeStateStatus": "BLOCKED",
+        "reviewDecision": "REVIEW_REQUIRED",
+        "bodyText": "Retries an export that failed, once.",
+        "closingIssuesReferences": {
+          "nodes": []
+        },
+        "reviewRequests": {
+          "nodes": [
+            {
+              "asCodeOwner": false,
+              "requestedReviewer": {
+                "__typename": "User",
+                "databaseId": 503,
+                "login": "carol",
+                "name": "Carol"
+              }
+            }
+          ]
+        },
+        "timelineItems": {
+          "nodes": [
+            {
+              "__typename": "ReviewRequestedEvent",
+              "createdAt": "2026-09-01T09:06:00Z",
+              "requestedReviewer": {
+                "__typename": "User",
+                "databaseId": 502
+              }
+            },
+            {
+              "__typename": "ReviewRequestedEvent",
+              "createdAt": "2026-09-01T09:06:00Z",
+              "requestedReviewer": {
+                "__typename": "User",
+                "databaseId": 503
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "r1"
+          },
+          "nodes": [
+            {
+              "databaseId": 9201,
+              "state": "APPROVED",
+              "submittedAt": "2026-09-03T12:30:00Z",
+              "authorCanPushToRepository": true,
+              "body": "",
+              "commit": {
+                "oid": "headsha21"
+              },
+              "author": {
+                "__typename": "User",
+                "login": "ben",
+                "databaseId": 502,
+                "name": "Ben"
+              }
+            }
+          ]
+        },
+        "reviewThreads": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "comments": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": []
+        },
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "oid": "headsha21",
+                "committedDate": "2026-09-03T11:50:00Z",
+                "statusCheckRollup": {
+                  "contexts": {
+                    "nodes": [
+                      {
+                        "__typename": "CheckRun",
+                        "name": "build",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "startedAt": "2026-09-03T11:51:00Z",
+                        "isRequired": true
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

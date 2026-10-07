@@ -72,7 +72,7 @@ Everything a condition can read. Fields are computed for one person on one pull 
 | `pr.failing_checks` | list of text | Names of the failing required checks |
 | `pr.hours_checks_pending` | optional number | Hours since the required checks on the head commit started pending |
 | `pr.approvals` | number | Reviewers whose decisive review approves, is not dismissed, and counts toward the forge's requirement — for example, because they have write access |
-| `pr.required_approvals` | number | The larger of the forge's requirement for the base branch and the team's minimum, 1 by default |
+| `pr.required_approvals` | number | The larger of the forge's requirement for the base branch — for a pull request in a stack, the branch the stack merges into — and the team's minimum, 1 by default |
 | `pr.blocked_by` | list of accounts | Reviewers whose decisive review requests changes and is not dismissed |
 | `pr.blockers_rerequested` | boolean | Everyone in `pr.blocked_by` has a pending direct review request |
 | `pr.requested` | list of accounts and teams | Pending review requests: accounts, and teams with at least one member other than the author |
