@@ -27,6 +27,8 @@ test('the board shows every open unit as it stands for me', async ({ page }) => 
   await expect(row('api#15 Export formats')).toContainText('hold — Draft')
   await expect(row('api#16 Statement emails').locator('.tag', { hasText: "Others'" })).toBeVisible()
   await expect(row('api#16 Statement emails')).toContainText('ben')
+  // Ana only waits there, for Ben's first review, and on Billing the ball is hers: neither is marked as also hers.
+  await expect(page.locator('.tag', { hasText: 'Also yours' })).toHaveCount(0)
   await expect(row('api#13 Invoice layout').locator('.tag', { hasText: 'Not yours' })).toBeVisible()
   // Where Ana has nothing to do — waiting on her own pull request, or with no part at all — To do shows, quietly, what
   // the holder holds there.
@@ -98,6 +100,22 @@ test('where I only wait, To do says what the holder holds on that pull request',
   await expect(row('api#14 Retry failed payments').getByText(/^ana: /)).toHaveText(
     'ana: address comments — ben requested changes; 2 items wait on you',
   )
+})
+
+// Ben's Billing row: the ball stays Ana's, and the Ball column marks that he has work there too, on api#12, where his
+// first review waits; pointed at, the mark says where to look. Folded, the group's row still says so.
+test('where someone else holds the ball, the board marks the work that is mine too', async ({ page }) => {
+  await signIn(page, 'ben')
+  await page.getByRole('link', { name: 'Board' }).click()
+  const rows = page.getByRole('table').locator('tbody tr')
+  const billing = rows.filter({ has: page.getByRole('button', { name: 'Fold Billing' }) })
+  await expect(billing).toContainText("Others' ana on api#12, api#14 Also yours on api#12")
+  const also = billing.locator('.tag', { hasText: 'Also yours' })
+  await expect(also).toHaveClass(/yellow/)
+  await expect(also).toHaveAttribute('title', 'Someone else holds the ball, but you have work here too: To do says what.')
+  await page.getByRole('button', { name: 'Fold Billing' }).click()
+  const folded = rows.filter({ has: page.getByRole('button', { name: 'Unfold Billing' }) })
+  await expect(folded).toContainText('Also yours on api#12')
 })
 
 // Asking the forge now. From the board: about every repository; with the board filtered to one, about that one; and

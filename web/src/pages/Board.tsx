@@ -29,6 +29,14 @@ const balls: Record<BoardUnit['ball'], Look> = {
   others: { text: "Others'", colour: 'green', order: 1 },
   none: { text: 'Not yours', colour: 'gray', order: 2 },
 }
+// alsoYours marks a unit whose ball someone else holds where I have work too: a review asked of me while the author
+// works, say.
+const alsoYours: Look = {
+  text: 'Also yours',
+  colour: 'yellow',
+  order: 0,
+  hint: 'Someone else holds the ball, but you have work here too: To do says what.',
+}
 const checks: Record<string, Look> = {
   failing: { ...checkStates.failing, colour: 'red', order: 0 },
   pending: { ...checkStates.pending, colour: 'yellow', order: 1 },
@@ -66,12 +74,17 @@ const columns: Column[] = [
     label: 'Ball',
     unit: (u) => {
       // On a group of several pull requests, the ones its holders hold work on: what put the ball where it is.
-      const on = u.unit.kind === 'group' && u.pull_requests.length > 1 ? u.pull_requests.filter((p) => p.holders.length > 0).map(nameOf) : []
+      const several = u.unit.kind === 'group' && u.pull_requests.length > 1
+      const on = several ? u.pull_requests.filter((p) => p.holders.length > 0).map(nameOf) : []
+      // Where someone else holds the ball, the pull requests I have work on all the same.
+      const also = u.ball === 'others' ? u.pull_requests.filter((p) => p.part?.kind === 'act') : []
       return (
         <>
           {tag(balls[u.ball])}
           {u.ball !== 'yours' && u.holders.length > 0 && <span className="quiet"> {u.holders.map((h) => h.login).join(', ')}</span>}
           {on.length > 0 && <span className="quiet"> on {on.join(', ')}</span>}
+          {also.length > 0 && <> {tag(alsoYours)}</>}
+          {also.length > 0 && several && <span className="quiet"> on {also.map(nameOf).join(', ')}</span>}
         </>
       )
     },

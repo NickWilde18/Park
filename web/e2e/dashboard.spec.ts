@@ -14,6 +14,8 @@ test('the queue shows the units whose ball I hold, and those I wait on', async (
   await expect(holding.getByText('1/2')).toBeVisible()
   await expect(holding.getByText('2/2')).toBeVisible()
   await expect(holding.getByText('hold')).toBeVisible()
+  // Where the ball is Ben's, on api#16, Ana only waits for his first review: she has no work there to list.
+  await expect(page.getByRole('list', { name: 'Also yours' })).toHaveCount(0)
   const waiting = page.getByRole('list', { name: 'Waiting' })
   await expect(waiting).toBeHidden()
   await page.getByText('Waiting on others (1)').click()
@@ -21,6 +23,26 @@ test('the queue shows the units whose ball I hold, and those I wait on', async (
   await holding.getByText('task queued').click()
   await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
   await expect(page.locator('#task-1')).toContainText('fix checks (open)')
+})
+
+// Ben's queue: the Billing group's ball is Ana's, since her work comes first — her failing check on api#12 and his
+// request for changes on api#14. Ben's first review of api#12 waits all the same, so it is listed under Also yours to
+// do, with who holds the ball; on api#14 he only waits for Ana, so it is not listed there. The group stays in the
+// collapsed list of what he waits on.
+test('the queue lists my work where someone else holds the ball', async ({ page }) => {
+  await signIn(page, 'ben')
+  await expect(page.getByRole('heading', { name: 'Also yours to do' })).toBeVisible()
+  const units = page.getByRole('list', { name: 'Also yours' }).locator(':scope > li')
+  await expect(units).toHaveCount(1)
+  await expect(units.getByRole('link', { name: 'Billing', exact: true })).toBeVisible()
+  await expect(units).toContainText('held by ana')
+  const parts = units.getByRole('listitem')
+  await expect(parts).toHaveCount(1)
+  await expect(parts.getByRole('link', { name: 'api#12' })).toBeVisible()
+  await expect(parts).toContainText('review — First review')
+  await expect(units).not.toContainText('api#14')
+  await page.getByText(/^Waiting on others/).click()
+  await expect(page.getByRole('list', { name: 'Waiting' }).getByRole('link', { name: 'Billing', exact: true })).toBeVisible()
 })
 
 // The Billing group's page: where its ball is, and every person's part with its path through the rules; each pull
