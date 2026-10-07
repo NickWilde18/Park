@@ -119,10 +119,10 @@ A pull request is asked again only when its own inputs change. A change in the s
 | Action | Records |
 |---|---|
 | Move P into G | A placement of P in G, replacing P's earlier manual placement and lifting any exclusion of P from G |
-| Take P out of G | An exclusion: a negative placement of P against G, replacing P's manual placement in G. P falls back to its next-best claim, or stands alone |
+| Take P out of G | An exclusion: a negative placement of P against G, which also names the anchors whose claims placed P in G, replacing P's manual placement in G. P falls back to its next-best claim — never one under those anchors, even once G is archived and they point elsewhere — or stands alone |
 | Create a group from P and Q | A new group, and placements of P and Q in it |
 | Merge G2 into G1 | An alias from G2 to G1. G2's anchors, memberships, and placements move to G1, and exclusions from G2 now exclude G1; where that contradicts a placement in G1, the newer of the two stands |
-| Split P and Q out of G | A new group, placements of P and Q in it, and exclusions of P and Q from G |
+| Split P and Q out of G | A new group, placements of P and Q in it, and exclusions of P and Q from G, each naming the anchors whose claims placed it in G |
 | Rename G | The new name, with its source recorded as manual |
 | Accept a suggestion | A manual placement of the suggested pull request in the suggested group |
 | Dismiss a suggestion | The dismissal; the same suggestion is not opened again |
@@ -221,7 +221,7 @@ The dashboard now shows: **Scheduled tasks** → `api#12` (external · thread), 
 - **G3.** Authority order: manual, external, structural. The highest claim present wins. The model is not a source: it only suggests.
 - **G4.** Ties are broken as in step 3 of the resolution flow; the last resort keeps a pull request where it is.
 - **G5.** Claims are never unioned. Union is transitive: a few weak links — A to C, C to D, D to E — would glue unrelated features into one group.
-- **G6.** Only members exclude, and an exclusion holds against every source.
+- **G6.** Only members exclude, and an exclusion holds against every source: against the group it names, and against the anchors whose claims placed the pull request there, wherever they point later ([D72](10-design-log.md#d72-an-exclusion-holds-against-the-claims-that-placed-the-pull-request)).
 - **G7.** An anchor maps to at most one group, and a source and key name one anchor; two servers resolving at once cannot create it twice. The mapping is fixed when the anchor is first used, and changes only when groups merge (it is re-pointed) or its group is archived (it is released).
 - **G8.** Group identity is independent of membership. Merges leave aliases; groups are archived, never deleted.
 - **G9.** Structural signals never pair two pull requests of the same chain, except the forge's own stack.

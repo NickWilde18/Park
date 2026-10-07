@@ -91,8 +91,24 @@ func (s *Service) Move(ctx context.Context, actor, pr, group int64) error {
 	})
 }
 
+// exclude takes a pull request out of a group: a negative placement of it there, which also names the anchors whose
+// live claims placed it there, so that it holds against them wherever they point later — also once the group is
+// archived and they are released, when their next claim would start a group of its own (G6).
+func (s *Service) exclude(ctx context.Context, tx pgx.Tx, actor, pr, group int64) error {
+	_, err := tx.Exec(ctx, `INSERT INTO assertion (source, authority, pr_id, group_id, negative, actor_member, seen_at, excluded_anchors)
+		SELECT 'manual', $1, $2, $3, true, $4, now(),
+			coalesce(jsonb_agg(jsonb_build_object('source', an.source, 'key', an.key) ORDER BY an.source, an.key), '[]')
+		FROM anchor an
+		WHERE an.group_id = $3 AND EXISTS (SELECT 1 FROM assertion a, pr_fact p, jsonb_array_elements(a.members) m
+			WHERE a.source = an.source AND a.anchor = an.key AND a.retracted_at IS NULL AND p.id = $2
+				AND (m->>'repo')::bigint = p.repo_id AND (m->>'number')::int = p.number)`,
+		AuthorityManual, pr, group, actor)
+	return err
+}
+
 // TakeOut takes a pull request out of a group: an exclusion, which holds against every source (G6), replacing its
-// manual placement there. It falls back to its next-best claim, or stands alone.
+// manual placement there. It falls back to its next-best claim, or stands alone; never to one of the claims that had
+// placed it in the group, even once the group is archived.
 func (s *Service) TakeOut(ctx context.Context, actor, pr, group int64) error {
 	return s.act(ctx, func(tx pgx.Tx) error {
 		g, err := target(ctx, tx, group)
@@ -105,7 +121,7 @@ func (s *Service) TakeOut(ctx context.Context, actor, pr, group int64) error {
 		if err := s.retract(ctx, tx, "source = 'manual' AND pr_id = $1 AND group_id = $2", pr, g); err != nil {
 			return err
 		}
-		return s.place(ctx, tx, actor, pr, g, true)
+		return s.exclude(ctx, tx, actor, pr, g)
 	})
 }
 
@@ -261,7 +277,7 @@ func (s *Service) Split(ctx context.Context, actor, group int64, name string, pr
 			if err := s.place(ctx, tx, actor, pr, fresh, false); err != nil {
 				return err
 			}
-			if err := s.place(ctx, tx, actor, pr, old, true); err != nil {
+			if err := s.exclude(ctx, tx, actor, pr, old); err != nil {
 				return err
 			}
 		}
