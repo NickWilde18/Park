@@ -44,8 +44,8 @@ async function load(kind: Props['kind'], id: number) {
 
 // A unit: where its ball is and who holds it, or how it closed; every person's part with its path through the rules,
 // the rule set version, each pull request's facts, when Park last checked them, and the timeline of its fact events,
-// and its tasks with their histories. A group can be renamed, and its pull requests taken out. Its open pull requests
-// can be refreshed from the forge. A group's description shows beside it, in a sidebar, and those who wrote one of
+// and its tasks with their histories; a merged or closed pull request is marked so. A group can be renamed, and its
+// open pull requests taken out. Its open pull requests can be refreshed from the forge. A group's description shows beside it, in a sidebar, and those who wrote one of
 // its pull requests, and admins, may upload, replace, or remove it.
 export default function Unit({ kind, id }: Props) {
   const [error, setError] = useState('')
@@ -176,6 +176,7 @@ export default function Unit({ kind, id }: Props) {
           <h3>
             <a href={f.summary.url}>{prName(prs, f.summary.id)}</a> {f.summary.title}
             {f.summary.stale && <span className="badge stale">stale</span>}
+            {!open.includes(f.summary.id) && <span className="badge">{f.summary.state}</span>}
             <span className="quiet"> · checked {since(f.summary.refreshed_at)} ago</span>
           </h3>
           <p>
@@ -195,7 +196,7 @@ export default function Unit({ kind, id }: Props) {
               ))}
             </ol>
           </details>
-          {group && (
+          {group && open.includes(f.summary.id) && (
             <button onClick={() => void takeOut(f.summary.id)}>Take {prName(prs, f.summary.id)} out of the group</button>
           )}
         </article>
