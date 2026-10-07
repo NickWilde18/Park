@@ -416,6 +416,70 @@ func TestArchive(t *testing.T) {
 	}
 }
 
+// A member's exclusion holds against the claims that placed the pull request in the group, also once the group has
+// gone (G6). A bridge's thread puts pull requests together under its anchor; taking them out keeps that thread from
+// putting them together again:
+//
+//   - Every one taken out: the bridge's group is left with no pull request, and archived. At the next resolution
+//     each still stands alone; no group is made for them again.
+//   - The others merged: one of a thread's two pull requests is taken out, and the other merges, which archives the
+//     group. The one taken out still stands alone.
+//   - The thread edited: both of a thread's pull requests are taken out, and the bridge posts the thread again with a
+//     third. Neither of the two is put back with it.
+func TestTakingOutHoldsOnceTheGroupGoes(t *testing.T) {
+	e := newEnv(t)
+	bridge, err := e.s.CreateBridge(e.ctx, e.actor, "Threads", "")
+	must(t, err)
+	assert := func(anchor string, refs ...PRRef) {
+		t.Helper()
+		_, err := e.s.Assert(e.ctx, bridge.ID, "", Assertion{Anchor: anchor, Evidence: []string{anchor}, PRs: refs})
+		must(t, err)
+	}
+	alone := func(scenario string, keys ...string) {
+		t.Helper()
+		for _, key := range keys {
+			if g, _, _ := e.group(t, key); g != 0 {
+				t.Errorf("%s: %s is in group %d again", scenario, key, g)
+			}
+		}
+	}
+
+	for i, name := range []string{"api", "web", "mobile"} {
+		e.pr(t, name, 1+i, "first-"+name, "main", nil)
+	}
+	assert("t1", PRRef{Repo: "api", Number: 1}, PRRef{Repo: "web", Number: 2}, PRRef{Repo: "mobile", Number: 3})
+	g, _, _ := e.group(t, "api#1")
+	if w, _, _ := e.group(t, "web#2"); g == 0 || w != g {
+		t.Fatalf("the thread's group: api#1 in %d, web#2 in %d", g, w)
+	}
+	for _, key := range []string{"api#1", "web#2", "mobile#3"} {
+		must(t, e.s.TakeOut(e.ctx, e.actor, e.prs[key], g))
+	}
+	e.resolve(t)
+	alone("every one taken out", "api#1", "web#2", "mobile#3")
+
+	e.pr(t, "api", 5, "second-api", "main", nil)
+	e.pr(t, "web", 6, "second-web", "main", nil)
+	assert("t2", PRRef{Repo: "api", Number: 5}, PRRef{Repo: "web", Number: 6})
+	h, _, _ := e.group(t, "api#5")
+	must(t, e.s.TakeOut(e.ctx, e.actor, e.prs["api#5"], h))
+	e.pr(t, "web", 6, "second-web", "main", func(p *facts.PR) { p.State = facts.StateMerged })
+	e.resolve(t)
+	e.resolve(t)
+	alone("the others merged", "api#5")
+
+	e.pr(t, "api", 7, "third-api", "main", nil)
+	e.pr(t, "web", 8, "third-web", "main", nil)
+	e.pr(t, "mobile", 9, "third-mobile", "main", nil)
+	assert("t3", PRRef{Repo: "api", Number: 7}, PRRef{Repo: "web", Number: 8})
+	k, _, _ := e.group(t, "api#7")
+	must(t, e.s.TakeOut(e.ctx, e.actor, e.prs["api#7"], k))
+	must(t, e.s.TakeOut(e.ctx, e.actor, e.prs["web#8"], k))
+	assert("t3", PRRef{Repo: "api", Number: 7}, PRRef{Repo: "web", Number: 8}, PRRef{Repo: "mobile", Number: 9})
+	e.resolve(t)
+	alone("the thread edited", "api#7", "web#8")
+}
+
 // No open suggestion names an archived group, which nobody can accept a pull request into (#51):
 //
 //   - Moved by hand: a member puts a branch's two pull requests in a group of their own. The branch claim loses for

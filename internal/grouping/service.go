@@ -240,22 +240,24 @@ func splitAnchor(id string) (string, string) {
 
 // liveAssertion is a live assertion, for resolution.
 type liveAssertion struct {
-	Seen      time.Time
-	Anchor    *string
-	Kind      *string
-	Title     *string
-	PR        *int64
-	Group     *int64
-	Source    string
-	Members   []member
-	ID        int64
-	Authority int
-	Negative  bool
+	Seen    time.Time
+	Anchor  *string
+	Kind    *string
+	Title   *string
+	PR      *int64
+	Group   *int64
+	Source  string
+	Members []member
+	// ExcludedAnchors are, for an exclusion, the anchors whose claims had placed its pull request in its group.
+	ExcludedAnchors []string
+	ID              int64
+	Authority       int
+	Negative        bool
 }
 
 func (s *Service) loadAssertions(ctx context.Context, tx pgx.Tx) ([]liveAssertion, error) {
 	rows, err := tx.Query(ctx, `SELECT a.id, a.source, a.authority, a.anchor, a.kind, a.members, a.pr_id,
-			COALESCE(al.alias_of, a.group_id), a.negative, a.title, a.seen_at
+			COALESCE(al.alias_of, a.group_id), a.negative, a.title, a.seen_at, a.excluded_anchors
 		FROM assertion a LEFT JOIN group_alias al ON al.group_id = a.group_id
 		WHERE a.retracted_at IS NULL AND a.applied ORDER BY a.id`)
 	if err != nil {
@@ -263,10 +265,21 @@ func (s *Service) loadAssertions(ctx context.Context, tx pgx.Tx) ([]liveAssertio
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (liveAssertion, error) {
 		var a liveAssertion
-		var members []byte
-		err := row.Scan(&a.ID, &a.Source, &a.Authority, &a.Anchor, &a.Kind, &members, &a.PR, &a.Group, &a.Negative, &a.Title, &a.Seen)
+		var members, excluded []byte
+		err := row.Scan(&a.ID, &a.Source, &a.Authority, &a.Anchor, &a.Kind, &members, &a.PR, &a.Group, &a.Negative, &a.Title, &a.Seen,
+			&excluded)
 		if err == nil && members != nil {
 			err = json.Unmarshal(members, &a.Members)
+		}
+		if err == nil && excluded != nil {
+			var anchors []struct {
+				Source string `json:"source"`
+				Key    string `json:"key"`
+			}
+			err = json.Unmarshal(excluded, &anchors)
+			for _, an := range anchors {
+				a.ExcludedAnchors = append(a.ExcludedAnchors, anchorID(an.Source, an.Key))
+			}
 		}
 		return a, err
 	})
@@ -290,7 +303,8 @@ func (s *Service) resolveTx(ctx context.Context, tx pgx.Tx) error {
 	if err != nil {
 		return err
 	}
-	b := &board{Claims: map[int64][]claim{}, Excluded: map[int64]map[int64]bool{}, Current: map[int64]int64{},
+	b := &board{Claims: map[int64][]claim{}, Excluded: map[int64]map[int64]bool{}, ExcludedAnchors: map[int64]map[string]bool{},
+		Current: map[int64]int64{},
 		Anchors: map[string]int64{}, Groups: map[int64]time.Time{}}
 	for _, n := range o.nodes {
 		b.PRs = append(b.PRs, n.ID)
@@ -304,6 +318,12 @@ func (s *Service) resolveTx(ctx context.Context, tx pgx.Tx) error {
 				b.Excluded[*a.PR] = map[int64]bool{}
 			}
 			b.Excluded[*a.PR][*a.Group] = true
+			for _, an := range a.ExcludedAnchors {
+				if b.ExcludedAnchors[*a.PR] == nil {
+					b.ExcludedAnchors[*a.PR] = map[string]bool{}
+				}
+				b.ExcludedAnchors[*a.PR][an] = true
+			}
 		case a.PR != nil:
 			b.Claims[*a.PR] = append(b.Claims[*a.PR], claim{Group: *a.Group, Authority: a.Authority, Assertion: a.ID, Seen: a.Seen})
 		case a.Anchor != nil:

@@ -23,14 +23,16 @@ type claim struct {
 }
 
 // board is what resolution reads: the open pull requests of the components being resolved, their claims, the
-// groups members took them out of, where each is now, where each anchor points, and the active groups.
+// groups members took them out of and the anchors whose claims had placed them there, where each is now, where each
+// anchor points, and the active groups.
 type board struct {
-	Claims   map[int64][]claim
-	Excluded map[int64]map[int64]bool
-	Current  map[int64]int64
-	Anchors  map[string]int64
-	Groups   map[int64]time.Time // active group → created
-	PRs      []int64
+	Claims          map[int64][]claim
+	Excluded        map[int64]map[int64]bool
+	ExcludedAnchors map[int64]map[string]bool
+	Current         map[int64]int64
+	Anchors         map[string]int64
+	Groups          map[int64]time.Time // active group → created
+	PRs             []int64
 }
 
 // placement is where resolution puts a pull request: a group — negative for one resolution creates — and the
@@ -67,6 +69,16 @@ func (b *board) groupOf(c claim) int64 {
 		return 0
 	}
 	return g
+}
+
+// excludes reports whether a member's exclusion keeps a claim off a pull request (G6): one that names the group the
+// claim points to, or the claim's anchor, wherever that anchor points now.
+func (b *board) excludes(pr int64, c claim) bool {
+	if c.Anchor != "" && b.ExcludedAnchors[pr][c.Anchor] {
+		return true
+	}
+	g := b.groupOf(c)
+	return g != 0 && b.Excluded[pr][g]
 }
 
 // better reports whether claim a beats claim b for a pull request now in group current (G4): the higher authority;
@@ -127,7 +139,7 @@ func resolve(b *board) result {
 	for _, pr := range prs {
 		var best *claim
 		for _, c := range b.Claims[pr] {
-			if g := b.groupOf(c); g != 0 && b.Excluded[pr][g] {
+			if b.excludes(pr, c) {
 				continue
 			}
 			if best == nil || b.better(c, *best, b.Current[pr]) {
@@ -212,7 +224,7 @@ func resolve(b *board) result {
 			if c.Authority != AuthorityStructural || c.Assertion == winner[pr].Assertion {
 				continue
 			}
-			if g := b.groupOf(c); g != 0 && g != final && !b.Excluded[pr][g] {
+			if g := b.groupOf(c); g != 0 && g != final && !b.excludes(pr, c) {
 				res.Lost[pr] = append(res.Lost[pr], lostClaim{claim: c, Group: g})
 			}
 		}
