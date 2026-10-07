@@ -46,3 +46,42 @@ func TestApprovalAnswersTheReviewersOwnReview(t *testing.T) {
 		})
 	}
 }
+
+// Asking a written review's writer to review again answers it: it hands the review back (#92). Ana's pull request has
+// passing checks. Since her last push, Ben wrote a review that only comments, with a body, three hours ago, and Ana
+// has not commented since. Asking Ben again an hour ago answers his review: nothing waits for Ana's answer, she is not
+// asked to address comments, and Ben, asked again, has his review to do. Asking Carol instead answers nothing of Ben's,
+// and a request made before Ben's review — one the forge drops when he reviews — does not answer it either.
+func TestAskingAgainAnswersTheReview(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		asked    string        // whose review Ana asked for
+		askedAgo time.Duration // how long ago
+		want     int64         // reviews waiting for Ana's answer
+	}{
+		{"Ana asks Ben again after his review", "ben", time.Hour, 0},
+		{"Ana asks Carol after Ben's review", "carol", time.Hour, 1},
+		{"Ana asked Ben before his review", "ben", 4 * time.Hour, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			pr, ctx := model{author: "ana"}.facts()
+			pr.Reviews = append(pr.Reviews, facts.Review{ID: 1, Author: accounts["ben"], State: facts.ReviewCommented,
+				At: now.Add(-3 * time.Hour), Commit: "head", HasBody: true, Counts: true})
+			asked := now.Add(-c.askedAgo)
+			pr.ReviewRequests = append(pr.ReviewRequests, facts.Request{Account: accounts[c.asked], RequestedAt: &asked})
+			parts := map[string]rules.Part{}
+			for _, p := range People(pr, ctx) {
+				if got := p.Input.Fields["pr.unanswered_reviews"]; p.Role == rules.Author && got != c.want {
+					t.Errorf("%v reviews wait for Ana's answer, want %d", got, c.want)
+				}
+				parts[names[p.Account]] = compiled.Evaluate(p.Role, p.Input)
+			}
+			if a := parts["ana"]; (a.Action == "address_comments") != (c.want > 0) {
+				t.Errorf("Ana's part: %s %s, %q", a.Kind, a.Action, a.Reason)
+			}
+			if b := parts["ben"]; c.want == 0 && (b.Kind != rules.KindAct || b.Action != "review") {
+				t.Errorf("Ben's part: %s %s, %q", b.Kind, b.Action, b.Reason)
+			}
+		})
+	}
+}

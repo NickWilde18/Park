@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/NickWilde18/Park/internal/facts"
+	"github.com/NickWilde18/Park/internal/verdicts"
 )
 
 // Targets are what an item works on: threads and written reviews to answer, required checks to pass, or reviewers
@@ -101,7 +102,7 @@ func targetsOf(action string, pr facts.PR, reviewers []int64) Targets {
 		}
 		for _, r := range pr.Reviews {
 			if r.Author != pr.Author && r.HasBody && (r.State == facts.ReviewChangesRequested || r.State == facts.ReviewCommented) &&
-				!authorAnswered(pr, r.At) {
+				!verdicts.Answered(pr, r) {
 				t.Reviews = append(t.Reviews, r.ID)
 			}
 		}
@@ -110,27 +111,6 @@ func targetsOf(action string, pr facts.PR, reviewers []int64) Targets {
 		return Targets{Reviewers: append([]int64(nil), reviewers...)}
 	}
 	return Targets{}
-}
-
-// authorAnswered reports whether the author commented on the pull request, in its conversation or a thread, or pushed,
-// after t.
-func authorAnswered(pr facts.PR, t time.Time) bool {
-	if pr.HeadPushedAt.After(t) {
-		return true
-	}
-	for _, c := range pr.Conversation {
-		if c.Author == pr.Author && c.At.After(t) {
-			return true
-		}
-	}
-	for _, th := range pr.Threads {
-		for _, c := range th.Comments {
-			if c.Author == pr.Author && c.At.After(t) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // check judges an item's post-condition against the facts, looking only for what happened after the start (T14). The

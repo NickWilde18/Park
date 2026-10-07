@@ -63,8 +63,9 @@ var accounts = map[string]int64{"ana": 1, "ben": 2, "carol": 3, "dave": 4, "eve"
 var now = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 
 // facts returns the facts and the context of a model. Thread comments come before every review, so that a reply in a
-// thread never answers a written review, which the model says apart; an answer comes right after its review. A model
-// the facts cannot express is a mistake in a test, and panics.
+// thread never answers a written review, which the model says apart; an answer comes right after its review. A
+// reviewer who reviewed and is asked was asked after their latest review, since a forge drops a request when its
+// reviewer reviews. A model the facts cannot express is a mistake in a test, and panics.
 func (m model) facts() (facts.PR, Context) {
 	id := func(name string) int64 {
 		if n, ok := accounts[name]; ok {
@@ -175,6 +176,15 @@ func (m model) facts() (facts.PR, Context) {
 		if r.nudged != nil {
 			c.Nudged[id(name)] = now.Add(-time.Duration(*r.nudged) * time.Hour)
 		}
+	}
+	for i, q := range pr.ReviewRequests {
+		for _, r := range pr.Reviews {
+			if q.Account != 0 && r.Author == q.Account && !q.RequestedAt.After(r.At) {
+				at := r.At.Add(time.Second)
+				q.RequestedAt = &at
+			}
+		}
+		pr.ReviewRequests[i] = q
 	}
 	// An answer answers every review before it: the model cannot leave an earlier written review unanswered.
 	for _, u := range unanswered {
