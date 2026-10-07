@@ -7,10 +7,11 @@ import { useLive } from '../live'
 import { useSession } from '../sessionContext'
 
 type Verdict = Schemas['Verdict']
+type Part = Schemas['HeldPart']
 
 // My queue: every unit whose ball I hold, with my actions on each pull request in chain order, oldest hold first
-// within a priority; below it, collapsed, the units I have a part in whose ball someone else holds, and the reminders
-// offered to me.
+// within a priority; then the units whose ball someone else holds where I have work too, with that work; the reminders
+// offered to me; and, collapsed, every unit I have a part in whose ball someone else holds.
 export default function Queue() {
   const { accounts } = useSession()
   const [error, setError] = useState('')
@@ -40,6 +41,24 @@ export default function Queue() {
       const y = chains.get(b.pull_request)
       return (x?.id ?? a.pull_request) - (y?.id ?? b.pull_request) || (x?.position ?? 0) - (y?.position ?? 0)
     })
+  // A unit whose ball someone else holds can still have work of mine in it: a review asked of me while the author works,
+  // say. The ball stays where it is; the work is listed so that it is not missed.
+  const also = queue.waiting
+    .map((v) => ({ v, parts: inChainOrder(v.parts.filter((p) => accounts.has(p.account.id) && p.kind === 'act')) }))
+    .filter(({ parts }) => parts.length > 0)
+  // One part of mine: the pull request, where it sits in its chain, and what I am to do there, and why.
+  const partItem = (p: Part) => {
+    const chain = chains.get(p.pull_request)
+    return (
+      <li key={`${p.pull_request}-${p.kind}`}>
+        <a href={prs.get(p.pull_request)?.url}>{prName(prs, p.pull_request)}</a>
+        {chain && chain.length > 1 && <span className="badge">{`${chain.position}/${chain.length}`}</span>}
+        {prs.get(p.pull_request)?.stale && <span className="badge stale">stale</span>}{' '}
+        <strong>{words(p.action ?? p.kind)}</strong>
+        {p.priority === 'low' && <span className="badge">low</span>} — {p.reason}
+      </li>
+    )
+  }
   const taskOf = (v: Verdict) =>
     tasks.find((t) => t.unit.kind === v.unit.kind && t.unit.id === v.unit.id && !['done', 'cancelled', 'dismissed'].includes(t.state))
   const reminders = [...queue.holding, ...queue.waiting].flatMap((v) =>
@@ -69,24 +88,26 @@ export default function Queue() {
                   <span className="badge task">task {words(task.state)}</span>
                 </Link>
               )}
-              <ul>
-                {inChainOrder(h?.parts ?? []).map((p) => {
-                  const chain = chains.get(p.pull_request)
-                  return (
-                    <li key={`${p.pull_request}-${p.kind}`}>
-                      <a href={prs.get(p.pull_request)?.url}>{prName(prs, p.pull_request)}</a>
-                      {chain && chain.length > 1 && <span className="badge">{`${chain.position}/${chain.length}`}</span>}
-                      {prs.get(p.pull_request)?.stale && <span className="badge stale">stale</span>}{' '}
-                      <strong>{words(p.action ?? p.kind)}</strong>
-                      {p.priority === 'low' && <span className="badge">low</span>} — {p.reason}
-                    </li>
-                  )
-                })}
-              </ul>
+              <ul>{inChainOrder(h?.parts ?? []).map(partItem)}</ul>
             </li>
           )
         })}
       </ul>
+      {also.length > 0 && (
+        <>
+          <h2>Also yours to do</h2>
+          <p className="quiet">Someone else holds the ball on these, but you have work on them too.</p>
+          <ul className="units" aria-label="Also yours">
+            {also.map(({ v, parts }) => (
+              <li key={v.id} className="unit">
+                <Link to={unitPath(v.unit)}>{name(v)}</Link>
+                <span className="quiet"> held by {v.holders.map((h) => h.account.login).join(', ')}</span>
+                <ul>{parts.map(partItem)}</ul>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       {reminders.length > 0 && (
         <>
           <h2>Reminders</h2>

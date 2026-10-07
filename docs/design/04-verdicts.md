@@ -205,7 +205,7 @@ Before a model provider is enabled, the settings page lists each question and wh
 - **V7. Tasks are not an input.** Verdicts read facts only. While an executor works, the ball stays where the facts put it, and the task's state is shown beside it.
 - **V8. Verdicts are immutable.** A new one is stored only when something a person sees changes: the ball, what anyone has to do and why, the reminders, or what the board reads of a person's inputs (step 7).
 - **V9. Every verdict explains itself**, with every part's path, its judgements, its inputs, and its rule set version.
-- **V10. Queues are derived.** A member's queue is the units whose ball they hold; their waiting list is the units they have a part in, where the ball is with someone else.
+- **V10. Queues are derived.** A member's queue is the units whose ball they hold; their waiting list is the units they have a part in, where the ball is with someone else. Their `act` parts in a unit on their waiting list are shown to them as their work all the same, and move no ball ([D73](10-design-log.md#d73-work-where-someone-else-holds-the-ball-is-shown-too)).
 
 ## Defaults
 
