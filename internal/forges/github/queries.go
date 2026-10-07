@@ -12,8 +12,9 @@ import "fmt"
 // A pull request's stack is asked only of a forge whose schema has stacks: an Enterprise Server's may not, and a
 // query that names a field the schema lacks fails as a whole. The queries that ask for it are made in two forms.
 
-// stackField is the stack a pull request is in, put into prQuery and listQuery for a forge with stacks.
-const stackField = " stack { number }"
+// stackField is the stack a pull request is in, and the branch the stack merges into, put into prQuery and listQuery
+// for a forge with stacks.
+const stackField = " stack { number baseRefName }"
 
 // stackProbe asks whether the forge's schema has pull request stacks: the answer names the type, or is null.
 const stackProbe = `query { __type(name: "PullRequestStack") { name } }`

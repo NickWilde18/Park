@@ -101,6 +101,13 @@ func (c *collector) FetchPR(ctx context.Context, r facts.Repo, number int, prote
 		return facts.Fetched{}, err
 	}
 	p, known := protection[n.BaseRefName]
+	if n.Stack != nil && n.Stack.BaseRefName != "" {
+		// A pull request in a stack is held to the review rules of the branch the stack merges into, not to those of
+		// its own base, the branch of the pull request below; its required checks stay those of its own base.
+		var s facts.Protection
+		s, known = protection[n.Stack.BaseRefName]
+		p.RequiredApprovals, p.CodeOwners = s.RequiredApprovals, s.CodeOwners
+	}
 	f := normalize(n, p, known)
 	f.ForgeRepo = out.Repository.DatabaseID
 	return f, nil
