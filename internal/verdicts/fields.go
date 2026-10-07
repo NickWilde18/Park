@@ -51,6 +51,39 @@ func (c Context) login(id int64) string {
 // hours is whole hours from t to now.
 func hours(now, t time.Time) int64 { return int64(now.Sub(t) / time.Hour) }
 
+// Answered reports whether a written review no longer waits for the pull request's author to answer it: the author
+// pushed, or commented on the pull request or in a thread, after it; its writer approved after it; or the author asked
+// its writer to review again after it, handing the review back. A forge drops a request when its reviewer reviews, so
+// a reviewer who has reviewed and is asked now was asked after.
+func Answered(pr facts.PR, r facts.Review) bool {
+	if pr.HeadPushedAt.After(r.At) {
+		return true
+	}
+	for _, o := range pr.Reviews {
+		if o.Author == r.Author && o.State == facts.ReviewApproved && o.At.After(r.At) {
+			return true
+		}
+	}
+	for _, q := range pr.ReviewRequests {
+		if q.Account == r.Author && q.RequestedAt != nil && q.RequestedAt.After(r.At) {
+			return true
+		}
+	}
+	for _, cm := range pr.Conversation {
+		if cm.Author == pr.Author && cm.At.After(r.At) {
+			return true
+		}
+	}
+	for _, th := range pr.Threads {
+		for _, cm := range th.Comments {
+			if cm.Author == pr.Author && cm.At.After(r.At) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // People finds a pull request's people — its author, then its reviewers by login — and computes each one's fields:
 // docs/design/04-verdicts.md#roles and docs/design/05-rules.md#the-field-catalog. A reviewer is anyone but the author
 // with a pending review request, directly or through a team that has a member other than the author, or with a
@@ -173,36 +206,12 @@ func People(pr facts.PR, c Context) []Person {
 		return true
 	}
 
-	// Written reviews nobody has answered: the author, by commenting or pushing after them, or their writer, by
-	// approving after them. A bot's review waits for no answer; its comments on lines of code are threads, and count
-	// there.
-	answered := func(rs []facts.Review, t time.Time) bool {
-		if pr.HeadPushedAt.After(t) {
-			return true
-		}
-		for _, r := range rs {
-			if r.State == facts.ReviewApproved && r.At.After(t) {
-				return true
-			}
-		}
-		for _, cm := range pr.Conversation {
-			if cm.Author == author && cm.At.After(t) {
-				return true
-			}
-		}
-		for _, th := range pr.Threads {
-			for _, cm := range th.Comments {
-				if cm.Author == author && cm.At.After(t) {
-					return true
-				}
-			}
-		}
-		return false
-	}
+	// Written reviews nobody has answered. A bot's review waits for no answer; its comments on lines of code are
+	// threads, and count there.
 	unanswered := int64(0)
 	for _, rs := range reviews {
 		for _, r := range rs {
-			if r.HasBody && !r.Bot && (r.State == facts.ReviewChangesRequested || r.State == facts.ReviewCommented) && !answered(rs, r.At) {
+			if r.HasBody && !r.Bot && (r.State == facts.ReviewChangesRequested || r.State == facts.ReviewCommented) && !Answered(pr, r) {
 				unanswered++
 			}
 		}

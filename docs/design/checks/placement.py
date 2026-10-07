@@ -146,8 +146,11 @@ def people(pr):
     if pr.get("conflicting"):
         blockers.append("conflicts")
     blockers += pr.get("forge_blocks", [])
-    unanswered = sum(1 for r in reviews.values()
-                     if r.get("body") and not r.get("answered") and r.get("decision", "none") != "approved")
+    # A reviewer asked again has their review handed back: a forge drops a request when its reviewer reviews, so a
+    # reviewer who has reviewed and is asked was asked after.
+    unanswered = sum(1 for p, r in reviews.items()
+                     if r.get("body") and not r.get("answered") and r.get("decision", "none") != "approved"
+                     and p not in direct)
 
     def waiting_in(t):
         """A thread's participants it waits on: everyone but the author and those who approved."""

@@ -145,3 +145,20 @@ func TestTargetsOf(t *testing.T) {
 		t.Errorf("reviewers %+v", got)
 	}
 }
+
+// A written review is a target of address_comments only while it waits on the author, as the rules read it: not
+// once its writer was asked to review again after it (#92), nor once its writer approved after it (#67). Of three
+// written reviews from before, account 2's still waits; the author asked account 3 again after; account 4 approved
+// after.
+func TestTargetsOfAnsweredReviews(t *testing.T) {
+	asked := after
+	pr := facts.PR{Author: 1, Reviews: []facts.Review{
+		{ID: 7, Author: 2, HasBody: true, State: facts.ReviewCommented, At: before},
+		{ID: 8, Author: 3, HasBody: true, State: facts.ReviewChangesRequested, At: before},
+		{ID: 9, Author: 4, HasBody: true, State: facts.ReviewCommented, At: before},
+		{ID: 10, Author: 4, State: facts.ReviewApproved, At: after},
+	}, ReviewRequests: []facts.Request{{Account: 3, RequestedAt: &asked}}}
+	if got := targetsOf("address_comments", pr, nil); !slices.Equal(got.Reviews, []int64{7}) {
+		t.Errorf("written reviews waiting %v, want only account 2's, 7", got.Reviews)
+	}
+}

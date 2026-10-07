@@ -81,7 +81,7 @@ var fields = []Field{
 	{Name: "pr.reviewed", Type: Boolean,
 		Meaning: "Someone other than the author has submitted a review"},
 	{Name: "pr.unanswered_reviews", Type: Number,
-		Meaning: "Reviews with a written body that request changes or only comment, written by someone other than a bot, after which the author has neither commented on the pull request nor pushed, and their writer has not approved"},
+		Meaning: "Reviews with a written body that request changes or only comment, written by someone other than a bot, after which the author has neither commented on the pull request, pushed, nor asked their writer to review again, and their writer has not approved"},
 	{Name: "pr.threads_on_reviewers", Type: Number,
 		Meaning: "Unresolved threads whose latest comment is the author's, and whose other participants include someone who has not approved"},
 	{Name: "pr.awaited_reviewers", Type: AccountList,
