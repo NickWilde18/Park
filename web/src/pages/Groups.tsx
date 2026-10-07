@@ -9,10 +9,11 @@ import { themedLink, useShownTheme } from '../theme'
 
 type Answer = Promise<{ error?: unknown }>
 
-// Groups with their pull requests, nested by chain and marked with the source that placed each, and each group's
-// description, linked; the open pull requests in none; above them, the bridges Park runs, each with its last round and
-// to sync now, then bridges' open proposals, then the open suggestions; and the manual actions: create, move in, take
-// out, merge, and split. A group is renamed on its own page.
+// Groups with their pull requests, nested by chain and marked with the source that placed each, a merged or closed one
+// marked so, and each group's description, linked; the open pull requests in none; above them, the bridges Park runs,
+// each with its last round and to sync now, then bridges' open proposals, then the open suggestions; and the manual
+// actions: create, move in, take out, merge, and split, which take only open pull requests. A group is renamed on its
+// own page.
 export default function Groups() {
   const theme = useShownTheme()
   const [error, setError] = useState('')
@@ -25,6 +26,11 @@ export default function Groups() {
       api.GET('/bridges'),
     ])
     const prs: PRs = new Map((p.data?.pull_requests ?? []).map((x) => [x.id, x]))
+    // A group keeps its merged and closed pull requests (G2), which are not among the open ones listed; their own
+    // facts name them.
+    const unlisted = (g.data?.groups ?? []).flatMap((x) => x.members.map((m) => m.pull_request).filter((id) => !prs.has(id)))
+    const facts = await Promise.all(unlisted.map((id) => api.GET('/prs/{id}', { params: { path: { id } } })))
+    for (const f of facts) if (f.data) prs.set(f.data.summary.id, f.data.summary)
     return {
       groups: g.data?.groups,
       problem: g.error ? problem(g.error) : '',
@@ -83,10 +89,13 @@ export default function Groups() {
                   <li key={m.pull_request}>
                     {prName(prs, m.pull_request)} {prs.get(m.pull_request)?.title}
                     {m.chain.length > 1 && <span className="badge">{`${m.chain.position}/${m.chain.length}`}</span>}
+                    {!m.open && <span className="badge">{prs.get(m.pull_request)?.state ?? 'not open'}</span>}
                     <span className="quiet"> — {m.reason}</span>{' '}
-                    <button onClick={() => void done(api.DELETE('/groups/{id}/members/{pr}', { params: { path: { id: g.id, pr: m.pull_request } } }))}>
-                      Take out
-                    </button>
+                    {m.open && (
+                      <button onClick={() => void done(api.DELETE('/groups/{id}/members/{pr}', { params: { path: { id: g.id, pr: m.pull_request } } }))}>
+                        Take out
+                      </button>
+                    )}
                   </li>
                 ))}
             </ul>
@@ -135,11 +144,13 @@ export default function Groups() {
                 void done(api.POST('/groups/{id}/split', { params: { path: { id: g.id } }, body: { name: String(form.get('name')), pull_requests: chosen } }))
               }}
             >
-              {g.members.map((m) => (
-                <label key={m.pull_request}>
-                  <input type="checkbox" name="pr" value={m.pull_request} /> {prName(prs, m.pull_request)}
-                </label>
-              ))}
+              {g.members
+                .filter((m) => m.open)
+                .map((m) => (
+                  <label key={m.pull_request}>
+                    <input type="checkbox" name="pr" value={m.pull_request} /> {prName(prs, m.pull_request)}
+                  </label>
+                ))}
               <input name="name" placeholder="New group's name" aria-label={`Split ${g.name} into`} required />
               <button type="submit">Split</button>
             </form>

@@ -42,6 +42,59 @@ test('a closed unit shows how it closed', async ({ page }) => {
   await expect(page.getByText('Closed out: merged')).toBeVisible()
 })
 
+// Pull request 11 as a member of the first group, as Park lists a merged member: a merged pull request keeps the
+// group it had when it closed (G2). The tests below add it to Park's answer, since the seed groups only open ones.
+const merged = {
+  pull_request: 1,
+  open: false,
+  since: '2026-10-01T12:00:00Z',
+  source: 'manual',
+  reason: 'placed by a member',
+  chain: { position: 1, length: 1, below: 0 },
+}
+
+// On the groups page, the merged member is named, with its title, though it is not among the open pull requests the
+// page lists, and marked merged. Park takes out or splits off only an open pull request, so the page offers that only
+// for the open ones.
+test('the groups page names a merged member, and offers it no action', async ({ page }) => {
+  await page.route('**/api/v1/groups', async (route) => {
+    const response = await route.fetch()
+    const body = (await response.json()) as { groups: { id: number; members: unknown[] }[] }
+    body.groups.find((g) => g.id === 1)?.members.push(merged)
+    await route.fulfill({ response, json: body })
+  })
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Groups' }).click()
+  const group = page.locator('article.group').filter({ has: page.locator('h3 a[href$="/units/group/1"]') })
+  await expect(group.locator('ul').first()).toContainText('api#11 Ledger cleanup')
+  const member = group.getByRole('listitem').filter({ hasText: 'api#11' })
+  await expect(member.locator('.badge', { hasText: 'merged' })).toBeVisible()
+  await expect(member.getByRole('button', { name: 'Take out' })).toHaveCount(0)
+  await expect(group.getByRole('checkbox', { name: 'api#11' })).toHaveCount(0)
+  const open = group.getByRole('listitem').filter({ hasText: 'api#12' })
+  await expect(open.locator('.badge', { hasText: 'merged' })).toHaveCount(0)
+  await expect(open.getByRole('button', { name: 'Take out' })).toBeVisible()
+  await expect(group.getByRole('checkbox', { name: 'api#12' })).toBeVisible()
+})
+
+// On the group's own page, the merged member is named from its own facts, as before, and marked merged; only the
+// open ones are offered to be taken out of the group.
+test("a group's page offers to take out only its open pull requests", async ({ page }) => {
+  await page.route('**/api/v1/groups/1', async (route) => {
+    const response = await route.fetch()
+    const body = (await response.json()) as { members: unknown[] }
+    body.members.push(merged)
+    await route.fulfill({ response, json: body })
+  })
+  await signIn(page, 'ana')
+  await page.goto('/units/group/1')
+  const pr = page.locator('article.pr').filter({ has: page.getByRole('link', { name: 'api#11', exact: true }) })
+  await expect(pr.getByRole('heading')).toContainText('api#11 Ledger cleanup')
+  await expect(pr.locator('.badge', { hasText: 'merged' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Take api#11 out of the group' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Take api#12 out of the group' })).toBeVisible()
+})
+
 // Ana groups Carol's pull request on its own, then merges that group into the first: the merged group's page is the
 // page of the group it joined, with that group's verdict.
 test('a merged group\'s page is the page of the group it joined', async ({ page }) => {
