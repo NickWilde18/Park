@@ -155,3 +155,33 @@ test('the board and a unit ask the forge now', async ({ page }) => {
   expect(asked).toHaveLength(2)
   expect(asked.every((a) => /^\/prs\/\d+\/refresh$/.test(a))).toBe(true)
 })
+
+// When the forge refuses an installation's credential, the board says so above its table: the forge, for how long,
+// and the repositories whose facts are not being refreshed; Ana, an admin, is pointed to Settings, where it is
+// replaced. A pull request whose facts could not be refreshed is marked stale. Park's answer is changed here, so that
+// the database the other tests share stays as it was.
+test('the board says what stops collection, and marks stale facts', async ({ page }) => {
+  await page.route(
+    (url) => url.pathname === '/api/v1/board',
+    async (route) => {
+      const response = await route.fetch()
+      const board = await response.json()
+      board.problems = [
+        { problem: 'refused', since: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), forge: 'Hub', repos: [{ id: 1, owner: 'acme', name: 'api' }] },
+      ]
+      for (const u of board.units) for (const p of u.pull_requests) if (p.summary.number === 12) p.summary.stale = true
+      await route.fulfill({ response, json: board })
+    },
+  )
+  await signIn(page, 'ana')
+  await page.getByRole('link', { name: 'Board' }).click()
+  const alert = page.getByRole('alert')
+  await expect(alert).toHaveText(
+    "Hub has refused Park's credential for 2 h: the facts of acme/api are not being refreshed until its credential is replaced, in Settings.",
+  )
+  const rows = page.getByRole('table').locator('tbody tr')
+  await expect(rows.filter({ hasText: 'api#12 Billing export' }).locator('.badge.stale')).toBeVisible()
+  await expect(rows.filter({ hasText: 'api#14 Retry failed payments' }).locator('.badge.stale')).toHaveCount(0)
+  await alert.getByRole('link', { name: 'Settings' }).click()
+  await expect(page).toHaveURL(/\/settings$/)
+})

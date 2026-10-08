@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react'
 import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
-import { checkStates, pathText, since, unitPath, words } from '../format'
+import { checkStates, pathText, problemText, since, unitPath, words } from '../format'
 import { Link } from '../Link'
 import { useLive } from '../live'
 import { asked, refreshPRs } from '../refresh'
+import { useSession } from '../sessionContext'
 import { themedLink, useShownTheme } from '../theme'
 
 type BoardUnit = Schemas['BoardUnit']
@@ -53,6 +54,15 @@ const taskStates: Record<string, Look> = {
   leased: { text: 'Running', colour: 'blue', order: 1 },
   verifying: { text: 'Verifying', colour: 'blue', order: 2 },
   queued: { text: 'Queued', colour: 'yellow', order: 3 },
+}
+
+// stale marks a pull request whose facts could not be refreshed from its forge.
+function stale(p: BoardPR): ReactNode {
+  return p.summary.stale ? (
+    <span className="badge stale" title={`Not refreshed from its forge since ${new Date(p.summary.refreshed_at).toLocaleString()}`}>
+      stale
+    </span>
+  ) : null
 }
 
 function tag(look: Look): ReactNode {
@@ -231,9 +241,10 @@ export default function Board() {
   const theme = useShownTheme()
   const { data, refresh } = useFetch(async () => {
     const { data, error } = await api.GET('/board')
-    return { units: data?.units, problem: error ? problem(error) : '' }
+    return { units: data?.units, problems: data?.problems ?? [], problem: error ? problem(error) : '' }
   })
-  useLive(['verdict', 'task', 'pr', 'group'], refresh)
+  useLive(['verdict', 'task', 'pr', 'group', 'installation'], refresh)
+  const { me } = useSession()
   const [hidden, setHidden] = useState(hiddenColumns)
   const [folded, setFolded] = useState(new Set<string>())
   const [sort, setSort] = useState<{ key: string; down: boolean }>()
@@ -298,6 +309,22 @@ export default function Board() {
   return (
     <section>
       <h1>Board</h1>
+      {data.problems.map((p) => (
+        <p key={p.repos.map((r) => r.id).join()} className="notice problem" role="alert">
+          {problemText(p, p.forge)}: the facts of {p.repos.map((r) => `${r.owner}/${r.name}`).join(', ') || 'no watched repository'} are not
+          being refreshed
+          {p.problem === 'refused' &&
+            (me.member.admin ? (
+              <>
+                {' '}
+                until its credential is replaced, in <Link to="/settings">Settings</Link>
+              </>
+            ) : (
+              ' until an admin replaces its credential'
+            ))}
+          .
+        </p>
+      ))}
       <div className="board-tools">
         <label>
           Ball{' '}
@@ -372,7 +399,8 @@ export default function Board() {
                   return (
                     <tr key={keyOf(u)} className="alone">
                       <td>
-                        <Link to={unitPath(u.unit)}>{nameOf(p)}</Link> {p.summary.title} {refreshButton(u, nameOf(p))}
+                        <Link to={unitPath(u.unit)}>{nameOf(p)}</Link> {p.summary.title} {stale(p)}
+                        {refreshButton(u, nameOf(p))}
                       </td>
                       {cells(u, p)}
                     </tr>
@@ -404,7 +432,7 @@ export default function Board() {
                     ? u.pull_requests.map((p) => (
                         <tr key={`${keyOf(u)}/${p.summary.id}`} className="pr">
                           <td>
-                            <a href={p.summary.url}>{nameOf(p)}</a> {p.summary.title}
+                            <a href={p.summary.url}>{nameOf(p)}</a> {p.summary.title} {stale(p)}
                           </td>
                           {cells(u, p)}
                         </tr>

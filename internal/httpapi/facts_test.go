@@ -262,7 +262,7 @@ func TestRefreshRepositoriesOverHTTP(t *testing.T) {
 
 // A GitHub that refuses every credential, as it answers a revoked token, or an app whose key it cannot verify: the
 // admin who watches a repository through either installation is told the forge refused its credential, with a 400
-// they can act on rather than a server failure, and nothing is watched.
+// they can act on rather than a server failure, and nothing is watched. The installation is listed as refused.
 func TestWatchThroughARefusedCredential(t *testing.T) {
 	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -290,6 +290,13 @@ func TestWatchThroughARefusedCredential(t *testing.T) {
 			wantStatus(t, admin.call(t, "POST", "/api/v1/admin/installations", body, &inst), http.StatusCreated, "")
 			wantStatus(t, admin.call(t, "POST", "/api/v1/admin/repos", map[string]any{"installation_id": inst.Id, "owner": "acme",
 				"name": "api"}, nil), http.StatusBadRequest, "credential_refused")
+			var list Installations
+			wantStatus(t, admin.call(t, "GET", "/api/v1/admin/installations", nil, &list), http.StatusOK, "")
+			for _, i := range list.Installations {
+				if i.Id == inst.Id && (i.Problem == nil || *i.Problem != CollectionProblemKindRefused || i.ProblemSince == nil || i.ProblemUntil != nil) {
+					t.Fatalf("the refused installation: %+v", i)
+				}
+			}
 		})
 	}
 	var repos Repos

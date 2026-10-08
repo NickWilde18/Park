@@ -219,6 +219,27 @@ func (s *server) GetBoard(ctx context.Context, _ GetBoardRequestObject) (GetBoar
 	for _, r := range rows {
 		out.Units = append(out.Units, r.unit)
 	}
+	if out.Problems, err = s.problems(ctx); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// problems is what stops collection, for the board: docs/design/08-dashboard-and-api.md#board.
+func (s *server) problems(ctx context.Context) ([]CollectionProblem, error) {
+	ps, err := s.facts.Problems(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CollectionProblem, 0, len(ps))
+	for _, p := range ps {
+		c := CollectionProblem{Problem: CollectionProblemKind(p.Problem), Since: p.Since, Until: p.Until, Forge: p.Forge,
+			Repos: make([]RepoRef, 0, len(p.Repos))}
+		for _, r := range p.Repos {
+			c.Repos = append(c.Repos, RepoRef{Id: r.ID, Owner: r.Owner, Name: r.Name})
+		}
+		out = append(out, c)
+	}
 	return out, nil
 }
 
