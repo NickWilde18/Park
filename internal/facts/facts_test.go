@@ -308,6 +308,126 @@ func TestStaleAndRateLimit(t *testing.T) {
 	}
 }
 
+// installation is the test's installation as Park lists it.
+func (e *env) installation(t *testing.T) Installation {
+	t.Helper()
+	list, err := e.s.Installations(e.ctx)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("installations %+v, %v", list, err)
+	}
+	return list[0]
+}
+
+// A refused credential is recorded on its installation, with when it began. While it stands, collection through the
+// installation stops calling the forge but for one call each RefusedProbe, which finds out whether it works again;
+// a call that works clears it. Replacing the credential clears it too, and asks the forge again now.
+func TestRefusedCredential(t *testing.T) {
+	e := newEnv(t)
+	e.forge.prs[12] = e.fetched(12, nil)
+	e.refresh(t, 12)
+	refusedAt := e.now.Add(time.Minute)
+	e.now = refusedAt
+	e.forge.fetchErr[12] = ErrRefused
+	if err := e.s.refreshPR(e.ctx, e.item(KindRefreshPR, prKey(e.repo.ID, 12))); !errors.Is(err, ErrRefused) {
+		t.Fatalf("a refused fetch: %v", err)
+	}
+	if i := e.installation(t); i.Problem != ProblemRefused || i.ProblemSince == nil || !i.ProblemSince.Equal(refusedAt) {
+		t.Fatalf("after a refusal: %+v", i)
+	}
+	fetches := e.forge.fetches
+	e.now = e.now.Add(time.Minute)
+	if err := e.s.refreshPR(e.ctx, e.item(KindRefreshPR, prKey(e.repo.ID, 12))); !errors.Is(err, ErrRefused) {
+		t.Fatalf("a refresh while refused: %v", err)
+	}
+	if e.forge.fetches != fetches {
+		t.Fatal("a refresh within the probe interval called the forge")
+	}
+	if s, _ := e.stored(t, 12); !s.stale {
+		t.Fatal("a refresh that did not call the forge left the facts fresh")
+	}
+	e.now = refusedAt.Add(e.s.timing.RefusedProbe)
+	if err := e.s.refreshPR(e.ctx, e.item(KindRefreshPR, prKey(e.repo.ID, 12))); !errors.Is(err, ErrRefused) {
+		t.Fatalf("the probe: %v", err)
+	}
+	if e.forge.fetches != fetches+1 {
+		t.Fatalf("the probe made %d calls", e.forge.fetches-fetches)
+	}
+	if i := e.installation(t); !i.ProblemSince.Equal(refusedAt) {
+		t.Fatalf("a refusal again moved its start: %+v", i)
+	}
+	delete(e.forge.fetchErr, 12)
+	e.now = e.now.Add(e.s.timing.RefusedProbe)
+	e.refresh(t, 12)
+	if i := e.installation(t); i.Problem != "" || i.ProblemSince != nil {
+		t.Fatalf("after a call that works: %+v", i)
+	}
+
+	e.forge.fetchErr[12] = ErrRefused
+	e.now = e.now.Add(time.Minute)
+	_ = e.s.refreshPR(e.ctx, e.item(KindRefreshPR, prKey(e.repo.ID, 12)))
+	e.clearQueue(t)
+	token := "replaced"
+	got, err := e.s.UpdateInstallation(e.ctx, e.inst.ID, InstallationPatch{Token: &token})
+	if err != nil || got.Problem != "" {
+		t.Fatalf("after replacing the credential: %+v, %v", got, err)
+	}
+	for _, kind := range []string{KindPollRepo, KindRefreshRepo} {
+		if at, ok := e.queued(t, kind, strconv.FormatInt(e.repo.ID, 10)); !ok || at.After(e.now) {
+			t.Fatalf("%s after replacing the credential: %v, %v", kind, at, ok)
+		}
+	}
+	delete(e.forge.fetchErr, 12)
+	fetches = e.forge.fetches
+	e.refresh(t, 12)
+	if e.forge.fetches != fetches+1 {
+		t.Fatal("a refresh after replacing the credential did not call the forge")
+	}
+}
+
+// A rate limit is recorded on its installation with when it resets, and a call that works clears it. Renaming an
+// installation keeps its problem.
+func TestRateLimitedInstallation(t *testing.T) {
+	e := newEnv(t)
+	resets := e.now.Add(20 * time.Minute)
+	e.forge.fetchErr[12] = &RateLimited{Until: resets}
+	_ = e.s.refreshPR(e.ctx, e.item(KindRefreshPR, prKey(e.repo.ID, 12)))
+	i := e.installation(t)
+	if i.Problem != ProblemRateLimited || !i.ProblemSince.Equal(e.now) || i.ProblemUntil == nil || !i.ProblemUntil.Equal(resets) {
+		t.Fatalf("after a rate limit: %+v", i)
+	}
+	name := "renamed"
+	if got, err := e.s.UpdateInstallation(e.ctx, e.inst.ID, InstallationPatch{Name: &name}); err != nil || got.Problem != ProblemRateLimited {
+		t.Fatalf("after a rename: %+v, %v", got, err)
+	}
+	e.forge.prs[12] = e.fetched(12, nil)
+	delete(e.forge.fetchErr, 12)
+	e.now = resets
+	e.refresh(t, 12)
+	if i := e.installation(t); i.Problem != "" || i.ProblemUntil != nil {
+		t.Fatalf("after a call that works: %+v", i)
+	}
+}
+
+// Problems lists what stops collection, each with the forge's name and the watched repositories it stops; an
+// installation that collects is not listed.
+func TestProblems(t *testing.T) {
+	e := newEnv(t)
+	if ps, err := e.s.Problems(e.ctx); err != nil || len(ps) != 0 {
+		t.Fatalf("problems before any: %+v, %v", ps, err)
+	}
+	e.forge.fetchErr[12] = ErrRefused
+	_ = e.s.refreshPR(e.ctx, e.item(KindRefreshPR, prKey(e.repo.ID, 12)))
+	ps, err := e.s.Problems(e.ctx)
+	if err != nil || len(ps) != 1 {
+		t.Fatalf("problems %+v, %v", ps, err)
+	}
+	p := ps[0]
+	if p.Installation != e.inst.ID || p.Forge != "Forge" || p.Problem != ProblemRefused || !p.Since.Equal(e.now) ||
+		len(p.Repos) != 1 || p.Repos[0].ID != e.repo.ID {
+		t.Fatalf("problem %+v", p)
+	}
+}
+
 // References resolve among the watched repositories; the author's access decides whether they may dismiss, and
 // their standing in the repository when the forge will not say.
 func TestReferencesAndDismissal(t *testing.T) {

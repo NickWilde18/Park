@@ -226,8 +226,13 @@ func (s *server) RefreshPullRequests(ctx context.Context, req RefreshPullRequest
 }
 
 func installationOut(i facts.Installation) Installation {
-	return Installation{Id: i.ID, ForgeId: i.ForgeID, Name: i.Name, Kind: InstallationKind(i.Kind), HasWebhookSecret: i.HasWebhookSecret,
-		WebhookPath: "/hooks/" + strconv.FormatInt(i.ID, 10), CreatedAt: i.CreatedAt}
+	out := Installation{Id: i.ID, ForgeId: i.ForgeID, Name: i.Name, Kind: InstallationKind(i.Kind), HasWebhookSecret: i.HasWebhookSecret,
+		WebhookPath: "/hooks/" + strconv.FormatInt(i.ID, 10), CreatedAt: i.CreatedAt, ProblemSince: i.ProblemSince, ProblemUntil: i.ProblemUntil}
+	if i.Problem != "" {
+		p := CollectionProblemKind(i.Problem)
+		out.Problem = &p
+	}
+	return out
 }
 
 func appCredential(a *AppCredential) *facts.AppCredential {

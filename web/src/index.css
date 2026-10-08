@@ -115,6 +115,11 @@ ul {
   background: var(--notice-bg);
 }
 
+/* What stops collection: the board's facts are not current. */
+.notice.problem {
+  border-left: 3px solid var(--error);
+}
+
 .parts {
   width: 100%;
   border-collapse: collapse;

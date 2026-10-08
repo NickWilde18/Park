@@ -10,6 +10,13 @@ export function since(at: string, now = Date.now()): string {
   return `${Math.round(hours / 24)} d`
 }
 
+// problemText says what stops collection through an installation on the forge named: the forge refusing its
+// credential, and for how long; or its rate limit, and when it resets.
+export function problemText(p: { problem: Schemas['CollectionProblemKind']; since: string; until?: string }, forge: string): string {
+  if (p.problem === 'rate_limited') return `${forge} is limiting Park's calls${p.until ? ` until ${new Date(p.until).toLocaleTimeString()}` : ''}`
+  return `${forge} has refused Park's credential for ${since(p.since)}`
+}
+
 export type PRs = Map<number, Schemas['PullRequestSummary']>
 
 // prName names a pull request as repo#number.

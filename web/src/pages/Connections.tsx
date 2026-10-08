@@ -1,7 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { api, problem, type Schemas } from '../api/client'
 import { useFetch } from '../fetch'
-import { since } from '../format'
+import { problemText, since } from '../format'
+import { useLive } from '../live'
 import Bridges from './Bridges'
 
 type Answer = Promise<{ error?: unknown }>
@@ -22,6 +23,7 @@ export default function Connections({ members }: { members: Schemas['Member'][] 
     const [f, i, r] = await Promise.all([api.GET('/admin/forges'), api.GET('/admin/installations'), api.GET('/admin/repos')])
     return { forges: f.data?.forges ?? [], installations: i.data?.installations ?? [], repos: r.data?.repos ?? [] }
   })
+  useLive(['installation'], refresh)
   const done = async (answer: Answer, said: string) => {
     const { error } = await answer
     setNotice(error ? problem(error) : said)
@@ -76,6 +78,12 @@ export default function Connections({ members }: { members: Schemas['Member'][] 
             <strong>{i.name}</strong> on {forgeName(i.forge_id)}, with {i.kind === 'app' ? "an app's credential" : 'a token'}. Webhooks go to{' '}
             <code>{`${window.location.origin}${i.webhook_path}`}</code>
             {i.has_webhook_secret ? ', with a secret' : ', with no secret: Park takes no deliveries'}.
+            {i.problem && i.problem_since && (
+              <p className="notice problem" role="alert">
+                {problemText({ problem: i.problem, since: i.problem_since, until: i.problem_until }, forgeName(i.forge_id))}
+                {i.problem === 'refused' ? ': nothing is collected through it until its credential is replaced.' : '.'}
+              </p>
+            )}
             <Replace installation={i} done={done} />
           </li>
         ))}

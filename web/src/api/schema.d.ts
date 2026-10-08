@@ -1438,7 +1438,7 @@ export interface paths {
         };
         /**
          * Live updates, as Server-Sent Events
-         * @description Small notices, each naming what changed: verdict (a unit, as group:<id> or pr:<id>), task (its ID), group (its ID), pr (the pull request's ID), or proposal (its ID). The client fetches what it needs again. Notices are numbered in the order their changes commit, so a stream that has sent one has sent every one before it. A stream resumes after its Last-Event-ID for an hour; a stream further behind is sent a reload event. A fresh stream begins with what changes next, so a client fetches what it shows once its stream is open. A stream ends when the credential it was opened with stops working, and when Park shuts down. A comment every 30 seconds keeps proxies from closing it.
+         * @description Small notices, each naming what changed: verdict (a unit, as group:<id> or pr:<id>), task (its ID), group (its ID), pr (the pull request's ID), proposal (its ID), bridge (its ID, or a plugin's kind), or installation (its ID, as its name or what stops collection through it changes). The client fetches what it needs again. Notices are numbered in the order their changes commit, so a stream that has sent one has sent every one before it. A stream resumes after its Last-Event-ID for an hour; a stream further behind is sent a reload event. A fresh stream begins with what changes next, so a client fetches what it shows once its stream is open. A stream ends when the credential it was opened with stops working, and when Park shuts down. A comment every 30 seconds keeps proxies from closing it.
          */
         get: operations["streamEvents"];
         put?: never;
@@ -1701,6 +1701,36 @@ export interface components {
             webhook_path: string;
             /** Format: date-time */
             created_at: string;
+            problem?: components["schemas"]["CollectionProblemKind"];
+            /**
+             * Format: date-time
+             * @description When the problem began; absent without one.
+             */
+            problem_since?: string;
+            /**
+             * Format: date-time
+             * @description When the forge's rate limit resets; absent for another problem, and without one.
+             */
+            problem_until?: string;
+        };
+        /**
+         * @description What stops collection through an installation: refused while the forge refuses its credential, rate_limited while the forge's rate limit holds. Absent while collection works.
+         * @enum {string}
+         */
+        CollectionProblemKind: "refused" | "rate_limited";
+        /** @description What stops collection through one installation, and the watched repositories whose facts it stops. */
+        CollectionProblem: {
+            problem: components["schemas"]["CollectionProblemKind"];
+            /** Format: date-time */
+            since: string;
+            /**
+             * Format: date-time
+             * @description When the forge's rate limit resets; absent for another problem.
+             */
+            until?: string;
+            /** @description The forge's name, as an admin gave it. */
+            forge: string;
+            repos: components["schemas"]["RepoRef"][];
         };
         Installations: {
             installations: components["schemas"]["Installation"][];
@@ -2490,6 +2520,8 @@ export interface components {
         };
         Board: {
             units: components["schemas"]["BoardUnit"][];
+            /** @description What stops collection, installation by installation; empty while collection works. */
+            problems: components["schemas"]["CollectionProblem"][];
         };
         BoardUnit: {
             unit: components["schemas"]["Unit"];

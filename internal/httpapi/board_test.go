@@ -143,7 +143,23 @@ func TestBoardOverHTTP(t *testing.T) {
 	admin.call(t, "POST", "/api/v1/me/tokens", map[string]any{"name": "reader", "scopes": []string{"read"}}, &token)
 	reader := a.browser()
 	reader.bearer = token.Token
-	if board = read(reader); len(board.Units) != 1 {
+	if board = read(reader); len(board.Units) != 1 || len(board.Problems) != 0 {
 		t.Fatalf("the reader's board: %+v", board)
+	}
+
+	// What stops collection is on the board, for every reader: the forge refusing the installation's credential,
+	// since when, and the repositories whose facts it stops.
+	since := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	if _, err := pool.Exec(context.Background(), "UPDATE installation SET problem = 'refused', problem_since = $2 WHERE id = $1",
+		inst.Id, since); err != nil {
+		t.Fatal(err)
+	}
+	board = read(reader)
+	if len(board.Problems) != 1 {
+		t.Fatalf("the board's problems: %+v", board.Problems)
+	}
+	if p := board.Problems[0]; p.Problem != CollectionProblemKindRefused || !p.Since.Equal(since) || p.Until != nil || p.Forge != "Hub" ||
+		len(p.Repos) != 1 || p.Repos[0].Owner != "acme" || p.Repos[0].Name != "api" {
+		t.Fatalf("the board's problem: %+v", p)
 	}
 }

@@ -43,13 +43,14 @@ type Timing struct {
 	TeamRefresh  time.Duration
 	AccessLife   time.Duration // how long an account's access level is trusted
 	DeliveryLife time.Duration // how long delivery IDs are kept
+	RefusedProbe time.Duration // while a credential is refused, how often one call tries it again
 }
 
 // DefaultTiming is the documented timing.
 var DefaultTiming = Timing{
 	Coalesce: 5 * time.Second, BaseMoved: time.Minute, Poll: 10 * time.Minute, ShortPoll: 30 * time.Second,
 	Sweep: 6 * time.Hour, RepoRefresh: time.Hour, TeamRefresh: time.Hour, AccessLife: time.Hour,
-	DeliveryLife: 7 * 24 * time.Hour,
+	DeliveryLife: 7 * 24 * time.Hour, RefusedProbe: 5 * time.Minute,
 }
 
 // Follower is told, inside the transaction that stored it, which fields of a pull request changed, so that it can
@@ -64,6 +65,7 @@ type Service struct {
 	now          func() time.Time
 	newCollector func(forges.Forge, Credential) (Collector, error)
 	collectors   map[int64]Collector
+	probed       map[int64]time.Time // installation → when a call last tried its refused credential
 	followers    []Follower
 	timing       Timing
 	mu           sync.Mutex
@@ -72,7 +74,7 @@ type Service struct {
 // New returns the fact layer.
 func New(pool *pgxpool.Pool, box *secret.Box, log *slog.Logger) *Service {
 	return &Service{pool: pool, box: box, log: log, now: time.Now, newCollector: collectorFor,
-		collectors: map[int64]Collector{}, timing: DefaultTiming}
+		collectors: map[int64]Collector{}, probed: map[int64]time.Time{}, timing: DefaultTiming}
 }
 
 // Follow adds a follower. It must be called before the runner starts.
@@ -134,13 +136,29 @@ func (s *Service) Start(ctx context.Context) error {
 
 // Installation is a connection to a forge, without its secrets.
 type Installation struct {
-	CreatedAt        time.Time
-	Name             string
-	Kind             string
+	CreatedAt time.Time
+	// ProblemSince is when Problem began; nil without one.
+	ProblemSince *time.Time
+	// ProblemUntil is when a rate limit resets; nil for another problem, and without one.
+	ProblemUntil *time.Time
+	Name         string
+	Kind         string
+	// Problem is what stops collection through the installation: ProblemRefused, ProblemRateLimited, or "" for
+	// none.
+	Problem          string
 	ID               int64
 	ForgeID          int64
 	HasWebhookSecret bool
 }
+
+// The problems that stop collection through an installation: docs/design/02-facts.md#collection-problems.
+const (
+	ProblemRefused     = "refused"      // the forge refuses the installation's credential
+	ProblemRateLimited = "rate_limited" // the forge's rate limit holds
+)
+
+const installationColumns = "id, forge_id, name, credential_kind, webhook_secret IS NOT NULL, created_at, " +
+	"COALESCE(problem, ''), problem_since, problem_until"
 
 // InstallationInput is a new installation, or the parts of one to change.
 type InstallationInput struct {
@@ -164,8 +182,7 @@ var errNoInstallation = fail.New(fail.NotFound, "not_found", "There is no such i
 
 // Installations lists the installations.
 func (s *Service) Installations(ctx context.Context) ([]Installation, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, forge_id, name, credential_kind, webhook_secret IS NOT NULL, created_at
-		FROM installation ORDER BY id`)
+	rows, err := s.pool.Query(ctx, "SELECT "+installationColumns+" FROM installation ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +191,7 @@ func (s *Service) Installations(ctx context.Context) ([]Installation, error) {
 
 func scanInstallation(row pgx.CollectableRow) (Installation, error) {
 	var i Installation
-	err := row.Scan(&i.ID, &i.ForgeID, &i.Name, &i.Kind, &i.HasWebhookSecret, &i.CreatedAt)
+	err := row.Scan(&i.ID, &i.ForgeID, &i.Name, &i.Kind, &i.HasWebhookSecret, &i.CreatedAt, &i.Problem, &i.ProblemSince, &i.ProblemUntil)
 	return i, err
 }
 
@@ -238,7 +255,7 @@ func (s *Service) CreateInstallation(ctx context.Context, in InstallationInput) 
 			hook = s.box.Seal([]byte(in.WebhookSecret), webhookContext(id))
 		}
 		rows, err := tx.Query(ctx, `UPDATE installation SET credential = $2, webhook_secret = $3 WHERE id = $1
-			RETURNING id, forge_id, name, credential_kind, webhook_secret IS NOT NULL, created_at`, id, sealed, hook)
+			RETURNING `+installationColumns, id, sealed, hook)
 		if err != nil {
 			return err
 		}
@@ -293,6 +310,9 @@ func (s *Service) UpdateInstallation(ctx context.Context, id int64, p Installati
 			if _, err := tx.Exec(ctx, "UPDATE installation SET credential = $2 WHERE id = $1", id, sealed); err != nil {
 				return err
 			}
+			if err := s.clearProblem(ctx, tx, id); err != nil {
+				return err
+			}
 		}
 		if p.WebhookSecret != nil {
 			var hook []byte
@@ -303,8 +323,7 @@ func (s *Service) UpdateInstallation(ctx context.Context, id int64, p Installati
 				return err
 			}
 		}
-		rows, err := tx.Query(ctx, `SELECT id, forge_id, name, credential_kind, webhook_secret IS NOT NULL, created_at
-			FROM installation WHERE id = $1`, id)
+		rows, err := tx.Query(ctx, "SELECT "+installationColumns+" FROM installation WHERE id = $1", id)
 		if err != nil {
 			return err
 		}
@@ -314,18 +333,21 @@ func (s *Service) UpdateInstallation(ctx context.Context, id int64, p Installati
 	if err == nil {
 		s.mu.Lock()
 		delete(s.collectors, id)
+		delete(s.probed, id)
 		s.mu.Unlock()
 	}
 	return out, err
 }
 
-// collector returns the collector of an installation, made once and reused, with its forge.
+// collector returns the collector of an installation, with its forge. The forge's collector is made once and reused;
+// what is returned watches its calls, and records what stops collection through the installation
+// (docs/design/02-facts.md#collection-problems).
 func (s *Service) collector(ctx context.Context, installationID int64) (Collector, forges.Forge, error) {
 	var forgeID int64
-	var kind string
+	var kind, problem string
 	var sealed []byte
-	err := s.pool.QueryRow(ctx, "SELECT forge_id, credential_kind, credential FROM installation WHERE id = $1", installationID).
-		Scan(&forgeID, &kind, &sealed)
+	err := s.pool.QueryRow(ctx, `SELECT forge_id, credential_kind, credential, COALESCE(problem, '') FROM installation WHERE id = $1`,
+		installationID).Scan(&forgeID, &kind, &sealed, &problem)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, forges.Forge{}, errNoInstallation
 	}
@@ -339,7 +361,7 @@ func (s *Service) collector(ctx context.Context, installationID int64) (Collecto
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if c, ok := s.collectors[installationID]; ok {
-		return c, f, nil
+		return &watched{Collector: c, s: s, id: installationID, problem: problem}, f, nil
 	}
 	plain, err := s.box.Open(sealed, credentialContext(installationID))
 	if err != nil {
@@ -359,7 +381,7 @@ func (s *Service) collector(ctx context.Context, installationID int64) (Collecto
 		return nil, f, err
 	}
 	s.collectors[installationID] = c
-	return c, f, nil
+	return &watched{Collector: c, s: s, id: installationID, problem: problem}, f, nil
 }
 
 // RepoRecord is a repository Park knows.

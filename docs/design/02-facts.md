@@ -13,7 +13,7 @@ Park learns about the world through facts: immutable, attributed records. This c
 | Record | Holds | Written by |
 |---|---|---|
 | `forge` | One forge instance — github.com, or a company's own server: its kind, its base address, and a stable ID. Every external ID below is unique only within its forge, so every key includes the forge's ID | An admin |
-| `installation` | A connection to a forge, such as one organization's app installation: the forge, credentials, webhook secret, watched repositories. Installations on one forge share its keys | An admin |
+| `installation` | A connection to a forge, such as one organization's app installation: the forge, credentials, webhook secret, watched repositories; and what stops collection through it, since when, and until when (below). Installations on one forge share its keys | An admin; its problem, collection |
 | `repo` | Forge repository ID, display name, default branch, watched flag; what its branch protection and rulesets require of pull requests into the default branch and each base branch in use — required checks, required approvals, code-owner review | Repository refresh |
 | `account` | Forge account ID, display login, display name | Refreshes, as a side effect |
 | `team` | Forge team ID, member account IDs | Repository refresh; used to resolve team review requests |
@@ -92,6 +92,12 @@ A member can also ask for a poll now, of every watched repository or of one ([D6
 
 Collection obeys the forge's rate-limit signals. While limited, collection through that installation waits until the limit resets, and a failure is retried with a backoff; neither counts against anything else.
 
+## Collection problems
+
+Two answers from a forge stop collection through an installation, whatever is being collected: refusing its credential — a token expired or revoked, an app key it cannot verify — and its rate limit. Each is recorded on the installation as its problem, `refused` or `rate_limited`, with when it began and, for a rate limit, when it resets; a call through the installation that works clears it. Any other failure — the forge down, a call timing out — is no problem of the installation's, and leaves it as it was: the pull requests it fails are marked stale, as any failed refresh is. The board says what stops collection, and the installations an admin manages say it too ([Dashboard and API](08-dashboard-and-api.md#board), [D76](10-design-log.md#d76-what-stops-collection-is-recorded-and-shown)).
+
+While a credential is refused, collection through it does not call the forge, but for one call each probe interval, which finds out whether the credential works again; every other call fails at once, as refused, and its work is retried with a backoff as before. Replacing the installation's credential clears its problem and polls and refreshes its watched repositories now: whether the new credential works is found out by using it. A delivery is still verified and its refreshes scheduled while a credential is refused, since verifying calls no forge.
+
 ## Flow: repository refresh
 
 On a schedule, and whenever a delivery reports a settings change, refresh each watched repository: its default branch; its branch protection and rulesets by branch pattern, which give the required checks, the number of required approvals, whether code owners must approve, and who may dismiss reviews; the membership of its teams; and which linked accounts can read it (used for visibility — see [Identity](07-identity.md)).
@@ -116,4 +122,5 @@ On a schedule, and whenever a delivery reports a settings change, refresh each w
 | Short polling: pending checks, unknown mergeability, verifying tasks | Every 30 seconds |
 | Full sweep | Every 6 hours |
 | Repository refresh | Every hour |
+| Trying a refused credential again | Every 5 minutes |
 | Delivery IDs kept | 7 days |

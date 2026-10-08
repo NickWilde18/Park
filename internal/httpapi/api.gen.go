@@ -183,6 +183,24 @@ func (e CheckFactState) Valid() bool {
 	}
 }
 
+// Defines values for CollectionProblemKind.
+const (
+	CollectionProblemKindRateLimited CollectionProblemKind = "rate_limited"
+	CollectionProblemKindRefused     CollectionProblemKind = "refused"
+)
+
+// Valid indicates whether the value is a known member of the CollectionProblemKind enum.
+func (e CollectionProblemKind) Valid() bool {
+	switch e {
+	case CollectionProblemKindRateLimited:
+		return true
+	case CollectionProblemKindRefused:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FieldType.
 const (
 	FieldTypeAccount                FieldType = "account"
@@ -1084,7 +1102,9 @@ type Automation struct {
 
 // Board defines model for Board.
 type Board struct {
-	Units []BoardUnit `json:"units"`
+	// Problems What stops collection, installation by installation; empty while collection works.
+	Problems []CollectionProblem `json:"problems"`
+	Units    []BoardUnit         `json:"units"`
 }
 
 // BoardPullRequest defines model for BoardPullRequest.
@@ -1370,6 +1390,23 @@ type ClaimRequest struct {
 	// WaitSeconds How long to wait for a task, up to 30 seconds.
 	WaitSeconds *int `json:"wait_seconds,omitempty"`
 }
+
+// CollectionProblem What stops collection through one installation, and the watched repositories whose facts it stops.
+type CollectionProblem struct {
+	// Forge The forge's name, as an admin gave it.
+	Forge string `json:"forge"`
+
+	// Problem What stops collection through an installation: refused while the forge refuses its credential, rate_limited while the forge's rate limit holds. Absent while collection works.
+	Problem CollectionProblemKind `json:"problem"`
+	Repos   []RepoRef             `json:"repos"`
+	Since   time.Time             `json:"since"`
+
+	// Until When the forge's rate limit resets; absent for another problem.
+	Until *time.Time `json:"until,omitempty"`
+}
+
+// CollectionProblemKind What stops collection through an installation: refused while the forge refuses its credential, rate_limited while the forge's rate limit holds. Absent while collection works.
+type CollectionProblemKind string
 
 // CommentFact defines model for CommentFact.
 type CommentFact struct {
@@ -1672,6 +1709,15 @@ type Installation struct {
 	Id               int64            `json:"id"`
 	Kind             InstallationKind `json:"kind"`
 	Name             string           `json:"name"`
+
+	// Problem What stops collection through an installation: refused while the forge refuses its credential, rate_limited while the forge's rate limit holds. Absent while collection works.
+	Problem *CollectionProblemKind `json:"problem,omitempty"`
+
+	// ProblemSince When the problem began; absent without one.
+	ProblemSince *time.Time `json:"problem_since,omitempty"`
+
+	// ProblemUntil When the forge's rate limit resets; absent for another problem, and without one.
+	ProblemUntil *time.Time `json:"problem_until,omitempty"`
 
 	// WebhookPath Where the forge sends deliveries, relative to Park's address.
 	WebhookPath string `json:"webhook_path"`
